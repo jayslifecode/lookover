@@ -1,0 +1,30 @@
+{
+  "name": "@jayslifecode/lookover-bench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lookover bench: the sample Next.js app Lookover is measured against.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "next dev -p 3123",
+    "build": "next build",
+    "start": "next start -p 3123",
+    "reset": "node --experimental-strip-types ../scripts/reset.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "next": "16.4.2",
+    "react": "^19.3",
+    "react-dom": "^19.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3",
+    "@types/react": "^19.3",
+    "@types/react-dom": "^19.3",
+    "tailwindcss": "^4.3"
+  }
+}

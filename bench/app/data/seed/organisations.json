@@ -1,0 +1,86 @@
+[
+  {
+    "id": 1,
+    "name": "Northwind Logistics",
+    "phone": "99112233",
+    "email": "contact@northwind.example",
+    "registeredAt": "2023-02-14"
+  },
+  {
+    "id": 2,
+    "name": "Bluefin Analytics",
+    "phone": "88124455",
+    "email": "hello@bluefin.example",
+    "registeredAt": "2023-05-03"
+  },
+  {
+    "id": 3,
+    "name": "Copperleaf Studio",
+    "phone": "95238811",
+    "email": "studio@copperleaf.example",
+    "registeredAt": "2023-07-21"
+  },
+  {
+    "id": 4,
+    "name": "Delta Harbour Trading",
+    "phone": "80901234",
+    "email": "trade@deltaharbour.example",
+    "registeredAt": "2023-09-09"
+  },
+  {
+    "id": 5,
+    "name": "Evergreen Clinics",
+    "phone": "99887766",
+    "email": "info@evergreen.example",
+    "registeredAt": "2023-11-30"
+  },
+  {
+    "id": 6,
+    "name": "Foxglove Education",
+    "phone": "91234567",
+    "email": "admin@foxglove.example",
+    "registeredAt": "2024-01-18"
+  },
+  {
+    "id": 7,
+    "name": "Granite Peak Builders",
+    "phone": "86543210",
+    "email": "office@granitepeak.example",
+    "registeredAt": "2024-03-27"
+  },
+  {
+    "id": 8,
+    "name": "Harbourlight Media",
+    "phone": "94455667",
+    "email": "press@harbourlight.example",
+    "registeredAt": "2024-06-12"
+  },
+  {
+    "id": 9,
+    "name": "Ironbark Engineering",
+    "phone": "88001122",
+    "email": "eng@ironbark.example",
+    "registeredAt": "2024-08-05"
+  },
+  {
+    "id": 10,
+    "name": "Juniper Foods",
+    "phone": "99332211",
+    "email": "orders@juniper.example",
+    "registeredAt": "2024-10-22"
+  },
+  {
+    "id": 11,
+    "name": "Kestrel Aviation",
+    "phone": "85667788",
+    "email": "ops@kestrel.example",
+    "registeredAt": "2025-01-15"
+  },
+  {
+    "id": 12,
+    "name": "Lumen Energy",
+    "phone": "93112244",
+    "email": "support@lumen.example",
+    "registeredAt": "2025-04-08"
+  }
+]

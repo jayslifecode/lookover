@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+/* The one primary colour: buttons, links and the focus ring all use it. */
+@theme {
+  --color-primary: #1d4ed8;
+}
+
+@layer base {
+  /* Every focusable control shows the same ring when focused from the keyboard. */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}

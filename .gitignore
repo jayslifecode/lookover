@@ -5,3 +5,4 @@ dist
 bench/app/.next
 bench/app/data/*.json
 !bench/app/data/seed/
+bench/app/next-env.d.ts
