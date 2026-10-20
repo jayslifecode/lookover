@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,13 @@ const SHORT_TIMEOUT_MS = 1_500;
 const VIEWPORT = { name: 'desktop', width: 1280, height: 800 };
 const DEMO_ENV = { LOOKOVER_USERNAME: DEMO_CREDENTIALS.user, LOOKOVER_PASSWORD: DEMO_CREDENTIALS.pass };
 const FORM_STATE_FILE = 'form.json';
+const PRIVATE_FILE_MODE = 0o600;
+const PRIVATE_DIR_MODE = 0o700;
+const PERMISSION_BITS = 0o777;
+/** A login page whose form submits by GET, which puts the credentials in the URL. */
+const GET_LOGIN_PATH = '/login-get.html';
+/** A `/login` page that GET renders and a failed POST re-renders, so a failed login stays on `loginUrl`. */
+const FORM_ENDPOINT = '/login';
 
 type Auth = LookoverConfig['auth'];
 
@@ -54,6 +61,13 @@ async function failureOf(promise: Promise<unknown>): Promise<LookoverError> {
     throw new Error(`expected a LookoverError, got ${String(outcome)}`);
   }
   return outcome;
+}
+
+function defined<T>(value: T | undefined): T {
+  if (value === undefined) {
+    throw new Error('expected a value');
+  }
+  return value;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -312,6 +326,109 @@ describe('ensureAuth', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(error.code).toBe('E_AUTH_FAILED');
       expect(error.message).toContain('login page');
       expect(session.context.pages()).toHaveLength(0);
+    });
+
+    describe('when a step of the form fails', () => {
+      const SECRET_USER = 'secret-user-name';
+      const SECRET_PASSWORD = 'hunter2-secret';
+      const SECRET_ENV = { LOOKOVER_USERNAME: SECRET_USER, LOOKOVER_PASSWORD: SECRET_PASSWORD };
+
+      function expectNoSecrets(error: LookoverError): void {
+        const text = `${error.message}\n${error.hint ?? ''}`;
+        expect(text).not.toContain(SECRET_USER);
+        expect(text).not.toContain(SECRET_PASSWORD);
+      }
+
+      test.each([
+        ['username', { usernameSelector: '.user-field' }, '.user-field'],
+        ['password', { passwordSelector: '.password-field' }, '.password-field'],
+      ])(
+        'converts the error of a %s selector that is not a field, without echoing the value',
+        async (_label, overrides, selector) => {
+          const error = await failureOf(
+            login(formAuth(overrides), { env: SECRET_ENV, timeoutMs: SHORT_TIMEOUT_MS }),
+          );
+
+          expect(error.code).toBe('E_AUTH_FAILED');
+          expect(error.message).toContain(selector);
+          expectNoSecrets(error);
+          expect(session.context.pages()).toHaveLength(0);
+        },
+      );
+
+      test('converts the strict-mode error of a field selector that matches several elements', async () => {
+        const error = await failureOf(
+          login(formAuth({ usernameSelector: 'input' }), { env: SECRET_ENV, timeoutMs: SHORT_TIMEOUT_MS }),
+        );
+
+        expect(error.code).toBe('E_AUTH_FAILED');
+        expect(error.message).toContain('input');
+        expectNoSecrets(error);
+      });
+
+      test('converts the strict-mode error of a submit selector that matches two buttons', async () => {
+        const error = await failureOf(
+          login(formAuth({ submitSelector: 'button' }), { env: SECRET_ENV, timeoutMs: SHORT_TIMEOUT_MS }),
+        );
+
+        expect(error.code).toBe('E_AUTH_FAILED');
+        expect(error.message).toContain('button');
+        expectNoSecrets(error);
+      });
+
+      test('leaves the query out of where it says the login is still, for a form that submits by GET', async () => {
+        const error = await failureOf(
+          login(formAuth({ loginUrl: GET_LOGIN_PATH }), { env: SECRET_ENV, timeoutMs: SHORT_TIMEOUT_MS }),
+        );
+
+        expect(error.code).toBe('E_AUTH_FAILED');
+        expect(error.message).toContain(`(still on ${url(FORM_ENDPOINT)})`);
+        expectNoSecrets(error);
+      });
+
+      test('fails when a successUrl glob matches the login page itself, leaving no state behind', async () => {
+        const stateDir = await freshStateDir();
+
+        const error = await failureOf(
+          login(formAuth({ loginUrl: FORM_ENDPOINT, successUrl: '/**' }), {
+            stateDir,
+            env: SECRET_ENV,
+            timeoutMs: SHORT_TIMEOUT_MS,
+          }),
+        );
+
+        expect(error.code).toBe('E_AUTH_FAILED');
+        expect(error.hint).toBe('successUrl must not match the login page');
+        expectNoSecrets(error);
+        expect(await exists(stateDir)).toBe(false);
+      });
+    });
+
+    describe.skipIf(process.platform === 'win32')('the saved state', () => {
+      test('is written privately and atomically, leaving only form.json in a private directory', async () => {
+        const stateDir = await freshStateDir();
+
+        const { statePath } = await login(formAuth(), { stateDir });
+
+        expect((await stat(defined(statePath))).mode & PERMISSION_BITS).toBe(PRIVATE_FILE_MODE);
+        expect((await stat(stateDir)).mode & PERMISSION_BITS).toBe(PRIVATE_DIR_MODE);
+        expect(await readdir(stateDir)).toEqual([FORM_STATE_FILE]);
+      });
+
+      test('replaces an existing state file with a private one', async () => {
+        const stateDir = await freshStateDir();
+        const statePath = join(stateDir, FORM_STATE_FILE);
+        await mkdir(stateDir, { recursive: true });
+        await writeFile(statePath, JSON.stringify({ cookies: [], origins: [] }));
+        await chmod(statePath, 0o644);
+
+        await login(formAuth(), { stateDir });
+
+        expect((await stat(statePath)).mode & PERMISSION_BITS).toBe(PRIVATE_FILE_MODE);
+        const saved = JSON.parse(await readFile(statePath, 'utf8')) as { cookies: { name: string }[] };
+        expect(saved.cookies.map((cookie) => cookie.name)).toContain(SESSION_COOKIE.name);
+        expect(await readdir(stateDir)).toEqual([FORM_STATE_FILE]);
+      });
     });
   });
 });

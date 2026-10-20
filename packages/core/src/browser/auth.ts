@@ -1,4 +1,5 @@
-import { chmod, mkdir, readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { errors, type Page } from 'playwright';
 import { z } from 'zod';
@@ -41,6 +42,9 @@ const MS_PER_SECOND = 1_000;
 const FORM_STATE_FILENAME = 'form.json';
 /** A storage state holds live session cookies, so only its owner may read it. */
 const STATE_FILE_MODE = 0o600;
+const STATE_DIR_MODE = 0o700;
+const SELECTOR_HINT =
+  'Check the selectors in lookover.config.json: each must match exactly one element of the right kind';
 
 const storageStateSchema = z.object({ cookies: z.array(z.unknown()) });
 
@@ -51,16 +55,20 @@ const storageStateSchema = z.object({ cookies: z.array(z.unknown()) });
  * - `storageState` only checks that the file is a Playwright storage state; the engine must have
  *   launched `session` with it as `storageStatePath` (a context cannot load one afterwards).
  * - `form` logs in inside `session`'s own context, so the context is logged in afterwards and
- *   needs no relaunch. The state is also saved to `<stateDir>/form.json` for later runs, readable by
- *   its owner only. The credentials are read from the environment variables the config names and
- *   never appear in an error, in a log or on disk (the saved state holds cookies, not passwords).
+ *   needs no relaunch. The state is also saved to `<stateDir>/form.json` for later runs: written to
+ *   a temporary file readable by its owner only, then renamed into place, so a reader never sees a
+ *   partial file. The credentials are read from the environment variables the config names and
+ *   never appear in an error, in a log or on disk (the saved state holds cookies, not passwords):
+ *   Playwright's own messages are not passed on where they can repeat a typed value or the query of
+ *   a form that submits by GET.
  *
  * `loginUrl` and `successUrl` are app-relative like crawl seeds (`/` is the base URL itself). A
  * `successUrl` is matched exactly (path and query, trailing slash ignored), unless it contains
  * `*`, which makes it a Playwright glob.
  *
- * Every failure to log in is an `E_AUTH_FAILED` with a hint; a `successUrl` or `loginUrl` that
- * cannot be navigated is an `E_CONFIG_INVALID`.
+ * Every failure to log in is an `E_AUTH_FAILED` with a hint, including a `successUrl` that matches
+ * the login page itself; a `successUrl` or `loginUrl` that cannot be navigated is an
+ * `E_CONFIG_INVALID`.
  */
 export async function ensureAuth(
   session: BrowserSession,
@@ -140,7 +148,7 @@ async function loginWithForm(
   try {
     await openLoginPage(ipage.page, loginUrl, timeoutMs);
     await submitForm(ipage.page, auth, credentials, timeoutMs);
-    await awaitSuccess(ipage.page, auth.successUrl, successMatcher, timeoutMs);
+    await awaitSuccess(ipage.page, auth, successMatcher, { baseUrl: opts.baseUrl, timeoutMs });
   } finally {
     await ipage.close();
   }
@@ -181,58 +189,102 @@ async function submitForm(
   timeoutMs: number,
 ): Promise<void> {
   const { usernameSelector, passwordSelector, submitSelector } = auth;
-  await onLoginPage(usernameSelector, timeoutMs, () =>
+  await onLoginPage('fill username', usernameSelector, timeoutMs, () =>
     page.locator(usernameSelector).fill(credentials.username, { timeout: timeoutMs }),
   );
-  await onLoginPage(passwordSelector, timeoutMs, () =>
+  await onLoginPage('fill password', passwordSelector, timeoutMs, () =>
     page.locator(passwordSelector).fill(credentials.password, { timeout: timeoutMs }),
   );
-  await onLoginPage(submitSelector, timeoutMs, () =>
+  await onLoginPage('click submit', submitSelector, timeoutMs, () =>
     page.locator(submitSelector).click({ timeout: timeoutMs }),
   );
 }
 
-/** Runs one action on the login page; its timeout (an element that never shows up) names `selector`. */
-async function onLoginPage(selector: string, timeoutMs: number, action: () => Promise<void>): Promise<void> {
+/**
+ * Runs one step on the login page; any error from it becomes an `E_AUTH_FAILED` that names the step
+ * and the selector. Playwright's message is dropped on purpose: the call log of a `fill` repeats the
+ * value being typed.
+ */
+async function onLoginPage(
+  step: string,
+  selector: string,
+  timeoutMs: number,
+  action: () => Promise<void>,
+): Promise<void> {
   try {
     await action();
   } catch (error) {
-    if (!(error instanceof errors.TimeoutError)) {
-      throw error;
-    }
+    const problem =
+      error instanceof errors.TimeoutError
+        ? `${selector} matched no visible, enabled element within ${seconds(timeoutMs)} s`
+        : `${selector} cannot be used for this step`;
     throw new LookoverError(
       'E_AUTH_FAILED',
-      `Could not use ${selector} on the login page within ${seconds(timeoutMs)} s (missing, hidden or disabled?)`,
-      'Check the selectors in lookover.config.json',
+      `Could not ${step} on the login page: ${problem}`,
+      SELECTOR_HINT,
     );
   }
 }
 
+/**
+ * Waits for the page to reach `auth.successUrl`. Playwright's message is not passed on: it can name
+ * the URL with its query, and a form that submits by GET puts the credentials there. A page that
+ * is still the login page once the wait is over means `successUrl` matched it, so nothing proves
+ * the login worked.
+ */
 async function awaitSuccess(
   page: Page,
-  successUrl: string,
+  auth: FormAuth,
   matcher: UrlMatcher,
-  timeoutMs: number,
+  opts: { baseUrl: string; timeoutMs: number },
 ): Promise<void> {
+  const { successUrl } = auth;
   try {
-    await page.waitForURL(matcher, { timeout: timeoutMs });
+    await page.waitForURL(matcher, { timeout: opts.timeoutMs });
   } catch (error) {
-    if (!(error instanceof errors.TimeoutError)) {
-      throw error;
-    }
+    const outcome =
+      error instanceof errors.TimeoutError
+        ? `did not reach ${successUrl} within ${seconds(opts.timeoutMs)} s`
+        : `failed while waiting for ${successUrl}`;
     throw new LookoverError(
       'E_AUTH_FAILED',
-      `Login did not reach ${successUrl} within ${seconds(timeoutMs)} s (still on ${page.url()})`,
+      `Login ${outcome} (still on ${locationOf(page.url())})`,
       'Check the selectors and credentials in lookover.config.json',
     );
   }
+  const current = URL.parse(page.url());
+  if (current !== null && isLoginUrl(current, auth, opts.baseUrl)) {
+    throw new LookoverError(
+      'E_AUTH_FAILED',
+      `Login did not leave the login page (still on ${locationOf(page.url())}) although it matched ${successUrl}`,
+      'successUrl must not match the login page',
+    );
+  }
 }
 
+/** `rawUrl` without its query, fragment and credentials, for messages. */
+function locationOf(rawUrl: string): string {
+  const url = URL.parse(rawUrl);
+  if (url === null) {
+    return 'an unknown page';
+  }
+  return Object.assign(url, { search: '', hash: '', username: '', password: '' }).href;
+}
+
+/** Writes the context's state to a private temporary file and renames it onto `<stateDir>/form.json`. */
 async function saveState(session: BrowserSession, stateDir: string): Promise<string> {
   const statePath = join(stateDir, FORM_STATE_FILENAME);
-  await mkdir(stateDir, { recursive: true });
-  await session.context.storageState({ path: statePath });
-  await chmod(statePath, STATE_FILE_MODE);
+  const pendingPath = `${statePath}.${randomUUID()}.tmp`;
+  await mkdir(stateDir, { recursive: true, mode: STATE_DIR_MODE });
+  const state = await session.context.storageState();
+  try {
+    await writeFile(pendingPath, JSON.stringify(state, null, 2), { mode: STATE_FILE_MODE, flag: 'wx' });
+    await rename(pendingPath, statePath);
+  } catch (error) {
+    // The write or rename error is the one worth surfacing; a leftover temp file adds nothing.
+    await rm(pendingPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
   return statePath;
 }
 

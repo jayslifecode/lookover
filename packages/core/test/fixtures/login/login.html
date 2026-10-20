@@ -7,9 +7,10 @@
   <body>
     <h1>Sign in</h1>
     <form action="/login" method="post">
-      <label>Username <input name="user" type="text" /></label>
-      <label>Password <input name="pass" type="password" /></label>
+      <div class="user-field"><label>Username <input name="user" type="text" /></label></div>
+      <div class="password-field"><label>Password <input name="pass" type="password" /></label></div>
       <button type="submit">Sign in</button>
+      <button type="button">Cancel</button>
     </form>
   </body>
 </html>

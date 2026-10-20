@@ -95,12 +95,13 @@ export const requireSession: FixtureRoute = (req, res, serveStatic) => {
 };
 
 /**
- * `POST /login`: the right `user` and `pass` (`DEMO_CREDENTIALS`) set the session cookie and redirect
- * to the home page; anything else re-renders the login page with a 200, as many apps do.
+ * `/login`, as many apps have it: `GET` renders the login page; `POST` with the right `user` and
+ * `pass` (`DEMO_CREDENTIALS`) sets the session cookie and redirects to the home page, and anything
+ * else re-renders the login page at `/login` with a 200.
  */
 export const submitLogin: FixtureRoute = (req, res, serveStatic) => {
   if (req.method !== 'POST') {
-    serveStatic();
+    serveStatic(LOGIN_PATH);
     return;
   }
   readForm(req).then(
