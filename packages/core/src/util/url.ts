@@ -1,0 +1,51 @@
+const JUNK_PROTOCOLS: ReadonlySet<string> = new Set(['mailto:', 'tel:', 'javascript:', 'data:', 'blob:']);
+
+function parseUrl(href: string, base: URL): URL | null {
+  try {
+    return new URL(href, base);
+  } catch {
+    return null;
+  }
+}
+
+function stripTrailingSlashes(pathname: string): string {
+  const stripped = pathname.replace(/\/+$/, '');
+  return stripped === '' ? '/' : stripped;
+}
+
+/**
+ * Resolves `href` against `base` into a canonical URL for de-duplication:
+ * hash dropped, query parameters sorted by key (stable for duplicates), host
+ * lowercased by the URL parser, trailing slash removed unless the path is `/`.
+ * Returns `null` for non-navigable hrefs (fragment-only, mailto:, tel:,
+ * javascript:, data:, blob:) and for hrefs that cannot be parsed.
+ */
+export function normaliseUrl(href: string, base: URL): URL | null {
+  const trimmed = href.trim();
+  if (trimmed.startsWith('#')) return null;
+
+  const resolved = parseUrl(trimmed, base);
+  if (resolved === null || JUNK_PROTOCOLS.has(resolved.protocol)) return null;
+
+  resolved.hash = '';
+  resolved.searchParams.sort();
+  resolved.pathname = stripTrailingSlashes(resolved.pathname);
+  return resolved;
+}
+
+/**
+ * True when `url` is on the same origin as `base` and inside the base path,
+ * treated as a directory prefix: `/app` matches `/app` and `/app/x`, not
+ * `/application`. A base path of `/` matches everything on the origin.
+ */
+export function isSameApp(url: URL, base: URL): boolean {
+  if (url.origin !== base.origin) return false;
+
+  const basePath = base.pathname.replace(/\/+$/, '');
+  if (basePath === '') return true;
+  return url.pathname === basePath || url.pathname.startsWith(`${basePath}/`);
+}
+
+export function routeKey(url: URL): string {
+  return url.pathname + url.search;
+}
