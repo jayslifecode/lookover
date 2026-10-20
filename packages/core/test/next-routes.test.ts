@@ -32,6 +32,10 @@ function filesystemRoute(pattern: string): RouteInfo {
   return { pattern, source: 'filesystem' };
 }
 
+function linkRoute(pattern: string): RouteInfo {
+  return { pattern, source: 'link' };
+}
+
 describe('discoverNextRoutes: app router', () => {
   test('finds pages, strips route groups and skips slots, private folders and api', async () => {
     await writeTree([
@@ -329,11 +333,96 @@ describe('matchRoute', () => {
     expect(matchRoute('/organisations/new', routes)?.pattern).toBe('/organisations/new');
   });
 
-  test('tries the longest dynamic pattern first', () => {
-    const shop = ['/shop/[...slug]', '/shop/[category]/new'].map(filesystemRoute);
+  describe('precedence among matching dynamic patterns', () => {
+    /** Asserts the pick in both input orders, so the order of `routes` can never be what decides it. */
+    function expectPick(pathname: string, candidates: readonly RouteInfo[], expected: RouteInfo): void {
+      expect(matchRoute(pathname, candidates)).toBe(expected);
+      expect(matchRoute(pathname, candidates.toReversed())).toBe(expected);
+    }
 
-    expect(matchRoute('/shop/shoes/new', shop)?.pattern).toBe('/shop/[category]/new');
-    expect(matchRoute('/shop/shoes/old', shop)?.pattern).toBe('/shop/[...slug]');
+    test('prefers [id] over [...slug] even though the catch-all pattern is longer', () => {
+      const dynamic = filesystemRoute('/docs/[id]');
+      const catchAll = filesystemRoute('/docs/[...slug]');
+
+      expectPick('/docs/x', [dynamic, catchAll], dynamic);
+      expectPick('/docs/x/y', [dynamic, catchAll], catchAll);
+    });
+
+    test('decides by segment kind, not by the length of the parameter name', () => {
+      const longName = filesystemRoute('/docs/[categoryId]');
+      const shortCatchAll = filesystemRoute('/docs/[...s]');
+      expectPick('/docs/x', [longName, shortCatchAll], longName);
+
+      const shortName = filesystemRoute('/docs/[i]');
+      const longCatchAll = filesystemRoute('/docs/[...slugs]');
+      expectPick('/docs/x', [shortName, longCatchAll], shortName);
+    });
+
+    test('resolves a static first segment before a dynamic one', () => {
+      const shopItem = filesystemRoute('/shop/[id]');
+      const tenantSettings = filesystemRoute('/[tenant]/settings');
+
+      expectPick('/shop/settings', [shopItem, tenantSettings], shopItem);
+      expectPick('/acme/settings', [shopItem, tenantSettings], tenantSettings);
+    });
+
+    test('lets the first differing segment decide, later segments notwithstanding', () => {
+      const staticMiddle = filesystemRoute('/[a]/b/[c]');
+      const staticLast = filesystemRoute('/[a]/[b]/c');
+
+      expectPick('/x/b/c', [staticMiddle, staticLast], staticMiddle);
+    });
+
+    test('prefers a deeper specific pattern over a catch-all that also matches', () => {
+      const category = filesystemRoute('/shop/[category]/new');
+      const catchAll = filesystemRoute('/shop/[...slug]');
+
+      expectPick('/shop/shoes/new', [category, catchAll], category);
+      expectPick('/shop/shoes/old', [category, catchAll], catchAll);
+    });
+
+    test('ranks [[...x]] last, after [id] and [...x]', () => {
+      const dynamic = filesystemRoute('/docs/[id]');
+      const catchAll = filesystemRoute('/docs/[...slug]');
+      const optional = filesystemRoute('/docs/[[...slug]]');
+
+      expectPick('/docs/x', [dynamic, catchAll, optional], dynamic);
+      expectPick('/docs/x/y', [dynamic, catchAll, optional], catchAll);
+      expectPick('/docs/x/y', [catchAll, optional], catchAll);
+      expectPick('/docs', [dynamic, catchAll, optional], optional);
+    });
+
+    test('prefers a pattern that has ended over one still holding an optional catch-all', () => {
+      const tenant = filesystemRoute('/[tenant]');
+      const tenantRest = filesystemRoute('/[tenant]/[[...rest]]');
+
+      expectPick('/acme', [tenant, tenantRest], tenant);
+      expectPick('/acme/billing', [tenant, tenantRest], tenantRest);
+    });
+
+    test('prefers a filesystem route over a link route of the same shape', () => {
+      const fromLink = linkRoute('/docs/[id]');
+      const fromFiles = filesystemRoute('/docs/[slug]');
+      expectPick('/docs/x', [fromLink, fromFiles], fromFiles);
+
+      const linkTwin = linkRoute('/docs/[id]');
+      const fileTwin = filesystemRoute('/docs/[id]');
+      expectPick('/docs/x', [linkTwin, fileTwin], fileTwin);
+    });
+
+    test('lets segment kind outrank the source, so a link route can still win', () => {
+      const specificLink = linkRoute('/docs/[id]');
+      const generalFile = filesystemRoute('/docs/[...slug]');
+
+      expectPick('/docs/x', [specificLink, generalFile], specificLink);
+    });
+
+    test('breaks a remaining tie by pattern text', () => {
+      const first = filesystemRoute('/docs/[a]');
+      const second = filesystemRoute('/docs/[b]');
+
+      expectPick('/docs/x', [second, first], first);
+    });
   });
 
   test('does not let a dynamic segment span a slash or match an empty segment', () => {

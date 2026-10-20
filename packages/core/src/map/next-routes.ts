@@ -170,7 +170,7 @@ function dynamicTokenSource(token: string): string {
   return '[^/]+';
 }
 
-function patternToRegExp(pattern: string): RegExp {
+function compilePattern(pattern: string): RegExp {
   const source = pattern
     .split(DYNAMIC_TOKEN)
     .map((part, index) => (index % 2 === 0 ? escapeRegExp(part) : dynamicTokenSource(part)))
@@ -178,15 +178,73 @@ function patternToRegExp(pattern: string): RegExp {
   return new RegExp(`^${source}$`);
 }
 
+// A pattern always compiles to the same regex, and the set of patterns in one
+// run is small, so compile each once. The regexes carry no g/y flag, so `test`
+// is stateless and sharing them is safe.
+const compiledPatterns = new Map<string, RegExp>();
+
+function patternToRegExp(pattern: string): RegExp {
+  const cached = compiledPatterns.get(pattern);
+  if (cached !== undefined) return cached;
+  const compiled = compilePattern(pattern);
+  compiledPatterns.set(pattern, compiled);
+  return compiled;
+}
+
 function stripTrailingSlashes(pathname: string): string {
   const stripped = pathname.replace(/\/+$/, '');
   return stripped === '' ? '/' : stripped;
 }
 
+// Lower ranks are more specific, as in Next.js: a static segment beats `[x]`,
+// which beats `[...x]`, which beats `[[...x]]`.
+const OPTIONAL_CATCH_ALL_SEGMENT = /^\[\[\.\.\..+\]\]$/;
+const CATCH_ALL_SEGMENT = /^\[\.\.\..+\]$/;
+const DYNAMIC_SEGMENT = /^\[.+\]$/;
+const STATIC_RANK = 0;
+const DYNAMIC_RANK = 1;
+const CATCH_ALL_RANK = 2;
+const OPTIONAL_CATCH_ALL_RANK = 3;
+/** Ranks below every real segment: a pattern that ended wins over one still holding an optional catch-all. */
+const RAN_OUT_RANK = -1;
+const SOURCE_RANK: Readonly<Record<RouteInfo['source'], number>> = { filesystem: 0, link: 1 };
+
+function segmentRank(segment: string): number {
+  if (OPTIONAL_CATCH_ALL_SEGMENT.test(segment)) return OPTIONAL_CATCH_ALL_RANK;
+  if (CATCH_ALL_SEGMENT.test(segment)) return CATCH_ALL_RANK;
+  if (DYNAMIC_SEGMENT.test(segment)) return DYNAMIC_RANK;
+  return STATIC_RANK;
+}
+
+function segmentRanks(pattern: string): number[] {
+  return pattern.split('/').slice(1).map(segmentRank);
+}
+
+function compareRanks(a: readonly number[], b: readonly number[]): number {
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (a[index] ?? RAN_OUT_RANK) - (b[index] ?? RAN_OUT_RANK);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+/** Negative when `a` is the more specific route: segment ranks first, then filesystem over link, then pattern text. */
+function compareSpecificity(a: RouteInfo, b: RouteInfo): number {
+  return (
+    compareRanks(segmentRanks(a.pattern), segmentRanks(b.pattern)) ||
+    SOURCE_RANK[a.source] - SOURCE_RANK[b.source] ||
+    compareText(a.pattern, b.pattern)
+  );
+}
+
 /**
  * Finds the route that serves `pathname` (path only: no query or hash). A
- * trailing slash is ignored. Static patterns win over dynamic ones; among
- * dynamic patterns the longest is tried first. `null` when nothing matches.
+ * trailing slash is ignored. An exact static pattern wins outright. Otherwise
+ * every dynamic pattern that matches is a candidate and the most specific one
+ * is returned, comparing segment by segment from the left (static, then
+ * `[x]`, then `[...x]`, then `[[...x]]`), as Next.js does. `null` when nothing
+ * matches.
  */
 export function matchRoute(pathname: string, routes: readonly RouteInfo[]): RouteInfo | null {
   const path = stripTrailingSlashes(pathname);
@@ -194,10 +252,10 @@ export function matchRoute(pathname: string, routes: readonly RouteInfo[]): Rout
   const staticMatch = routes.find((route) => route.pattern === path && !isDynamicPattern(route.pattern));
   if (staticMatch !== undefined) return staticMatch;
 
-  const dynamicRoutes = routes
-    .filter((route) => isDynamicPattern(route.pattern))
-    .toSorted((a, b) => b.pattern.length - a.pattern.length);
-  return dynamicRoutes.find((route) => patternToRegExp(route.pattern).test(path)) ?? null;
+  const candidates = routes.filter(
+    (route) => isDynamicPattern(route.pattern) && patternToRegExp(route.pattern).test(path),
+  );
+  return candidates.toSorted(compareSpecificity)[0] ?? null;
 }
 
 const PARAM_PLACEHOLDER = '[param]';
