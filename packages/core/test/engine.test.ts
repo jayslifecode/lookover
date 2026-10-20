@@ -1,6 +1,7 @@
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
   afterAll,
@@ -70,6 +71,8 @@ const NEXT_ROUTE_DIRS = ['', 'login', 'logout', 'projects', 'projects/[id]'];
 const NEXT_PATTERNS = ['/', '/login', '/logout', '/projects', '/projects/[id]'];
 const CLEARED_SESSION_COOKIE = `${SESSION_COOKIE.name}=; Path=/; Max-Age=0`;
 const OR_EDIT_CONFIG = '(or add them to confirmedBackendHosts in lookover.config.json)';
+/** Longer than the probe takes to finish once its last host is observed. */
+const SLOW_LOG_WRITE_MS = 1_500;
 
 /** The `E_HOSTS_UNCONFIRMED` hint for `hosts`: one command, the flag repeated per host. */
 function confirmHint(...hosts: string[]): string {
@@ -319,6 +322,32 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       });
       const firstScreen = eventsOf(events, 'screen.discovered')[0];
       expect(eventsOf(events, 'auth.completed')[0]?.seq).toBeLessThan(firstScreen?.seq ?? 0);
+    });
+
+    test('asks about the hosts only once onEvent has had every host the probe observed', async () => {
+      const { cwd, ctx } = await newProject({ maxScreens: 1 });
+      // Host events reach the log late, as on a slow disk: the question must still wait for them.
+      const append = ctx.log.append.bind(ctx.log);
+      vi.spyOn(ctx.log, 'append').mockImplementation((body: RunEventBody) =>
+        body.type === 'host.observed' ? delay(SLOW_LOG_WRITE_MS).then(() => append(body)) : append(body),
+      );
+      let seenHosts: ReadonlySet<string> = new Set();
+      let unseenWhenAsked: string[] | undefined;
+      const hooks: DiscoveryHooks = {
+        onEvent: (event) => {
+          if (event.type === 'host.observed') {
+            seenHosts = new Set([...seenHosts, event.host]);
+          }
+        },
+        confirmHosts: async (hosts) => {
+          unseenWhenAsked = hosts.filter((host) => !seenHosts.has(host));
+          return hosts;
+        },
+      };
+
+      await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks });
+
+      expect(unseenWhenAsked).toEqual([]);
     });
 
     test('blocks a backend first called during the crawl and reports it, finishing the run', async () => {

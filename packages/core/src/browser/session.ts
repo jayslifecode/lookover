@@ -24,6 +24,12 @@ import {
 export type SessionEvent = Extract<RunEventBody, { type: 'host.observed' | 'request.blocked' }>;
 
 type HostKind = Extract<SessionEvent, { type: 'host.observed' }>['kind'];
+
+const HOST_KIND_OF_REQUEST: Readonly<Record<RequestKind, HostKind>> = {
+  navigation: 'navigation',
+  fetch: 'app-call',
+  subresource: 'subresource',
+};
 type BlockReason = Extract<Verdict, { kind: 'block' }>['reason'];
 
 export interface SessionOptions {
@@ -219,7 +225,7 @@ export class BrowserSession {
     if (!isRecorded(verdict) || host === null) {
       return;
     }
-    this.recordHost(host, kind === 'navigation' ? 'navigation' : 'app-call');
+    this.recordHost(host, HOST_KIND_OF_REQUEST[kind]);
   }
 
   /** A provider hop behind a redirect never reaches `enforce`; the DNS rules make it fail. */

@@ -165,6 +165,28 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
       ]);
     });
 
+    test('records a host the page only loads an image and a script from as a subresource', async () => {
+      await openFixture();
+      const foreignOrigin = `http://${FOREIGN_HOST}:${fixturePort}`;
+
+      await ipage.page.evaluate((origin) => {
+        const image = document.createElement('img');
+        image.src = `${origin}/pixel.png`;
+        const script = document.createElement('script');
+        script.src = `${origin}/widget.js`;
+        document.body.append(image, script);
+      }, foreignOrigin);
+
+      await expect
+        .poll(() => events)
+        .toContainEqual({ type: 'host.observed', host: FOREIGN_HOST, kind: 'subresource' });
+      const foreignKinds = events.flatMap((event) =>
+        event.type === 'host.observed' && event.host === FOREIGN_HOST ? [event.kind] : [],
+      );
+      expect(foreignKinds).toEqual(['subresource']);
+      expect(session.observedHosts()).toEqual(['127.0.0.1', FOREIGN_HOST]);
+    });
+
     test('keeps the page on the app when a link leads to another host', async () => {
       await openFixture();
       const before = ipage.page.url();

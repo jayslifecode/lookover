@@ -24,6 +24,7 @@ export interface DiscoveryHooks {
    * Asked once, after the probe, with every backend host the app called during the probe that is
    * neither allowed nor already confirmed in the config (sorted). Returns the ones the user confirms
    * are development or disposable instances; the run refuses to go on while any host is left out.
+   * By then `onEvent` has had every `host.observed` event of the probe (each host's kinds).
    */
   confirmHosts?: ConfirmHosts;
   /** Every event of the run as the log writes it, from `run.started` to `run.finished` or `run.failed`. */
@@ -166,7 +167,7 @@ async function explore(
       session,
       config,
       plan.routes,
-      opts.hooks?.confirmHosts,
+      afterRecorded(recorder, opts.hooks?.confirmHosts),
     );
     session.enforceConfirmedHosts(confirmedBackendHosts);
     const logIn = loginStep(ctx, session, auth, opts.env);
@@ -174,6 +175,20 @@ async function explore(
     const screens = await crawl(session, ctx, crawlOptions(config, plan, auth, logIn));
     return { screens, confirmedBackendHosts };
   });
+}
+
+/** `confirmHosts`, asked only once the run log (and so `onEvent`) has every event recorded before it. */
+function afterRecorded(
+  recorder: SessionRecorder,
+  confirmHosts: ConfirmHosts | undefined,
+): ConfirmHosts | undefined {
+  if (confirmHosts === undefined) {
+    return undefined;
+  }
+  return async (hosts) => {
+    await recorder.settled();
+    return confirmHosts(hosts);
+  };
 }
 
 /** A storage state path is relative to the project directory, not to wherever the process runs. */
@@ -337,9 +352,14 @@ class SessionRecorder {
     return [...this.blockedHosts].toSorted();
   }
 
+  /** Waits for every write queued so far, failed or not. */
+  settled(): Promise<void> {
+    return this.written;
+  }
+
   /** Waits for every queued write and returns the ones that failed. */
   async failedWrites(): Promise<readonly unknown[]> {
-    await this.written;
+    await this.settled();
     return this.writeFailures;
   }
 

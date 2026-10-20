@@ -5,7 +5,11 @@ export type RunEventBody =
   | { type: 'route.discovered'; route: RouteInfo }
   | { type: 'auth.completed'; method: 'none' | 'storageState' | 'form'; statePath?: string }
   | { type: 'auth.lost'; url: string }
-  | { type: 'host.observed'; host: string; kind: 'navigation' | 'app-call' }
+  /**
+   * A host the app sent a request to, once per kind: `app-call` for fetch, XHR, websockets and event
+   * streams, `subresource` for everything else a page loads (images, scripts, styles, fonts, media).
+   */
+  | { type: 'host.observed'; host: string; kind: 'navigation' | 'app-call' | 'subresource' }
   | { type: 'request.blocked'; url: string; reason: 'provider' | 'host-not-allowed' | 'unconfirmed-backend' }
   | { type: 'screen.discovered'; url: string; from: string | null }
   | {
