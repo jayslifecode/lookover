@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { LookoverError } from '../src/errors.js';
 import type { RunEvent, RunEventBody } from '../src/run/events.js';
 import { RunLog } from '../src/run/run-log.js';
@@ -24,6 +24,7 @@ describe('RunLog', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -142,18 +143,94 @@ describe('RunLog', () => {
       expect(seen).toEqual([1]);
     });
 
-    test('a throwing subscriber does not starve the others or break later appends', async () => {
-      const log = await RunLog.open(file, RUN_ID);
-      const seen: number[] = [];
-      log.subscribe(() => {
-        throw new Error('subscriber blew up');
+    describe('when a subscriber throws', () => {
+      const failure = new Error('subscriber blew up');
+
+      test('append still resolves, later subscribers still receive the event and the handler gets the error and the event', async () => {
+        const handled: { error: unknown; event: RunEvent }[] = [];
+        const log = await RunLog.open(file, RUN_ID, {
+          onSubscriberError: (error, event) => handled.push({ error, event }),
+        });
+        const seen: number[] = [];
+        log.subscribe(() => {
+          throw failure;
+        });
+        log.subscribe((event) => seen.push(event.seq));
+
+        const first = await log.append(authLost(1));
+        const second = await log.append(authLost(2));
+
+        expect(seen).toEqual([1, 2]);
+        expect(handled).toEqual([
+          { error: failure, event: first },
+          { error: failure, event: second },
+        ]);
+        expect((await RunLog.read(file)).map((e) => e.seq)).toEqual([1, 2]);
       });
-      log.subscribe((event) => seen.push(event.seq));
 
-      await expect(log.append(authLost(1))).rejects.toThrow('subscriber blew up');
-      await expect(log.append(authLost(2))).rejects.toThrow('subscriber blew up');
+      test('without a handler the error is re-raised asynchronously and append is unaffected', async () => {
+        const raised = captureAsyncErrors();
+        const log = await RunLog.open(file, RUN_ID);
+        const seen: number[] = [];
+        log.subscribe(() => {
+          throw failure;
+        });
+        log.subscribe((event) => seen.push(event.seq));
 
-      expect(seen).toEqual([1, 2]);
+        const event = await log.append(authLost(1));
+        await nextMacrotask();
+
+        expect(event.seq).toBe(1);
+        expect(seen).toEqual([1]);
+        expect(raised).toEqual([failure]);
+      });
+
+      test('a handler that throws is re-raised asynchronously and append is unaffected', async () => {
+        const raised = captureAsyncErrors();
+        const handlerFailure = new Error('handler blew up');
+        const log = await RunLog.open(file, RUN_ID, {
+          onSubscriberError: () => {
+            throw handlerFailure;
+          },
+        });
+        log.subscribe(() => {
+          throw failure;
+        });
+
+        const event = await log.append(authLost(1));
+        await nextMacrotask();
+
+        expect(event.seq).toBe(1);
+        expect(raised).toEqual([handlerFailure]);
+      });
+    });
+  });
+
+  describe('reopening a file whose last line has no trailing newline', () => {
+    function eventLine(seq: number): string {
+      return JSON.stringify({ ...authLost(seq), seq, at: new Date().toISOString(), runId: RUN_ID });
+    }
+
+    test('starts the next event on its own line', async () => {
+      await writeFile(file, eventLine(1));
+
+      const log = await RunLog.open(file, RUN_ID);
+      await log.append(authLost(2));
+      await log.append(authLost(3));
+
+      expect((await RunLog.read(file)).map((e) => e.seq)).toEqual([1, 2, 3]);
+      const written = await lines();
+      expect(written).toHaveLength(3);
+      expect(await readFile(file, 'utf8')).toMatch(/\n$/);
+    });
+
+    test('adds no blank line when the file already ends with a newline', async () => {
+      await writeFile(file, `${eventLine(1)}\n`);
+
+      const log = await RunLog.open(file, RUN_ID);
+      await log.append(authLost(2));
+
+      expect(await readFile(file, 'utf8')).not.toContain('\n\n');
       expect((await RunLog.read(file)).map((e) => e.seq)).toEqual([1, 2]);
     });
   });
@@ -227,4 +304,24 @@ function countLinesSync(path: string): number {
   return readFileSync(path, 'utf8')
     .split('\n')
     .filter((line) => line !== '').length;
+}
+
+/** Records what `queueMicrotask` callbacks throw instead of letting it become an uncaught exception. */
+function captureAsyncErrors(): unknown[] {
+  const raised: unknown[] = [];
+  const queue = globalThis.queueMicrotask.bind(globalThis);
+  vi.spyOn(globalThis, 'queueMicrotask').mockImplementation((callback) => {
+    queue(() => {
+      try {
+        callback();
+      } catch (error) {
+        raised.push(error);
+      }
+    });
+  });
+  return raised;
+}
+
+function nextMacrotask(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }

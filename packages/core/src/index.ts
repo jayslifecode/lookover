@@ -20,6 +20,7 @@ export type {
 export type { RunEvent, RunEventBody } from './run/events.js';
 export type { CreateRunOptions, RunContext } from './run/run-context.js';
 export { createRun } from './run/run-context.js';
+export type { RunLogOptions } from './run/run-log.js';
 export { RunLog } from './run/run-log.js';
 export { sha256, shortId } from './util/hash.js';
 export { redact, redactDeep } from './util/redact.js';

@@ -10,6 +10,21 @@ const LINE_SEPARATOR = '\n';
 
 type Subscriber = (event: RunEvent) => void;
 
+export interface RunLogOptions {
+  /**
+   * Receives every error a subscriber throws, with the event it was handling. Without a handler the
+   * error is re-raised asynchronously, so a faulty subscriber is loud but cannot affect the run.
+   */
+  onSubscriberError?: (error: unknown, event: RunEvent) => void;
+}
+
+/** Where an existing file left off. */
+interface ResumePoint {
+  nextSeq: number;
+  /** The last line has no trailing newline, so the next write must start one. */
+  needsLeadingNewline: boolean;
+}
+
 /**
  * Append-only JSONL stream of everything a run does: one `RunEvent` per line.
  *
@@ -21,33 +36,40 @@ export class RunLog {
   private readonly subscribers = new Set<Subscriber>();
   private tail: Promise<void> = Promise.resolve();
 
+  private nextSeq: number;
+  private needsLeadingNewline: boolean;
+
   private constructor(
     readonly file: string,
     private readonly runId: string,
-    private nextSeq: number,
-  ) {}
+    resumePoint: ResumePoint,
+    private readonly options: RunLogOptions,
+  ) {
+    this.nextSeq = resumePoint.nextSeq;
+    this.needsLeadingNewline = resumePoint.needsLeadingNewline;
+  }
 
-  /** Creates the file if needed. An existing log is continued: `seq` resumes after its last line. */
-  static async open(file: string, runId: string): Promise<RunLog> {
+  /**
+   * Creates the file if needed. An existing log is continued: `seq` resumes after its last line,
+   * and a last line missing its newline is terminated before the next event is written.
+   */
+  static async open(file: string, runId: string, options: RunLogOptions = {}): Promise<RunLog> {
     await mkdir(dirname(file), { recursive: true });
     await appendFile(file, '');
-    const existing = await RunLog.read(file);
-    const lastSeq = existing.at(-1)?.seq ?? EMPTY_LOG_SEQ;
-    return new RunLog(file, runId, lastSeq + 1);
+    const text = await readFile(file, 'utf8');
+    const lastSeq = parseLog(file, text).at(-1)?.seq ?? EMPTY_LOG_SEQ;
+    const needsLeadingNewline = text !== '' && !text.endsWith(LINE_SEPARATOR);
+    return new RunLog(file, runId, { nextSeq: lastSeq + 1, needsLeadingNewline }, options);
   }
 
   /** Parses every non-empty line. A line that is not a run event throws `E_RUN_FAILED` naming it. */
   static async read(file: string): Promise<RunEvent[]> {
-    const text = await readFile(file, 'utf8');
-    return text
-      .split(LINE_SEPARATOR)
-      .flatMap((line, index) => (line.trim() === '' ? [] : [parseLine(file, line, index + 1)]));
+    return parseLog(file, await readFile(file, 'utf8'));
   }
 
   /**
    * Redacts the body as it is now, queues the write and resolves with the event once it is on disk.
-   * Subscribers run after the write; if one throws, every other subscriber is still notified and
-   * the error then rejects this call, although the event is already written.
+   * Subscribers run after the write; whatever they throw never affects this call (see `RunLogOptions`).
    */
   async append(body: RunEventBody): Promise<RunEvent> {
     const safeBody = redactDeep(body);
@@ -66,26 +88,52 @@ export class RunLog {
 
   private async write(body: RunEventBody): Promise<RunEvent> {
     const event: RunEvent = { ...body, seq: this.nextSeq, at: new Date().toISOString(), runId: this.runId };
-    await appendFile(this.file, `${JSON.stringify(event)}${LINE_SEPARATOR}`, 'utf8');
+    const prefix = this.needsLeadingNewline ? LINE_SEPARATOR : '';
+    await appendFile(this.file, `${prefix}${JSON.stringify(event)}${LINE_SEPARATOR}`, 'utf8');
     this.nextSeq += 1;
+    this.needsLeadingNewline = false;
     this.notify(event);
     return event;
   }
 
   private notify(event: RunEvent): void {
-    const failures: unknown[] = [];
     for (const subscriber of [...this.subscribers]) {
       try {
         subscriber(event);
       } catch (error) {
-        failures.push(error);
+        this.reportSubscriberError(error, event);
       }
     }
-    if (failures.length > 0) throw failures[0];
+  }
+
+  private reportSubscriberError(error: unknown, event: RunEvent): void {
+    const { onSubscriberError } = this.options;
+    if (onSubscriberError === undefined) {
+      raiseAsync(error);
+      return;
+    }
+    try {
+      onSubscriberError(error, event);
+    } catch (handlerError) {
+      raiseAsync(handlerError);
+    }
   }
 }
 
 function ignore(): void {}
+
+/** Surfaces an error as an uncaught exception without unwinding the caller. */
+function raiseAsync(error: unknown): void {
+  queueMicrotask(() => {
+    throw error;
+  });
+}
+
+function parseLog(file: string, text: string): RunEvent[] {
+  return text
+    .split(LINE_SEPARATOR)
+    .flatMap((line, index) => (line.trim() === '' ? [] : [parseLine(file, line, index + 1)]));
+}
 
 function parseLine(file: string, line: string, lineNumber: number): RunEvent {
   let value: unknown;
