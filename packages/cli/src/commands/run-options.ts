@@ -1,4 +1,12 @@
-import { type LookoverConfig, LookoverError, normaliseHost, writeConfig } from '@jayslifecode/lookover-core';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import {
+  CONFIG_FILENAME,
+  type LookoverConfig,
+  LookoverError,
+  normaliseHost,
+  writeFileAtomic,
+} from '@jayslifecode/lookover-core';
 
 /** What commander hands the `run` action. */
 export interface RunFlags {
@@ -45,6 +53,8 @@ const NOT_IN_A_HOST = /[\s/?#@]/;
 const HOST_LIST_SEPARATOR = ',';
 const WILDCARD = '*';
 const WILDCARD_PREFIX = '*.';
+const CONFIRMED_HOSTS_KEY = 'confirmedBackendHosts';
+const CONFIG_CHANGED_HINT = `Fix ${CONFIG_FILENAME} or run \`lookover init\` again, then re-run`;
 
 /** Commander's collector for a repeatable flag such as `--confirm-host a --confirm-host b`. */
 export function collectRepeated(value: string, previous: readonly string[] | undefined): string[] {
@@ -89,9 +99,11 @@ export function mergeHosts(...lists: readonly (readonly string[])[]): string[] {
 }
 
 /**
- * Writes `config` (as loaded, without this run's overrides) back to lookover.config.json with the
- * `hosts` it does not list yet appended to `confirmedBackendHosts`, and resolves with those. When it
- * already lists them all, the file is left alone and the result is empty.
+ * Adds the `hosts` that `config` (as loaded, without this run's overrides) does not list yet to
+ * `confirmedBackendHosts` in lookover.config.json, and resolves with those. Only that key of the file
+ * changes: the file is read again as JSON and every other key is kept as written (defaults are not
+ * filled in, unknown keys such as `$schema` stay), then written back atomically. When `config` already
+ * lists every host, the file is not touched and the result is empty.
  */
 export async function saveConfirmedHosts(
   cwd: string,
@@ -100,10 +112,52 @@ export async function saveConfirmedHosts(
 ): Promise<string[]> {
   const known = new Set(config.confirmedBackendHosts.map(normaliseHost));
   const added = mergeHosts(hosts).filter((host) => !known.has(normaliseHost(host)));
-  if (added.length > 0) {
-    await writeConfig(cwd, { ...config, confirmedBackendHosts: [...config.confirmedBackendHosts, ...added] });
+  if (added.length === 0) {
+    return [];
   }
+  const path = resolve(cwd, CONFIG_FILENAME);
+  const fields = parseConfigFields(await readFile(path, 'utf8'));
+  const confirmed = mergeHosts(listedHosts(fields), added);
+  await writeFileAtomic(
+    path,
+    `${JSON.stringify({ ...fields, [CONFIRMED_HOSTS_KEY]: confirmed }, null, 2)}\n`,
+  );
   return added;
+}
+
+/** The config file's top-level object, as written. */
+function parseConfigFields(raw: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw configChanged('is no longer valid JSON');
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw configChanged('no longer holds a JSON object');
+  }
+  return parsed as Record<string, unknown>;
+}
+
+/** `confirmedBackendHosts` as the file lists it; none when the key is absent. */
+function listedHosts(fields: Record<string, unknown>): string[] {
+  const listed = fields[CONFIRMED_HOSTS_KEY];
+  if (listed === undefined) {
+    return [];
+  }
+  if (!Array.isArray(listed) || !listed.every((host) => typeof host === 'string')) {
+    throw configChanged(`has a ${CONFIRMED_HOSTS_KEY} that is not a list of host names`);
+  }
+  return listed;
+}
+
+/** The file was valid when the run loaded it, so it was changed during the run. */
+function configChanged(problem: string): LookoverError {
+  return new LookoverError(
+    'E_CONFIG_INVALID',
+    `Could not save the confirmed backend hosts: ${CONFIG_FILENAME} ${problem}`,
+    CONFIG_CHANGED_HINT,
+  );
 }
 
 function parseMaxScreens(value: string | undefined): number | undefined {

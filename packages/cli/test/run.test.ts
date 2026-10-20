@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -238,6 +238,53 @@ describe('saveConfirmedHosts', () => {
     const saved = JSON.parse(await readFile(configPath(), 'utf8')) as unknown;
     expect(saved).toEqual({ ...config, confirmedBackendHosts: ['a.test', 'b.test'] });
     expect(configSchema.parse(saved)).toEqual({ ...config, confirmedBackendHosts: ['a.test', 'b.test'] });
+  });
+
+  test('changes only confirmedBackendHosts, keeping unknown keys and filling in no defaults', async () => {
+    const raw = {
+      $schema: 'https://example.com/lookover.schema.json',
+      baseUrl: 'http://localhost:3000',
+      interaction: 'safe',
+      allowHosts: ['cdn.test'],
+      custom: { note: 'kept' },
+    };
+    await writeFile(configPath(), JSON.stringify(raw), 'utf8');
+    const config = configSchema.parse(raw);
+
+    const added = await saveConfirmedHosts(dir, config, ['b.test']);
+
+    expect(added).toEqual(['b.test']);
+    const text = await readFile(configPath(), 'utf8');
+    expect(text).toBe(`${JSON.stringify({ ...raw, confirmedBackendHosts: ['b.test'] }, null, 2)}\n`);
+    expect(await readdir(dir)).toEqual(['lookover.config.json']);
+  });
+
+  test('appends to the hosts the file lists, keeping their spelling and their place', async () => {
+    const raw = { baseUrl: 'http://localhost:3000', confirmedBackendHosts: ['A.test'], interaction: 'safe' };
+    await writeFile(configPath(), JSON.stringify(raw), 'utf8');
+
+    const added = await saveConfirmedHosts(dir, configSchema.parse(raw), ['a.test', 'b.test']);
+
+    expect(added).toEqual(['b.test']);
+    const saved = JSON.parse(await readFile(configPath(), 'utf8')) as Record<string, unknown>;
+    expect(Object.keys(saved)).toEqual(['baseUrl', 'confirmedBackendHosts', 'interaction']);
+    expect(saved.confirmedBackendHosts).toEqual(['A.test', 'b.test']);
+  });
+
+  test.each([
+    ['is no longer valid JSON', '{ "baseUrl": '],
+    ['no longer holds a JSON object', '[]'],
+    ['has a confirmedBackendHosts that is not a list of host names', '{ "confirmedBackendHosts": "a.test" }'],
+  ])('refuses with E_CONFIG_INVALID, leaving the file alone, when it %s', async (problem, content) => {
+    await writeFile(configPath(), content, 'utf8');
+
+    const saving = saveConfirmedHosts(dir, BASE_CONFIG, ['b.test']);
+
+    await expect(saving).rejects.toMatchObject({
+      code: 'E_CONFIG_INVALID',
+      message: `Could not save the confirmed backend hosts: lookover.config.json ${problem}`,
+    });
+    expect(await readFile(configPath(), 'utf8')).toBe(content);
   });
 
   test('does not rewrite the file when every host is already there', async () => {
