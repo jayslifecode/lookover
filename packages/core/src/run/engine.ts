@@ -1,14 +1,15 @@
 import { join, resolve } from 'node:path';
 import { checkStorageState, type EnsureAuthOptions, ensureAuth, isLoginUrl } from '../browser/auth.js';
-import { isAllowedHost, normaliseHost } from '../browser/network-policy.js';
+import { isAllowedHost, networkHost, normaliseHost } from '../browser/network-policy.js';
 import { BrowserSession, type SessionEvent, type SessionOptions } from '../browser/session.js';
 import { CONFIG_FILENAME } from '../config/load.js';
 import type { LookoverConfig } from '../config/schema.js';
 import { type ErrorCode, LookoverError } from '../errors.js';
-import { type CrawlOptions, crawl, DESTRUCTIVE_LINK_PATTERN, resolveSeed } from '../map/crawler.js';
-import { discoverNextRoutes } from '../map/next-routes.js';
+import { type CrawlOptions, crawl } from '../map/crawler.js';
+import { discoverNextRoutes, staticRoutePatterns } from '../map/next-routes.js';
 import { writeAppMap } from '../map/persist.js';
 import type { AppMap, RouteInfo, Screen, Viewport } from '../map/types.js';
+import { type ConfirmHosts, confirmBackends } from './backend-probe.js';
 import type { RunEvent } from './events.js';
 import type { RunContext } from './run-context.js';
 import type { RunLog } from './run-log.js';
@@ -19,7 +20,7 @@ export interface DiscoveryHooks {
    * already confirmed in the config (sorted). Returns the ones the user confirms are development or
    * disposable instances; the run refuses to go on while any host is left out.
    */
-  confirmHosts?: (hosts: string[]) => Promise<string[]>;
+  confirmHosts?: ConfirmHosts;
   /** Every event of the run as the log writes it, from `run.started` to `run.finished` or `run.failed`. */
   onEvent?: (event: RunEvent) => void;
 }
@@ -37,6 +38,11 @@ export interface DiscoveryResult {
   map: AppMap;
   /** `config.confirmedBackendHosts` plus the hosts confirmed in this run, deduplicated, to persist. */
   confirmedBackendHosts: string[];
+  /**
+   * Hosts the app called after the confirmation step that were blocked as unconfirmed backends
+   * (sorted). Nothing reached them; confirming them lets the next run through.
+   */
+  blockedUnconfirmedHosts: string[];
 }
 
 type Auth = LookoverConfig['auth'];
@@ -49,37 +55,35 @@ interface CrawlPlan {
 
 const STATE_DIR = 'state';
 const ROOT_SEED = '/';
-const DYNAMIC_SEGMENT_MARK = '[';
-const PROBE_NAVIGATION_TIMEOUT_MS = 15_000;
-const PROBE_SETTLE_MS = 800;
-const HOST_LIST_INDENT = '  ';
-const UNCONFIRMED_HINT =
-  'Run again with --confirm-host <host> for each development or disposable backend, or add it to confirmedBackendHosts';
 /** How Playwright names a storage state it cannot read or will not accept. */
 const STORAGE_STATE_ERROR = /storage ?state/i;
+const RUN_LOG_HINT = 'Check that the .lookover directory is writable and its disk has room';
 
 /**
  * Stage 1 end to end, recorded in the run log from `run.started` to `run.finished`:
  *
  * 1. The routes on disk (Next.js only), each logged as `route.discovered`.
- * 2. One browser session inside the network envelope, at the first viewport; it is logged in as
- *    `config.auth` says (`auth.completed`), and its own events go to the run log.
- * 3. The probe (see `confirmBackends`): the run refuses (`E_HOSTS_UNCONFIRMED`) to go on while a backend
- *    the app called is not confirmed as a development or disposable instance.
- * 4. The bounded crawl from `/` and every static route, logging in again once if the session is lost.
- * 5. The App Map, written to the run directory and as the project's latest.
+ * 2. One browser session inside the network envelope, at the first viewport; its events go to the
+ *    run log.
+ * 3. The probe, before logging in (see `confirmBackends`): the run refuses (`E_HOSTS_UNCONFIRMED`) to go
+ *    on while a backend the app called is not confirmed as a development or disposable instance.
+ *    From then on the session blocks every other backend (`unconfirmed-backend`), login included.
+ * 4. The login as `config.auth` says (`auth.completed`).
+ * 5. The bounded crawl from `/` and every static route, logging in again once if the session is lost.
+ * 6. The App Map, written to the run directory and as the project's latest.
  *
  * Any failure is logged as `run.failed` (code `E_RUN_FAILED` for errors that are not a `LookoverError`)
- * and rethrown, unless the run log itself failed to record an event: then the run fails with
- * `E_RUN_FAILED` ("Run log write failed"), since it has no complete record. The session is always closed.
+ * and rethrown; see `recordFailure` for what is added to it. A run that otherwise succeeded but whose
+ * log lost an event fails with `E_RUN_FAILED` ("Run log write failed"), since it has no complete
+ * record. The session is always closed.
  */
 export async function runDiscovery(ctx: RunContext, opts: DiscoveryOptions): Promise<DiscoveryResult> {
   const startedAt = performance.now();
-  const sessionLog = new SessionEventLog(ctx.log);
+  const recorder = new SessionRecorder(ctx.log);
   const onEvent = opts.hooks?.onEvent;
   const unsubscribe = onEvent === undefined ? () => undefined : ctx.log.subscribe(onEvent);
   try {
-    const result = await discover(ctx, opts, sessionLog);
+    const result = await discover(ctx, opts, recorder);
     await ctx.log.append({
       type: 'run.finished',
       screens: result.map.screens.length,
@@ -87,7 +91,7 @@ export async function runDiscovery(ctx: RunContext, opts: DiscoveryOptions): Pro
     });
     return result;
   } catch (error) {
-    throw await recordFailure(ctx.log, sessionLog, error);
+    throw await recordFailure(ctx.log, recorder, error);
   } finally {
     unsubscribe();
   }
@@ -96,7 +100,7 @@ export async function runDiscovery(ctx: RunContext, opts: DiscoveryOptions): Pro
 async function discover(
   ctx: RunContext,
   opts: DiscoveryOptions,
-  sessionLog: SessionEventLog,
+  recorder: SessionRecorder,
 ): Promise<DiscoveryResult> {
   const { config } = ctx;
   await ctx.log.append({
@@ -108,8 +112,8 @@ async function discover(
   const viewport = firstViewport(config);
   assertBaseUrlAllowed(config);
   const routes = await discoverRoutes(ctx, opts.cwd);
-  const { screens, confirmedBackendHosts } = await explore(ctx, opts, sessionLog, { routes, viewport });
-  await sessionLog.assertComplete();
+  const { screens, confirmedBackendHosts } = await explore(ctx, opts, recorder, { routes, viewport });
+  await recorder.assertComplete();
   const map: AppMap = {
     version: 1,
     runId: ctx.runId,
@@ -119,7 +123,7 @@ async function discover(
     screens,
   };
   await writeAppMap(ctx, map);
-  return { map, confirmedBackendHosts };
+  return { map, confirmedBackendHosts, blockedUnconfirmedHosts: recorder.blockedUnconfirmedHosts() };
 }
 
 async function discoverRoutes(ctx: RunContext, cwd: string): Promise<RouteInfo[]> {
@@ -133,11 +137,11 @@ async function discoverRoutes(ctx: RunContext, cwd: string): Promise<RouteInfo[]
   return routes;
 }
 
-/** Steps 2 to 4, in one session that is closed whatever happens. */
+/** Steps 2 to 5, in one session that is closed whatever happens. */
 async function explore(
   ctx: RunContext,
   opts: DiscoveryOptions,
-  sessionLog: SessionEventLog,
+  recorder: SessionRecorder,
   plan: CrawlPlan,
 ): Promise<{ screens: Screen[]; confirmedBackendHosts: string[] }> {
   const { config } = ctx;
@@ -145,14 +149,20 @@ async function explore(
   const session = await launchSession({
     viewport: plan.viewport,
     allowHosts: config.allowHosts,
-    onEvent: sessionLog.append,
+    onEvent: recorder.record,
     ...(opts.headless === undefined ? {} : { headless: opts.headless }),
     ...(auth.type === 'storageState' ? { storageStatePath: auth.path } : {}),
   });
   return usingSession(session, async () => {
+    const confirmedBackendHosts = await confirmBackends(
+      session,
+      config,
+      plan.routes,
+      opts.hooks?.confirmHosts,
+    );
+    session.enforceConfirmedHosts(confirmedBackendHosts);
     const logIn = loginStep(ctx, session, auth, opts.env);
     await logIn();
-    const confirmedBackendHosts = await confirmBackends(session, config, plan.routes, opts.hooks);
     const screens = await crawl(session, ctx, crawlOptions(config, plan, auth, logIn));
     return { screens, confirmedBackendHosts };
   });
@@ -200,7 +210,7 @@ async function usingSession<T>(session: BrowserSession, use: () => Promise<T>): 
   return result;
 }
 
-/** Logs the session in as `auth` says and records how; the crawl runs it again when the session is lost. */
+/** Logs the session in as `auth` says and records how; the crawl runs it again when a form login is lost. */
 function loginStep(
   ctx: RunContext,
   session: BrowserSession,
@@ -218,75 +228,6 @@ function loginStep(
   };
 }
 
-/**
- * The probe: opens the base URL and one more page (see `probeUrls`) so the app makes its usual backend
- * calls, then asks `hooks.confirmHosts` about every host it called that is neither allowed nor already
- * confirmed. Throws `E_HOSTS_UNCONFIRMED` naming the hosts left unconfirmed, or all of them without a
- * hook. Returns the config's confirmed hosts plus the ones confirmed now.
- */
-async function confirmBackends(
-  session: BrowserSession,
-  config: LookoverConfig,
-  routes: readonly RouteInfo[],
-  hooks: DiscoveryHooks | undefined,
-): Promise<string[]> {
-  await probe(session, probeUrls(config, routes));
-  const known = new Set(config.confirmedBackendHosts.map(normaliseHost));
-  const pending = session
-    .observedHosts()
-    .filter((host) => !isAllowedHost(host, config.allowHosts) && !known.has(host));
-  const confirmed = pending.length === 0 ? [] : await askToConfirm(pending, hooks);
-  return uniqueHosts([...config.confirmedBackendHosts, ...confirmed]);
-}
-
-/** Returns `pending` once every host in it is confirmed; any other answer confirms nothing. */
-async function askToConfirm(
-  pending: readonly string[],
-  hooks: DiscoveryHooks | undefined,
-): Promise<string[]> {
-  if (hooks?.confirmHosts === undefined) {
-    throw unconfirmedHosts(pending);
-  }
-  const answers = new Set((await hooks.confirmHosts([...pending])).map(normaliseHost));
-  const unconfirmed = pending.filter((host) => !answers.has(host));
-  if (unconfirmed.length > 0) {
-    throw unconfirmedHosts(unconfirmed);
-  }
-  return [...pending];
-}
-
-/**
- * The base URL, then the first static filesystem route that is another page: not the base URL itself,
- * not the login page, and not a destructive link (the crawl never opens one either).
- */
-function probeUrls(config: LookoverConfig, routes: readonly RouteInfo[]): string[] {
-  const base = new URL(config.baseUrl);
-  const root = resolveSeed(ROOT_SEED, base)?.href;
-  const second = staticPatterns(routes)
-    .filter((pattern) => !DESTRUCTIVE_LINK_PATTERN.test(pattern))
-    .flatMap((pattern) => resolveSeed(pattern, base) ?? [])
-    .find((url) => url.href !== root && !isLoginUrl(url, config.auth, config.baseUrl));
-  return second === undefined ? [config.baseUrl] : [config.baseUrl, second.href];
-}
-
-/**
- * Opens each URL in one short-lived page. Best effort: a navigation that fails is not retried, because
- * whatever the page requested is observed whether or not it finished loading.
- */
-async function probe(session: BrowserSession, urls: readonly string[]): Promise<void> {
-  const { page, close } = await session.newPage();
-  try {
-    for (const url of urls) {
-      await page
-        .goto(url, { waitUntil: 'load', timeout: PROBE_NAVIGATION_TIMEOUT_MS })
-        .catch(() => undefined);
-      await page.waitForLoadState('networkidle', { timeout: PROBE_SETTLE_MS }).catch(() => undefined);
-    }
-  } finally {
-    await close();
-  }
-}
-
 function crawlOptions(
   config: LookoverConfig,
   plan: CrawlPlan,
@@ -296,33 +237,31 @@ function crawlOptions(
   return {
     baseUrl: config.baseUrl,
     // Dynamic patterns have no URL of their own; links reach them.
-    seeds: [...new Set([ROOT_SEED, ...staticPatterns(plan.routes)])],
+    seeds: [...new Set([ROOT_SEED, ...staticRoutePatterns(plan.routes)])],
     routes: plan.routes,
     maxScreens: config.maxScreens,
     maxPerRoute: config.maxPerRoute,
     viewport: plan.viewport,
     ...(auth.type === 'none'
       ? {}
-      : { auth: { isLoginUrl: (url: URL) => isLoginUrl(url, auth, config.baseUrl), recover: logIn } }),
+      : {
+          auth: {
+            isLoginUrl: (url: URL) => isLoginUrl(url, auth, config.baseUrl),
+            recover: auth.type === 'form' ? logIn : savedSessionExpired,
+          },
+        }),
   };
 }
 
-function staticPatterns(routes: readonly RouteInfo[]): string[] {
-  return routes.map((route) => route.pattern).filter((pattern) => !pattern.includes(DYNAMIC_SEGMENT_MARK));
-}
-
-/** Deduplicated as the network policy compares hosts; the first spelling of each is kept. */
-function uniqueHosts(hosts: readonly string[]): string[] {
-  const keys = hosts.map(normaliseHost);
-  return hosts.filter((_host, index) => keys.indexOf(keys[index] ?? '') === index);
-}
-
-function unconfirmedHosts(hosts: readonly string[]): LookoverError {
-  const lines = [
-    'The app called these backends, and none of them is confirmed as a development or disposable instance:',
-    ...hosts.map((host) => `${HOST_LIST_INDENT}${host}`),
-  ];
-  return new LookoverError('E_HOSTS_UNCONFIRMED', lines.join('\n'), UNCONFIRMED_HINT);
+/** A storage state cannot log in again: it only holds the session that has just been lost. */
+function savedSessionExpired(): Promise<void> {
+  return Promise.reject(
+    new LookoverError(
+      'E_AUTH_FAILED',
+      'The saved session expired during the run',
+      'Save the storage state again and re-run',
+    ),
+  );
 }
 
 function firstViewport(config: LookoverConfig): Viewport {
@@ -351,61 +290,114 @@ function assertBaseUrlAllowed(config: LookoverConfig): void {
 }
 
 /**
- * Writes the session's events to the run log. They come from browser callbacks, which cannot wait for a
- * write, so each is queued; the log writes in call order, so the last write settles after every earlier
- * one. A failed write is kept: a run whose log lost an event has no complete record, so it fails.
+ * Takes the session's events: writes each to the run log and notes the hosts blocked as unconfirmed
+ * backends. The events come from browser callbacks, which cannot wait for a write, so each write is
+ * queued; the log writes in call order, so the last write settles after every earlier one.
  */
-class SessionEventLog {
+class SessionRecorder {
   private written: Promise<void> = Promise.resolve();
-  private lost: LookoverError | null = null;
+  private writeFailures: readonly unknown[] = [];
+  private blockedHosts: ReadonlySet<string> = new Set();
 
   constructor(private readonly log: RunLog) {}
 
-  readonly append = (event: SessionEvent): void => {
+  readonly record = (event: SessionEvent): void => {
+    this.noteBlockedBackend(event);
     this.written = this.log.append(event).then(
       () => undefined,
       (error: unknown) => {
-        this.lost ??= runLogError(error);
+        this.writeFailures = [...this.writeFailures, error];
       },
     );
   };
 
-  /** Waits for every queued write and throws `E_RUN_FAILED` if one failed. */
-  async assertComplete(): Promise<void> {
+  blockedUnconfirmedHosts(): string[] {
+    return [...this.blockedHosts].toSorted();
+  }
+
+  /** Waits for every queued write and returns the ones that failed. */
+  async failedWrites(): Promise<readonly unknown[]> {
     await this.written;
-    if (this.lost !== null) {
-      throw this.lost;
+    return this.writeFailures;
+  }
+
+  /** Waits for every queued write; throws `E_RUN_FAILED` if one failed. */
+  async assertComplete(): Promise<void> {
+    const failed = await this.failedWrites();
+    if (failed.length > 0) {
+      throw new RunLogWriteError(failed);
     }
   }
 
-  /** Waits for every queued write; the run fails with the log's failure if it lost an event, else `error`. */
-  async failureOf(error: unknown): Promise<unknown> {
-    await this.written;
-    return this.lost ?? error;
+  private noteBlockedBackend(event: SessionEvent): void {
+    if (event.type !== 'request.blocked' || event.reason !== 'unconfirmed-backend') {
+      return;
+    }
+    const url = URL.parse(event.url);
+    const host = url === null ? null : networkHost(url);
+    if (host !== null) {
+      this.blockedHosts = new Set([...this.blockedHosts, host]);
+    }
   }
 }
 
-/** Logs `run.failed` and returns the error to throw (see `runDiscovery`). */
-async function recordFailure(log: RunLog, sessionLog: SessionEventLog, error: unknown): Promise<unknown> {
-  const failure = await sessionLog.failureOf(error);
+/** The run log lost an event although the run itself succeeded, so the run has no complete record. */
+class RunLogWriteError extends LookoverError {
+  constructor(failedWrites: readonly unknown[]) {
+    super('E_RUN_FAILED', `Run log write failed: ${firstLine(failedWrites[0])}`, RUN_LOG_HINT);
+  }
+}
+
+/**
+ * Logs `run.failed` and returns the error to throw: the run's own error, with the blocked unconfirmed
+ * backends added to the hint of an auth failure and the run log's failed writes (this one included,
+ * if it fails) added to the message. Either addition builds a new error; the original is not changed.
+ */
+async function recordFailure(log: RunLog, recorder: SessionRecorder, error: unknown): Promise<unknown> {
+  const runError = withBlockedBackends(error, recorder.blockedUnconfirmedHosts());
+  const failedWrites = await recorder.failedWrites();
+  const failure = withFailedWrites(runError, failedWrites);
   try {
     await log.append({ type: 'run.failed', error: { code: codeOf(failure), message: messageOf(failure) } });
+    return failure;
   } catch (appendError) {
-    return runLogError(appendError);
+    return withFailedWrites(runError, [...failedWrites, appendError]);
   }
-  return failure;
 }
 
-function runLogError(error: unknown): LookoverError {
+/** A login may have failed because a backend it needed was blocked: the hint names those backends. */
+function withBlockedBackends(error: unknown, hosts: readonly string[]): unknown {
+  if (hosts.length === 0 || !(error instanceof LookoverError) || error.code !== 'E_AUTH_FAILED') {
+    return error;
+  }
+  const note = `Blocked unconfirmed backends: ${hosts.join(', ')} — re-run with --confirm-host <host> if they are development or disposable instances`;
   return new LookoverError(
-    'E_RUN_FAILED',
-    `Run log write failed: ${firstLine(error)}`,
-    'Check that the .lookover directory is writable and its disk has room',
+    error.code,
+    error.message,
+    error.hint === undefined ? note : `${error.hint}\n${note}`,
+  );
+}
+
+/** The run's error with the failed log writes added to its message; a run log error already says so. */
+function withFailedWrites(error: unknown, failedWrites: readonly unknown[]): unknown {
+  if (failedWrites.length === 0 || error instanceof RunLogWriteError) {
+    return error;
+  }
+  const count = failedWrites.length;
+  const writes = count === 1 ? 'write' : 'writes';
+  return new LookoverError(
+    codeOf(error),
+    `${messageOf(error)}; additionally, ${count} run-log ${writes} failed: ${firstLine(failedWrites[0])}`,
+    hintOf(error),
   );
 }
 
 function codeOf(error: unknown): ErrorCode {
   return error instanceof LookoverError ? error.code : 'E_RUN_FAILED';
+}
+
+function hintOf(error: unknown): string | undefined {
+  return error instanceof LookoverError ? error.hint : undefined;
 }
 
 function messageOf(error: unknown): string {

@@ -25,7 +25,12 @@ export type { CrawlOptions } from './map/crawler.js';
 export { crawl, DESTRUCTIVE_LINK_PATTERN } from './map/crawler.js';
 export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './map/elements.js';
 export { extractForms } from './map/forms.js';
-export { discoverNextRoutes, matchRoute, routePatternFromPath } from './map/next-routes.js';
+export {
+  discoverNextRoutes,
+  matchRoute,
+  routePatternFromPath,
+  staticRoutePatterns,
+} from './map/next-routes.js';
 export type { AppMapDiff } from './map/persist.js';
 export { APP_MAP_FILE, diffAppMaps, readLatestAppMap, writeAppMap } from './map/persist.js';
 export { BUILD_SELECTOR_SOURCE } from './map/selectors.js';
@@ -42,6 +47,7 @@ export type {
   TokenSample,
   Viewport,
 } from './map/types.js';
+export type { ConfirmHosts } from './run/backend-probe.js';
 export type { DiscoveryHooks, DiscoveryOptions, DiscoveryResult } from './run/engine.js';
 export { runDiscovery } from './run/engine.js';
 export type { RunEvent, RunEventBody } from './run/events.js';

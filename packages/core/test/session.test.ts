@@ -43,6 +43,31 @@ function fetchOutcome(page: Page, url: string): Promise<string> {
   );
 }
 
+/** Fetches `url` in the page as `no-cors`: `'sent'` once it is answered, `'failed'` if it is refused. */
+function sendOutcome(page: Page, url: string): Promise<string> {
+  return page.evaluate(
+    (target) =>
+      fetch(target, { mode: 'no-cors' }).then(
+        () => 'sent',
+        () => 'failed',
+      ),
+    url,
+  );
+}
+
+/** Opens a websocket to `url` in the page: `'closed <code>'` once it closes, `'still open'` after a while. */
+function socketOutcome(page: Page, url: string): Promise<string> {
+  return page.evaluate(
+    ({ target, settleMs }) =>
+      new Promise<string>((resolve) => {
+        const socket = new WebSocket(target);
+        socket.addEventListener('close', (event) => resolve(`closed ${event.code}`));
+        setTimeout(() => resolve('still open'), settleMs);
+      }),
+    { target: url, settleMs: SOCKET_SETTLE_MS },
+  );
+}
+
 function defined<T>(value: T | undefined, what: string): T {
   if (value === undefined) {
     throw new Error(`expected ${what}`);
@@ -53,6 +78,8 @@ function defined<T>(value: T | undefined, what: string): T {
 describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
   let fixture: FixtureServer;
   let fixturePort: string;
+  /** The `call` of every request that reached `/count`, in order. */
+  let countedCalls: string[] = [];
 
   beforeAll(async () => {
     fixture = await serveFixture(FIXTURE_DIR, {
@@ -60,6 +87,12 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
       '/hop-frame': redirectTo((port) => `http://${FOREIGN_HOST}:${port}/landing.html?in=frame`),
       '/hop': redirectTo((port) => `http://${BACKEND_HOST}:${port}/ok.json`),
       '/pay': redirectTo(() => 'https://api.stripe.com/v1/redirected'),
+      '/count': (req, res) => {
+        const call = new URL(req.url ?? '/', 'http://fixture.invalid').searchParams.get('call') ?? '';
+        countedCalls = [...countedCalls, call];
+        res.writeHead(204);
+        res.end();
+      },
     });
     fixturePort = new URL(fixture.url).port;
   });
@@ -252,6 +285,70 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(outcomes[1]).toBe(`closed ${WS_POLICY_VIOLATION}`);
       expect(blockedUrls()).not.toContain(allowedSocket);
       expect(outcomes[0]).not.toBe(`closed ${WS_POLICY_VIOLATION}`);
+    });
+
+    describe('once confirmed hosts are enforced', () => {
+      const backendCall = (call: string): string =>
+        `http://${BACKEND_HOST}:${fixturePort}/count?call=${call}`;
+
+      function unconfirmedBlocks(): string[] {
+        return events.flatMap((event) =>
+          event.type === 'request.blocked' && event.reason === 'unconfirmed-backend' ? [event.url] : [],
+        );
+      }
+
+      beforeEach(() => {
+        countedCalls = [];
+      });
+
+      test('blocks a backend it let through before, still recording the host', async () => {
+        await openFixture();
+
+        const before = await sendOutcome(ipage.page, backendCall('before'));
+        session.enforceConfirmedHosts([FOREIGN_HOST]);
+        const after = await sendOutcome(ipage.page, backendCall('after'));
+
+        expect([before, after]).toEqual(['sent', 'failed']);
+        expect(countedCalls).toEqual(['before']);
+        expect(unconfirmedBlocks()).toEqual([backendCall('after')]);
+        expect(session.observedHosts()).toContain(BACKEND_HOST);
+      });
+
+      test('lets a confirmed backend through, compared as a normalised host', async () => {
+        await openFixture();
+        session.enforceConfirmedHosts([`${BACKEND_HOST.toUpperCase()}.`]);
+
+        const outcome = await sendOutcome(ipage.page, backendCall('confirmed'));
+
+        expect(outcome).toBe('sent');
+        expect(countedCalls).toEqual(['confirmed']);
+        expect(unconfirmedBlocks()).toEqual([]);
+      });
+
+      test('closes a websocket to a backend that is not confirmed', async () => {
+        await openFixture();
+        session.enforceConfirmedHosts([]);
+        const socketUrl = `ws://${BACKEND_HOST}:${fixturePort}/socket`;
+
+        const outcome = await socketOutcome(ipage.page, socketUrl);
+
+        expect(outcome).toBe(`closed ${WS_POLICY_VIOLATION}`);
+        // The page can see the close before the session has reported it.
+        await expect.poll(unconfirmedBlocks).toEqual([socketUrl]);
+        expect(session.observedHosts()).toContain(BACKEND_HOST);
+      });
+
+      test('still lets the app call its own host', async () => {
+        session.enforceConfirmedHosts([]);
+
+        await openFixture();
+
+        const results = await ipage.page.evaluate(
+          () => (window as unknown as { __results: FixtureResults }).__results,
+        );
+        expect(results.ok).toBe('ok');
+        expect(unconfirmedBlocks()).toEqual([]);
+      });
     });
 
     test('closes an instrumented page', async () => {

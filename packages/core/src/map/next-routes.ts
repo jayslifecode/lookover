@@ -160,6 +160,11 @@ function isDynamicPattern(pattern: string): boolean {
   return DYNAMIC_TOKEN.test(pattern);
 }
 
+/** The patterns of `routes` that name one URL each (no `[x]`, `[...x]` or `[[...x]]`), in order. */
+export function staticRoutePatterns(routes: readonly RouteInfo[]): string[] {
+  return routes.map((route) => route.pattern).filter((pattern) => !isDynamicPattern(pattern));
+}
+
 function escapeRegExp(text: string): string {
   return text.replace(REGEX_SPECIAL_CHARACTERS, '\\$&');
 }

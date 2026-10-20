@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { discoverNextRoutes, matchRoute, routePatternFromPath } from '../src/map/next-routes.js';
+import {
+  discoverNextRoutes,
+  matchRoute,
+  routePatternFromPath,
+  staticRoutePatterns,
+} from '../src/map/next-routes.js';
 import type { RouteInfo } from '../src/map/types.js';
 
 let root: string;
@@ -493,5 +498,21 @@ describe('routePatternFromPath', () => {
   test('keeps the root and purely static paths', () => {
     expect(routePatternFromPath('/')).toBe('/');
     expect(routePatternFromPath('/pricing')).toBe('/pricing');
+  });
+});
+
+describe('staticRoutePatterns', () => {
+  test('keeps the patterns without a dynamic segment, in order', () => {
+    const routes: RouteInfo[] = [
+      '/',
+      '/docs/[...slug]',
+      '/login',
+      '/orgs/[id]',
+      '/orgs/[id]/settings',
+      '/shop/[[...path]]',
+      '/pricing',
+    ].map((pattern) => ({ pattern, source: 'filesystem' }));
+
+    expect(staticRoutePatterns(routes)).toEqual(['/', '/login', '/pricing']);
   });
 });

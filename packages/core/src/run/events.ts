@@ -6,7 +6,7 @@ export type RunEventBody =
   | { type: 'auth.completed'; method: 'none' | 'storageState' | 'form'; statePath?: string }
   | { type: 'auth.lost'; url: string }
   | { type: 'host.observed'; host: string; kind: 'navigation' | 'app-call' }
-  | { type: 'request.blocked'; url: string; reason: 'provider' | 'host-not-allowed' }
+  | { type: 'request.blocked'; url: string; reason: 'provider' | 'host-not-allowed' | 'unconfirmed-backend' }
   | { type: 'screen.discovered'; url: string; from: string | null }
   | {
       type: 'screen.skipped';

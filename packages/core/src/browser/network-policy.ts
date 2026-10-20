@@ -5,16 +5,18 @@
  *   name (`*.localhost` always resolves to loopback, RFC 6761), and the user's `allowHosts` (exact
  *   names or `*.suffix` globs).
  * - The app's own calls (fetch, XHR, websockets, subresources) to other hosts go through but are
- *   observed, so the user can confirm each backend is a development or disposable instance.
+ *   observed, so the user can confirm each backend is a development or disposable instance. Once
+ *   the policy holds the confirmed hosts (`confirmedHosts`), a call to any other such host is blocked
+ *   as `unconfirmed-backend` instead.
  * - Payment, email and SMS providers (`BLOCKED_PROVIDERS`) are blocked for every kind of request
  *   unless the host is in `allowHosts`. `launchArgs` repeats that block at DNS level for the
  *   browser (`hostResolverRules`, with the proxy disabled so the browser resolves every name
  *   itself), which also covers requests the route handler never sees (redirect hops).
  *
  * Known gap: a redirect from an allowed host to a non-provider, non-allowed host is not blocked in
- * a fetch or subresource, only recorded as an observed host; a frame that lands on such a host is
- * contained after the fact (sent to `about:blank`), so its request has already gone out. Blocking
- * the hop itself needs response-level interception and is deferred.
+ * a fetch or subresource, confirmed or not (only recorded as an observed host); a frame that lands
+ * on such a host is contained after the fact (sent to `about:blank`), so its request has already
+ * gone out. Blocking the hop itself needs response-level interception and is deferred.
  */
 
 export type RequestKind = 'navigation' | 'fetch' | 'subresource';
@@ -22,10 +24,16 @@ export type RequestKind = 'navigation' | 'fetch' | 'subresource';
 export type Verdict =
   | { kind: 'allow' }
   | { kind: 'observe'; host: string }
-  | { kind: 'block'; reason: 'provider' | 'host-not-allowed' };
+  | { kind: 'block'; reason: 'provider' | 'host-not-allowed' | 'unconfirmed-backend' };
 
 export interface NetworkPolicy {
   allowHosts: readonly string[];
+  /**
+   * The backends the user confirmed as development or disposable instances. While it is absent every
+   * call to a host that is neither allowed nor a provider is observed; once set, such a call is let
+   * through only to these hosts and blocked as `unconfirmed-backend` everywhere else.
+   */
+  confirmedHosts?: readonly string[];
 }
 
 /** Test-only resolver overrides for `launchArgs`; never set from configuration. */
@@ -136,7 +144,16 @@ export function classifyRequest(url: URL, kind: RequestKind, policy: NetworkPoli
   if (kind === 'navigation') {
     return { kind: 'block', reason: 'host-not-allowed' };
   }
+  if (isUnconfirmedBackend(host, policy)) {
+    return { kind: 'block', reason: 'unconfirmed-backend' };
+  }
   return { kind: 'observe', host };
+}
+
+/** True once the policy holds the confirmed hosts and `host` (normalised) is not one of them. */
+function isUnconfirmedBackend(host: string, policy: NetworkPolicy): boolean {
+  const confirmed = policy.confirmedHosts;
+  return confirmed !== undefined && !confirmed.some((entry) => normaliseHost(entry) === host);
 }
 
 /** Chromium `--host-resolver-rules` that make every provider unresolvable except allowlisted hosts. */

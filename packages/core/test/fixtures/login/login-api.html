@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign in</title>
+  </head>
+  <body>
+    <h1>Sign in</h1>
+    <!-- Signs in through an auth backend on another host, as a hosted auth service would. -->
+    <form id="sign-in">
+      <label>Username <input name="user" type="text" /></label>
+      <label>Password <input name="pass" type="password" /></label>
+      <button type="submit">Sign in</button>
+    </form>
+    <script>
+      document.getElementById('sign-in').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const body = new URLSearchParams(new FormData(event.target));
+        fetch(`http://auth.backend.test:${location.port}/api-login`, { method: 'POST', body, mode: 'no-cors' }).then(
+          () => {
+            location.href = '/home.html';
+          },
+          () => undefined,
+        );
+      });
+    </script>
+  </body>
+</html>

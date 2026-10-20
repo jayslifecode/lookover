@@ -62,7 +62,8 @@ const WS_BLOCKED_REASON = 'Blocked by Lookover';
 /**
  * One browser and context that enforce the network policy (see `network-policy.ts`) on every
  * request: provider calls and navigations off the allowed hosts are blocked, everything else is let
- * through and its host recorded for the backend-confirmation step.
+ * through and its host recorded for the backend-confirmation step. Once `enforceConfirmedHosts` has
+ * been called, the app's calls to a host it does not list are blocked too (`unconfirmed-backend`).
  *
  * Layers:
  * - `context.route` blocks what it sees, and fails closed if deciding throws.
@@ -79,7 +80,7 @@ export class BrowserSession {
   private constructor(
     private readonly browser: Browser,
     readonly context: BrowserContext,
-    private readonly policy: NetworkPolicy,
+    private policy: NetworkPolicy,
     private readonly onEvent: SessionOptions['onEvent'],
   ) {}
 
@@ -116,9 +117,21 @@ export class BrowserSession {
     }
   }
 
-  /** Every distinct host a request was let through to (allowed or observed), sorted. */
+  /**
+   * Every distinct host the app sent a request to that was let through (allowed or observed), or
+   * blocked only because it is not a confirmed backend; sorted.
+   */
   observedHosts(): string[] {
     return [...this.hostKinds.keys()].toSorted();
+  }
+
+  /**
+   * From now on, lets the app's calls to hosts that are neither allowed nor providers through only to
+   * `confirmed` (compared normalised); any other such call is blocked as `unconfirmed-backend` and its
+   * host still recorded. Requests already decided are not affected.
+   */
+  enforceConfirmedHosts(confirmed: readonly string[]): void {
+    this.policy = { ...this.policy, confirmedHosts: Object.freeze([...confirmed]) };
   }
 
   async close(): Promise<void> {
@@ -166,13 +179,13 @@ export class BrowserSession {
 
   private async decideWebSocket(ws: WebSocketRoute): Promise<void> {
     const { verdict, host } = assess(ws.url(), 'fetch', this.policy);
+    if (host !== null && isRecorded(verdict)) {
+      this.recordHost(host, 'app-call');
+    }
     if (verdict.kind === 'block') {
       await ws.close({ code: WS_POLICY_VIOLATION, reason: WS_BLOCKED_REASON });
       this.reportBlocked(ws.url(), verdict.reason);
       return;
-    }
-    if (host !== null) {
-      this.recordHost(host, 'app-call');
     }
     ws.connectToServer();
   }
@@ -203,7 +216,7 @@ export class BrowserSession {
     const { verdict, host } = assess(request.url(), kind, this.policy);
     // Blocked hops behind a redirect are reported once they have failed (`reportFailedProviderHop`)
     // or landed in a frame (`containFrames`), never on the strength of the verdict alone.
-    if (verdict.kind === 'block' || host === null) {
+    if (!isRecorded(verdict) || host === null) {
       return;
     }
     this.recordHost(host, kind === 'navigation' ? 'navigation' : 'app-call');
@@ -264,6 +277,11 @@ export class BrowserSession {
       });
     }
   }
+}
+
+/** A host is recorded when its request goes through, or is blocked only for being an unconfirmed backend. */
+function isRecorded(verdict: Verdict): boolean {
+  return verdict.kind !== 'block' || verdict.reason === 'unconfirmed-backend';
 }
 
 function requestKind(request: Request): RequestKind {

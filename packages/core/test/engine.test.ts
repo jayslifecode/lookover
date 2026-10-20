@@ -13,9 +13,11 @@ import {
   test,
   vi,
 } from 'vitest';
+import { ensureAuth } from '../src/browser/auth.js';
 import { BrowserSession } from '../src/browser/session.js';
 import { configSchema, type LookoverConfig } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
+import { crawl } from '../src/map/crawler.js';
 import { APP_MAP_FILE } from '../src/map/persist.js';
 import type { AppMap } from '../src/map/types.js';
 import { type DiscoveryHooks, runDiscovery } from '../src/run/engine.js';
@@ -36,19 +38,36 @@ import {
   submitLogin,
 } from './fixtures/serve.js';
 
+// The real login and crawl, wrapped so a test can shorten the login timeout or drive the crawl's hooks.
+vi.mock('../src/browser/auth.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/browser/auth.js')>();
+  return { ...original, ensureAuth: vi.fn(original.ensureAuth) };
+});
+vi.mock('../src/map/crawler.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/map/crawler.js')>();
+  return { ...original, crawl: vi.fn(original.crawl) };
+});
+
 const LOGIN_DIR = fileURLToPath(new URL('./fixtures/login', import.meta.url));
 const BROWSER_TIMEOUT_MS = 60_000;
+/** Long enough for a login that works, short enough that a login that cannot work fails quickly. */
+const SHORT_LOGIN_TIMEOUT_MS = 2_000;
 const DEMO_ENV = { LOOKOVER_USERNAME: DEMO_CREDENTIALS.user, LOOKOVER_PASSWORD: DEMO_CREDENTIALS.pass };
-/** Called by the dashboard (`/`), the page the probe always opens. */
+/** Called by the public dashboard (`/`), the page the probe always opens. */
 const SUPABASE_HOST = 'xyz.supabase.co';
-/** Called by `/projects` only, which nothing links to: only the probe or a seed reaches it. */
+/** Called by the public `/projects` only, which nothing links to: only the probe or a seed reaches it. */
 const PROJECTS_API_HOST = 'api.backend.test';
-const UNCONFIRMED_HINT =
-  'Run again with --confirm-host <host> for each development or disposable backend, or add it to confirmedBackendHosts';
+/** Called by `/settings.html` only, which only the crawl reaches; resolved to the fixture server. */
+const LATE_HOST = 'late.backend.test';
+/** The auth backend `/login-api.html` signs in through; resolved to the fixture server. */
+const AUTH_API_HOST = 'auth.backend.test';
+const API_LOGIN_PATH = '/login-api.html';
 /** The Next.js routes of the project with a root: a login, a destructive and a dynamic route among them. */
 const NEXT_ROUTE_DIRS = ['', 'login', 'logout', 'projects', 'projects/[id]'];
 const NEXT_PATTERNS = ['/', '/login', '/logout', '/projects', '/projects/[id]'];
 const CLEARED_SESSION_COOKIE = `${SESSION_COOKIE.name}=; Path=/; Max-Age=0`;
+const BLOCKED_NOTE_TAIL =
+  '— re-run with --confirm-host <host> if they are development or disposable instances';
 
 type Auth = LookoverConfig['auth'];
 
@@ -120,8 +139,13 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
   /** Fixture flag: the next protected page ends the session server-side (clears the cookie, redirects). */
   let shouldEndSession = false;
   let logoutRequests = 0;
+  /** Requests that reached the late backend and the auth backend, which the session should block. */
+  let lateCalls = 0;
+  let apiLoginCalls = 0;
 
   const url = (path: string): string => `${fixture.url}${path}`;
+  const backendUrl = (host: string, path: string): string =>
+    `http://${host}:${new URL(fixture.url).port}${path}`;
 
   const protectedPage: FixtureRoute = (req, res, serveStatic) => {
     if (shouldEndSession && hasSessionCookie(req)) {
@@ -134,15 +158,25 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
   beforeAll(async () => {
     workDir = await mkdtemp(join(tmpdir(), 'lookover-engine-'));
+    // `/` and `/projects` are public, so the probe (before login) sees their backends.
     fixture = await serveFixture(LOGIN_DIR, {
-      '/': protectedPage,
       '/home.html': protectedPage,
       '/settings.html': protectedPage,
-      '/projects': (req, res, serveStatic) => protectedPage(req, res, () => serveStatic('/projects.html')),
+      '/projects': (_req, _res, serveStatic) => serveStatic('/projects.html'),
       '/login': submitLogin,
       '/logout': (_req, res) => {
         logoutRequests += 1;
         redirect(res, LOGIN_PATH, { 'set-cookie': CLEARED_SESSION_COOKIE });
+      },
+      '/late-call': (_req, res) => {
+        lateCalls += 1;
+        res.writeHead(204);
+        res.end();
+      },
+      '/api-login': (_req, res) => {
+        apiLoginCalls += 1;
+        res.writeHead(204);
+        res.end();
       },
     });
   }, BROWSER_TIMEOUT_MS);
@@ -153,14 +187,21 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
   }, BROWSER_TIMEOUT_MS);
 
   beforeEach(() => {
-    // The backends must not be reached from a test: the resolver makes them unresolvable, which leaves
-    // their calls observed (the request is made) but never sent. Only the test sets `testResolver`.
+    // The backends must not be reached from a test: the resolver makes two unresolvable, which leaves
+    // their calls observed (the request is made) but never sent, and points two at the fixture server,
+    // which counts what gets through. Only the test sets `testResolver`.
     const launch = BrowserSession.launch.bind(BrowserSession);
-    launchSpy = vi
-      .spyOn(BrowserSession, 'launch')
-      .mockImplementation((options) =>
-        launch({ ...options, testResolver: { blockedHosts: [SUPABASE_HOST, PROJECTS_API_HOST] } }),
-      );
+    launchSpy = vi.spyOn(BrowserSession, 'launch').mockImplementation((options) =>
+      launch({
+        ...options,
+        testResolver: {
+          blockedHosts: [SUPABASE_HOST, PROJECTS_API_HOST],
+          loopbackHosts: [LATE_HOST, AUTH_API_HOST],
+        },
+      }),
+    );
+    lateCalls = 0;
+    apiLoginCalls = 0;
   });
 
   afterEach(() => {
@@ -202,30 +243,40 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
   }
 
   describe('on an app without a Next.js root', () => {
-    test('refuses to crawl while a backend is unconfirmed and there is no hook to confirm it', async () => {
+    test('refuses to log in or crawl while a backend is unconfirmed and no hook can confirm it', async () => {
       const { cwd, ctx } = await newProject();
 
       const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV }));
 
       expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
       expect(error.message.split('\n')).toContain(`  ${SUPABASE_HOST}`);
-      expect(error.hint).toBe(UNCONFIRMED_HINT);
+      expect(error.hint).toContain(`lookover run --confirm-host ${SUPABASE_HOST}`);
       const events = await logOf(ctx);
       expect(events.at(-1)).toMatchObject({
         type: 'run.failed',
         error: { code: 'E_HOSTS_UNCONFIRMED', message: error.message },
       });
+      expect(eventsOf(events, 'auth.completed')).toEqual([]);
       expect(eventsOf(events, 'screen.discovered')).toEqual([]);
       expect(await exists(join(ctx.dir, APP_MAP_FILE))).toBe(false);
     });
 
-    test('logs in, crawls once the hook confirms the backend, and persists the map', async () => {
+    test('confirms the backends before logging in, then crawls and persists the map', async () => {
       const { cwd, ctx } = await newProject();
-      const { hooks, asked } = confirmingHook();
+      const asked: string[][] = [];
+      let loginsBeforeQuestion: number | undefined;
+      const hooks: DiscoveryHooks = {
+        confirmHosts: async (hosts) => {
+          asked.push(hosts);
+          loginsBeforeQuestion = eventsOf(await logOf(ctx), 'auth.completed').length;
+          return hosts;
+        },
+      };
 
       const result = await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks });
 
       expect(asked).toEqual([[SUPABASE_HOST]]);
+      expect(loginsBeforeQuestion).toBe(0);
       expect(result.confirmedBackendHosts).toEqual([SUPABASE_HOST]);
       expect(result.map).toMatchObject({ version: 1, runId: ctx.runId, baseUrl: fixture.url, routes: [] });
       expect(result.map.screens.map((screen) => [screen.url, screen.title])).toEqual([
@@ -260,6 +311,46 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       });
       const firstScreen = eventsOf(events, 'screen.discovered')[0];
       expect(eventsOf(events, 'auth.completed')[0]?.seq).toBeLessThan(firstScreen?.seq ?? 0);
+    });
+
+    test('blocks a backend first called during the crawl and reports it, finishing the run', async () => {
+      const { cwd, ctx } = await newProject();
+
+      const result = await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks });
+
+      const lateCall = backendUrl(LATE_HOST, '/late-call');
+      expect(result.blockedUnconfirmedHosts).toEqual([LATE_HOST]);
+      expect(result.confirmedBackendHosts).not.toContain(LATE_HOST);
+      expect(lateCalls).toBe(0);
+      const events = await logOf(ctx);
+      expect(eventsOf(events, 'request.blocked')).toContainEqual(
+        expect.objectContaining({ url: lateCall, reason: 'unconfirmed-backend' }),
+      );
+      expect(result.map.screens.map((screen) => screen.title)).toContain('Settings');
+      expect(events.at(-1)?.type).toBe('run.finished');
+    });
+
+    test('blocks a login that posts to an unconfirmed backend and names it in the hint', async () => {
+      const { cwd, ctx } = await newProject({ auth: formAuth({ loginUrl: API_LOGIN_PATH }) });
+      const { ensureAuth: realEnsureAuth } =
+        await vi.importActual<typeof import('../src/browser/auth.js')>('../src/browser/auth.js');
+      vi.mocked(ensureAuth).mockImplementationOnce((session, auth, options) =>
+        realEnsureAuth(session, auth, { ...options, timeoutMs: SHORT_LOGIN_TIMEOUT_MS }),
+      );
+
+      const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks }));
+
+      expect(error.code).toBe('E_AUTH_FAILED');
+      expect(error.hint).toContain(`Blocked unconfirmed backends: ${AUTH_API_HOST} ${BLOCKED_NOTE_TAIL}`);
+      expect(apiLoginCalls).toBe(0);
+      const events = await logOf(ctx);
+      expect(eventsOf(events, 'request.blocked')).toContainEqual(
+        expect.objectContaining({
+          url: backendUrl(AUTH_API_HOST, '/api-login'),
+          reason: 'unconfirmed-backend',
+        }),
+      );
+      expect(events.at(-1)).toMatchObject({ type: 'run.failed', error: { code: 'E_AUTH_FAILED' } });
     });
 
     test('launches one session at the first viewport, inside the configured allowlist', async () => {
@@ -323,22 +414,46 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       });
     });
 
-    test('fails with E_RUN_FAILED, writing no map, when the run log loses an event', async () => {
-      const { cwd, ctx } = await newProject();
-      const append = ctx.log.append.bind(ctx.log);
-      vi.spyOn(ctx.log, 'append').mockImplementation((body: RunEventBody) =>
-        body.type === 'host.observed' ? Promise.reject(new Error('disk full')) : append(body),
-      );
+    describe('when the run log loses an event', () => {
+      function failHostEvents(ctx: RunContext): void {
+        const append = ctx.log.append.bind(ctx.log);
+        vi.spyOn(ctx.log, 'append').mockImplementation((body: RunEventBody) =>
+          body.type === 'host.observed' ? Promise.reject(new Error('disk full')) : append(body),
+        );
+      }
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks }));
+      test('fails an otherwise good run with E_RUN_FAILED, writing no map', async () => {
+        const { cwd, ctx } = await newProject();
+        failHostEvents(ctx);
 
-      expect(error.code).toBe('E_RUN_FAILED');
-      expect(error.message).toBe('Run log write failed: disk full');
-      expect((await logOf(ctx)).at(-1)).toMatchObject({
-        type: 'run.failed',
-        error: { code: 'E_RUN_FAILED', message: error.message },
+        const error = await failureOf(
+          runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks }),
+        );
+
+        expect(error.code).toBe('E_RUN_FAILED');
+        expect(error.message).toBe('Run log write failed: disk full');
+        expect((await logOf(ctx)).at(-1)).toMatchObject({
+          type: 'run.failed',
+          error: { code: 'E_RUN_FAILED', message: error.message },
+        });
+        expect(await exists(join(ctx.dir, APP_MAP_FILE))).toBe(false);
       });
-      expect(await exists(join(ctx.dir, APP_MAP_FILE))).toBe(false);
+
+      test("keeps a failed run's own error, adding the lost writes to its message", async () => {
+        const { cwd, ctx } = await newProject();
+        failHostEvents(ctx);
+
+        const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV }));
+
+        expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
+        expect(error.message).toMatch(/^The app called these backends/);
+        expect(error.message).toMatch(/; additionally, \d+ run-log writes? failed: disk full$/);
+        expect(error.hint).toContain(`lookover run --confirm-host ${SUPABASE_HOST}`);
+        expect((await logOf(ctx)).at(-1)).toMatchObject({
+          type: 'run.failed',
+          error: { code: 'E_HOSTS_UNCONFIRMED', message: error.message },
+        });
+      });
     });
   });
 
@@ -369,7 +484,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       ]);
     });
 
-    test('names only the hosts the hook left unconfirmed', async () => {
+    test('names only the hosts the hook left unconfirmed, in the message and the hint', async () => {
       const { cwd, ctx } = await newProject({ auth: formAuth({ loginUrl: '/login' }) }, NEXT_ROUTE_DIRS);
       const { hooks, asked } = confirmingHook((hosts) => hosts.filter((host) => host === SUPABASE_HOST));
 
@@ -379,7 +494,8 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
       expect(error.message.split('\n')).toContain(`  ${PROJECTS_API_HOST}`);
       expect(error.message).not.toContain(SUPABASE_HOST);
-      expect(error.hint).toBe(UNCONFIRMED_HINT);
+      expect(error.hint).toContain(`lookover run --confirm-host ${PROJECTS_API_HOST}`);
+      expect(error.hint).not.toContain(SUPABASE_HOST);
     });
   });
 
@@ -390,8 +506,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       return { type: 'storageState', path: STATE_FILE };
     }
 
-    test('launches the session with the file resolved against the project directory', async () => {
-      const { cwd, ctx } = await newProject({ auth: storageAuth(), maxScreens: 1 });
+    async function writeSessionState(cwd: string): Promise<string> {
       const statePath = join(cwd, STATE_FILE);
       const cookie = {
         ...SESSION_COOKIE,
@@ -403,6 +518,12 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         sameSite: 'Lax',
       };
       await writeFile(statePath, JSON.stringify({ cookies: [cookie], origins: [] }));
+      return statePath;
+    }
+
+    test('launches the session with the file resolved against the project directory', async () => {
+      const { cwd, ctx } = await newProject({ auth: storageAuth(), maxScreens: 2 });
+      const statePath = await writeSessionState(cwd);
       expect(relative(process.cwd(), statePath)).not.toBe(STATE_FILE);
 
       const result = await runDiscovery(ctx, { cwd, hooks: confirmingHook().hooks });
@@ -411,7 +532,24 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(eventsOf(await logOf(ctx), 'auth.completed')).toEqual([
         expect.objectContaining({ method: 'storageState', statePath }),
       ]);
-      expect(result.map.screens.map((screen) => screen.title)).toEqual(['Dashboard']);
+      // `/home.html` needs the session cookie: without the state it would be the login page.
+      expect(result.map.screens.map((screen) => screen.title)).toEqual(['Dashboard', 'Home']);
+    });
+
+    test('fails with E_AUTH_FAILED instead of logging in again when the saved session is lost', async () => {
+      const { cwd, ctx } = await newProject({ auth: storageAuth() });
+      await writeSessionState(cwd);
+      vi.mocked(crawl).mockImplementationOnce(async (_session, _ctx, options) => {
+        await options.auth?.recover();
+        return [];
+      });
+
+      const error = await failureOf(runDiscovery(ctx, { cwd, hooks: confirmingHook().hooks }));
+
+      expect(error.code).toBe('E_AUTH_FAILED');
+      expect(error.message).toBe('The saved session expired during the run');
+      expect(error.hint).toBe('Save the storage state again and re-run');
+      expect(eventsOf(await logOf(ctx), 'auth.completed')).toHaveLength(1);
     });
 
     test('fails with E_AUTH_FAILED naming the file when it does not exist', async () => {

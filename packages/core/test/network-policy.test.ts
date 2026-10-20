@@ -7,6 +7,7 @@ import {
   isBlockedProvider,
   LOCAL_HOSTS,
   launchArgs,
+  type NetworkPolicy,
   type RequestKind,
   type Verdict,
 } from '../src/browser/network-policy.js';
@@ -107,8 +108,10 @@ describe('isBlockedProvider', () => {
 
 describe('classifyRequest', () => {
   const none = { allowHosts: [] };
+  /** Confirmation has happened: only `xyz.supabase.co` (written as a user might) is a confirmed backend. */
+  const enforced = { allowHosts: [], confirmedHosts: ['XYZ.Supabase.co.'] };
 
-  test.each<[string, string, RequestKind, { allowHosts: string[] }, Verdict]>([
+  test.each<[string, string, RequestKind, NetworkPolicy, Verdict]>([
     [
       'a navigation to another host',
       'https://example.com',
@@ -214,6 +217,62 @@ describe('classifyRequest', () => {
     ['a blob URL', 'blob:http://localhost:3000/0f8fad5b', 'fetch', none, { kind: 'allow' }],
     ['about:blank', 'about:blank', 'navigation', none, { kind: 'allow' }],
     ['the Chromium error page', 'chrome-error://chromewebdata/', 'navigation', none, { kind: 'allow' }],
+    [
+      'a fetch to a confirmed backend once confirmation is enforced',
+      'https://xyz.supabase.co/rest/v1/orgs',
+      'fetch',
+      enforced,
+      { kind: 'observe', host: 'xyz.supabase.co' },
+    ],
+    [
+      'a fetch to another backend once confirmation is enforced',
+      'https://api.backend.test/v1/orgs',
+      'fetch',
+      enforced,
+      { kind: 'block', reason: 'unconfirmed-backend' },
+    ],
+    [
+      'a websocket to another backend once confirmation is enforced',
+      'wss://realtime.backend.test/socket',
+      'fetch',
+      enforced,
+      { kind: 'block', reason: 'unconfirmed-backend' },
+    ],
+    [
+      'a subresource from another host once confirmation is enforced',
+      'https://fonts.example.net/inter.woff2',
+      'subresource',
+      enforced,
+      { kind: 'block', reason: 'unconfirmed-backend' },
+    ],
+    [
+      'a fetch to any backend when nothing was confirmed and confirmation is enforced',
+      'https://xyz.supabase.co/rest/v1/orgs',
+      'fetch',
+      { allowHosts: [], confirmedHosts: [] },
+      { kind: 'block', reason: 'unconfirmed-backend' },
+    ],
+    [
+      'a provider once confirmation is enforced, even when confirmed',
+      'https://api.stripe.com/v1/charges',
+      'fetch',
+      { allowHosts: [], confirmedHosts: ['api.stripe.com'] },
+      { kind: 'block', reason: 'provider' },
+    ],
+    [
+      'a navigation to another host once confirmation is enforced',
+      'https://xyz.supabase.co/',
+      'navigation',
+      enforced,
+      { kind: 'block', reason: 'host-not-allowed' },
+    ],
+    [
+      'a fetch to the local app once confirmation is enforced',
+      'http://localhost:3000/api',
+      'fetch',
+      enforced,
+      { kind: 'allow' },
+    ],
   ])('%s', (_name, href, kind, policy, expected) => {
     expect(classifyRequest(new URL(href), kind, policy)).toEqual(expected);
   });

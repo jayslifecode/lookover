@@ -6,5 +6,10 @@
   </head>
   <body>
     <h1>Settings</h1>
+    <script>
+      // A backend only this page calls, so the probe never sees it. The test resolver points the host
+      // at the fixture server, which counts the calls that get through.
+      fetch(`http://late.backend.test:${location.port}/late-call`, { mode: 'no-cors' }).catch(() => undefined);
+    </script>
   </body>
 </html>
