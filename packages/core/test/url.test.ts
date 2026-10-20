@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { isSameApp, normaliseUrl, routeKey } from '../src/util/url.js';
+import { isSameApp, normaliseUrl, resolveSeed, routeKey } from '../src/util/url.js';
 
 const base = new URL('http://localhost:3000/app');
 
@@ -106,5 +106,31 @@ describe('routeKey', () => {
 
     expect(left && routeKey(left)).toBe('/orgs?a=1&b=2');
     expect(right && routeKey(right)).toBe('/orgs?a=1&b=2');
+  });
+});
+
+// Results are normalised like every crawl URL, so `/sub/` comes back as `/sub`.
+describe('resolveSeed', () => {
+  const origin = 'http://127.0.0.1:3000';
+
+  test.each([`${origin}/sub/`, `${origin}/sub`])(
+    'keeps the base path of %s for a seed starting with /',
+    (base) => {
+      expect(resolveSeed('/', new URL(base))?.href).toBe(`${origin}/sub`);
+      expect(resolveSeed('/orgs.html', new URL(base))?.href).toBe(`${origin}/sub/orgs.html`);
+    },
+  );
+
+  test.each([`${origin}/`, origin])('changes nothing under the root base URL %s', (base) => {
+    expect(resolveSeed('/', new URL(base))?.href).toBe(`${origin}/`);
+    expect(resolveSeed('/orgs.html', new URL(base))?.href).toBe(`${origin}/orgs.html`);
+  });
+
+  test('uses an absolute seed as is', () => {
+    expect(resolveSeed(`${origin}/orgs.html`, new URL(`${origin}/sub/`))?.href).toBe(`${origin}/orgs.html`);
+  });
+
+  test('returns null for a seed that cannot be navigated', () => {
+    expect(resolveSeed('mailto:x@y.z', new URL(`${origin}/sub/`))).toBeNull();
   });
 });

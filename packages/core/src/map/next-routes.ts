@@ -1,5 +1,6 @@
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { hasErrorCode, isMissingFile } from '../util/fs.js';
 import type { RouteInfo } from './types.js';
 
 const PAGE_EXTENSIONS = 'tsx|ts|jsx|js|mdx';
@@ -24,8 +25,9 @@ function isIgnoredDirectory(name: string): boolean {
   return name === IGNORED_DIRECTORY || name.startsWith('.');
 }
 
+/** The path does not exist, or one of its parents is a file. */
 function isMissingPathError(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ENOTDIR');
+  return isMissingFile(error) || hasErrorCode(error, 'ENOTDIR');
 }
 
 async function isDirectory(path: string): Promise<boolean> {

@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto';
-import { readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { LookoverError } from '../errors.js';
 import type { RunContext } from '../run/run-context.js';
+import { isMissingFile, writeFileAtomic } from '../util/fs.js';
 import { redact, redactDeep } from '../util/redact.js';
 import type { AppMap, Screen } from './types.js';
 
@@ -25,7 +25,8 @@ export interface AppMapDiff {
 
 /**
  * Writes the map, redacted, to `<run dir>/app-map.json` and to `<lookover dir>/app-map.json`
- * (the project's latest). Both files hold the same bytes. `map` itself is not modified.
+ * (the project's latest), each atomically, so a reader never sees a partial map. Both files hold the
+ * same bytes. `map` itself is not modified.
  */
 export async function writeAppMap(
   ctx: RunContext,
@@ -34,8 +35,8 @@ export async function writeAppMap(
   const runPath = resolve(ctx.dir, APP_MAP_FILE);
   const latestPath = resolve(ctx.lookoverDir, APP_MAP_FILE);
   const content = `${JSON.stringify(redactDeep(map), null, 2)}\n`;
-  await writeAtomically(runPath, content);
-  await writeAtomically(latestPath, content);
+  await writeFileAtomic(runPath, content);
+  await writeFileAtomic(latestPath, content);
   return { runPath, latestPath };
 }
 
@@ -104,10 +105,6 @@ function difference(source: ReadonlySet<string>, other: ReadonlySet<string>): st
   return [...source].filter((value) => !other.has(value)).toSorted();
 }
 
-function isMissingFile(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
-}
-
 async function readIfPresent(path: string): Promise<string | null> {
   try {
     return await readFile(path, 'utf8');
@@ -144,16 +141,4 @@ function hasSupportedVersion(value: unknown): boolean {
   return (
     typeof value === 'object' && value !== null && 'version' in value && value.version === SUPPORTED_VERSION
   );
-}
-
-/** Write to a unique temp file in the same directory then rename, so readers never see partial bytes. */
-async function writeAtomically(target: string, content: string): Promise<void> {
-  const temp = `${target}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temp, content, 'utf8');
-    await rename(temp, target);
-  } catch (error) {
-    await rm(temp, { force: true });
-    throw error;
-  }
 }

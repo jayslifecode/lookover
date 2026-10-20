@@ -1,7 +1,8 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { z } from 'zod';
 import { LookoverError } from '../errors.js';
+import { isMissingFile, writeFileAtomic } from '../util/fs.js';
 import { configSchema, type LookoverConfig } from './schema.js';
 
 export const CONFIG_FILENAME = 'lookover.config.json';
@@ -13,10 +14,6 @@ const ACK_HINT =
 
 function configPath(cwd: string): string {
   return resolve(cwd, CONFIG_FILENAME);
-}
-
-function isNotFound(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
 function invalidConfig(lines: readonly string[]): LookoverError {
@@ -36,7 +33,7 @@ async function readRaw(path: string, cwd: string): Promise<string> {
   try {
     return await readFile(path, 'utf8');
   } catch (error) {
-    if (isNotFound(error)) {
+    if (isMissingFile(error)) {
       throw new LookoverError('E_CONFIG_NOT_FOUND', `Could not find ${CONFIG_FILENAME} in ${cwd}`, INIT_HINT);
     }
     throw error;
@@ -73,8 +70,9 @@ export async function loadConfig(cwd: string): Promise<{ config: LookoverConfig;
   return { config: result.data, path };
 }
 
+/** Writes `config` to `<cwd>/lookover.config.json`, atomically, and returns the file's path. */
 export async function writeConfig(cwd: string, config: LookoverConfig): Promise<string> {
   const path = configPath(cwd);
-  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  await writeFileAtomic(path, `${JSON.stringify(config, null, 2)}\n`);
   return path;
 }

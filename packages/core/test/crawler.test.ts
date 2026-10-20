@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { BrowserSession } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
-import { type CrawlOptions, crawl, DESTRUCTIVE_LINK_PATTERN, resolveSeed } from '../src/map/crawler.js';
+import { type CrawlOptions, crawl } from '../src/map/crawler.js';
 import { MAX_ELEMENTS_PER_SCREEN } from '../src/map/elements.js';
 import { extractForms } from '../src/map/forms.js';
 import type { Screen } from '../src/map/types.js';
@@ -93,56 +93,6 @@ function expectFailedNavigation(screen: Screen | undefined, reason: RegExp): voi
   expect(screen?.title).toMatch(reason);
   expect(screen).toMatchObject({ screenshot: null, elements: [], forms: [], tokens: [], links: [] });
 }
-
-describe('DESTRUCTIVE_LINK_PATTERN', () => {
-  test.each([
-    '/logout',
-    '/account/sign-out',
-    '/signout?next=/',
-    '/items/3/delete',
-    '/settings/reset/',
-    '/orgs?action=delete',
-    '/orgs?a=1&op=remove',
-    '/users/sign_out',
-    '/session/log_out',
-    '/logoff',
-  ])('matches %s', (path) => {
-    expect(DESTRUCTIVE_LINK_PATTERN.test(path)).toBe(true);
-  });
-
-  test.each(['/logouts', '/logoffs', '/deleted-items', '/resettle', '/orgs?action=view', '/remove-me-not'])(
-    'does not match %s',
-    (path) => {
-      expect(DESTRUCTIVE_LINK_PATTERN.test(path)).toBe(false);
-    },
-  );
-});
-
-// Results are normalised like every crawl URL, so `/sub/` comes back as `/sub`.
-describe('resolveSeed', () => {
-  const origin = 'http://127.0.0.1:3000';
-
-  test.each([`${origin}/sub/`, `${origin}/sub`])(
-    'keeps the base path of %s for a seed starting with /',
-    (base) => {
-      expect(resolveSeed('/', new URL(base))?.href).toBe(`${origin}/sub`);
-      expect(resolveSeed('/orgs.html', new URL(base))?.href).toBe(`${origin}/sub/orgs.html`);
-    },
-  );
-
-  test.each([`${origin}/`, origin])('changes nothing under the root base URL %s', (base) => {
-    expect(resolveSeed('/', new URL(base))?.href).toBe(`${origin}/`);
-    expect(resolveSeed('/orgs.html', new URL(base))?.href).toBe(`${origin}/orgs.html`);
-  });
-
-  test('uses an absolute seed as is', () => {
-    expect(resolveSeed(`${origin}/orgs.html`, new URL(`${origin}/sub/`))?.href).toBe(`${origin}/orgs.html`);
-  });
-
-  test('returns null for a seed that cannot be navigated', () => {
-    expect(resolveSeed('mailto:x@y.z', new URL(`${origin}/sub/`))).toBeNull();
-  });
-});
 
 describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
   let fixture: FixtureServer;

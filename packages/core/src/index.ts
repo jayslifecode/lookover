@@ -22,9 +22,10 @@ export { LookoverError } from './errors.js';
 export type { EvidenceRef } from './evidence/store.js';
 export { EvidenceStore } from './evidence/store.js';
 export type { CrawlOptions } from './map/crawler.js';
-export { crawl, DESTRUCTIVE_LINK_PATTERN } from './map/crawler.js';
+export { crawl } from './map/crawler.js';
 export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './map/elements.js';
 export { extractForms } from './map/forms.js';
+export { DESTRUCTIVE_LINK_PATTERN, isDestructiveLink } from './map/links.js';
 export {
   discoverNextRoutes,
   matchRoute,
@@ -56,6 +57,8 @@ export type { CreateRunOptions, RunContext } from './run/run-context.js';
 export { createRun } from './run/run-context.js';
 export type { RunLogOptions } from './run/run-log.js';
 export { RunLog } from './run/run-log.js';
+export type { WriteFileAtomicOptions } from './util/fs.js';
+export { isMissingFile, writeFileAtomic } from './util/fs.js';
 export { sha256, shortId } from './util/hash.js';
 export { redact, redactDeep } from './util/redact.js';
-export { isSameApp, normaliseUrl, routeKey } from './util/url.js';
+export { isSameApp, normaliseUrl, resolveSeed, routeKey } from './util/url.js';

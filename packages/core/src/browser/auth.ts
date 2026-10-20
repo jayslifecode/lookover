@@ -1,12 +1,11 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { errors, type Page } from 'playwright';
 import { z } from 'zod';
 import type { LookoverConfig } from '../config/schema.js';
 import { LookoverError } from '../errors.js';
-import { resolveSeed } from '../map/crawler.js';
-import { normaliseUrl, routeKey } from '../util/url.js';
+import { isMissingFile, writeFileAtomic } from '../util/fs.js';
+import { normaliseUrl, resolveSeed, routeKey } from '../util/url.js';
 import type { BrowserSession } from './session.js';
 
 type Auth = LookoverConfig['auth'];
@@ -131,10 +130,6 @@ export async function checkStorageState(path: string): Promise<void> {
   if (!storageStateSchema.safeParse(parsed).success) {
     throw fail('Storage state file has no cookies array');
   }
-}
-
-function isMissingFile(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
 async function loginWithForm(
@@ -275,20 +270,12 @@ function locationOf(rawUrl: string): string {
   return Object.assign(url, { search: '', hash: '', username: '', password: '' }).href;
 }
 
-/** Writes the context's state to a private temporary file and renames it onto `<stateDir>/form.json`. */
+/** Writes the context's state, readable by its owner only, atomically onto `<stateDir>/form.json`. */
 async function saveState(session: BrowserSession, stateDir: string): Promise<string> {
   const statePath = join(stateDir, FORM_STATE_FILENAME);
-  const pendingPath = `${statePath}.${randomUUID()}.tmp`;
   await mkdir(stateDir, { recursive: true, mode: STATE_DIR_MODE });
   const state = await session.context.storageState();
-  try {
-    await writeFile(pendingPath, JSON.stringify(state, null, 2), { mode: STATE_FILE_MODE, flag: 'wx' });
-    await rename(pendingPath, statePath);
-  } catch (error) {
-    // The write or rename error is the one worth surfacing; a leftover temp file adds nothing.
-    await rm(pendingPath, { force: true }).catch(() => undefined);
-    throw error;
-  }
+  await writeFileAtomic(statePath, JSON.stringify(state, null, 2), { mode: STATE_FILE_MODE });
   return statePath;
 }
 

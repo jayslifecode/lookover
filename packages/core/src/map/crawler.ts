@@ -4,20 +4,13 @@ import { LookoverError } from '../errors.js';
 import type { RunEventBody } from '../run/events.js';
 import type { RunContext } from '../run/run-context.js';
 import { shortId } from '../util/hash.js';
-import { isSameApp, normaliseUrl, routeKey } from '../util/url.js';
+import { isSameApp, normaliseUrl, resolveSeed, routeKey } from '../util/url.js';
 import { extractElements, MAX_ELEMENTS_PER_SCREEN } from './elements.js';
 import { extractForms } from './forms.js';
+import { isDestructiveLink } from './links.js';
 import { matchRoute, routePatternFromPath } from './next-routes.js';
 import { collectTokens } from './tokens.js';
 import type { ElementRef, FormInfo, RouteInfo, Screen, TokenSample, Viewport } from './types.js';
-
-/**
- * Links discovery never follows: logging out or deleting something would change what the rest of
- * the crawl sees. Tested against a URL's app-relative path (below the base URL's path) and its
- * query, so a base path such as `/reset/` does not make every URL look destructive.
- */
-export const DESTRUCTIVE_LINK_PATTERN =
-  /(^|\/)(logout|log-out|log_out|logoff|signout|sign-out|sign_out|delete|remove|destroy|reset)(\/|$|\?)|[?&](action|op)=(delete|remove|destroy)/i;
 
 export interface CrawlOptions {
   /** The app's root: only URLs on its origin and under its path are crawled. */
@@ -286,7 +279,7 @@ class Frontier {
     if (!isInApp) {
       return 'not-same-app';
     }
-    if (DESTRUCTIVE_LINK_PATTERN.test(appRelativeKey(url, this.base))) {
+    if (isDestructiveLink(url, this.base)) {
       return 'destructive-link';
     }
     const route = routeOf(url, this.opts.routes);
@@ -309,29 +302,6 @@ class Frontier {
     }
     return next;
   }
-}
-
-/**
- * Resolves a crawl seed against the app, normalised like every other crawl URL. Seeds are
- * app-relative: a leading `/` means the app's root, so the base URL's path is kept (`/orgs` under
- * `http://host/sub/` is `http://host/sub/orgs`); with a base URL at the origin's root nothing
- * changes. An absolute URL is used as is, and the crawl still checks that it is in the app.
- * `null` for an href that cannot be navigated.
- */
-export function resolveSeed(seed: string, baseUrl: URL): URL | null {
-  const appRoot = new URL(baseUrl.href);
-  appRoot.pathname = appRoot.pathname.endsWith('/') ? appRoot.pathname : `${appRoot.pathname}/`;
-  return normaliseUrl(seed.trim().replace(/^\//, ''), appRoot);
-}
-
-/**
- * The part of a same-app URL that belongs to the app: its path below the base URL's path (`/` for
- * the app's root), then its query. `url` must be in the app (`isSameApp`).
- */
-function appRelativeKey(url: URL, base: URL): string {
-  const basePath = base.pathname.replace(/\/+$/, '');
-  const path = url.pathname.slice(basePath.length);
-  return `${path === '' ? '/' : path}${url.search}`;
 }
 
 function routeOf(url: URL, routes: readonly RouteInfo[]): string {

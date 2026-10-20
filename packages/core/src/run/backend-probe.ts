@@ -5,9 +5,10 @@ import type { BrowserSession } from '../browser/session.js';
 import { CONFIG_FILENAME } from '../config/load.js';
 import type { LookoverConfig } from '../config/schema.js';
 import { LookoverError } from '../errors.js';
-import { DESTRUCTIVE_LINK_PATTERN, resolveSeed } from '../map/crawler.js';
+import { DESTRUCTIVE_LINK_PATTERN } from '../map/links.js';
 import { staticRoutePatterns } from '../map/next-routes.js';
 import type { RouteInfo } from '../map/types.js';
+import { resolveSeed } from '../util/url.js';
 
 /** Asked about the backend hosts that need confirming; returns the ones the user confirms. */
 export type ConfirmHosts = (hosts: string[]) => Promise<string[]>;

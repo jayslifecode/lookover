@@ -49,3 +49,16 @@ export function isSameApp(url: URL, base: URL): boolean {
 export function routeKey(url: URL): string {
   return url.pathname + url.search;
 }
+
+/**
+ * Resolves a crawl seed against the app, normalised like every other crawl URL. Seeds are
+ * app-relative: a leading `/` means the app's root, so the base URL's path is kept (`/orgs` under
+ * `http://host/sub/` is `http://host/sub/orgs`); with a base URL at the origin's root nothing
+ * changes. An absolute URL is used as is, and the crawl still checks that it is in the app.
+ * `null` for an href that cannot be navigated.
+ */
+export function resolveSeed(seed: string, baseUrl: URL): URL | null {
+  const appRoot = new URL(baseUrl.href);
+  appRoot.pathname = appRoot.pathname.endsWith('/') ? appRoot.pathname : `${appRoot.pathname}/`;
+  return normaliseUrl(seed.trim().replace(/^\//, ''), appRoot);
+}

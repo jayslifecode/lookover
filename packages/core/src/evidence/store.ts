@@ -1,6 +1,6 @@
-import { randomUUID } from 'node:crypto';
-import { access, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { isMissingFile, writeFileAtomic } from '../util/fs.js';
 import { sha256 } from '../util/hash.js';
 import { redactDeep } from '../util/redact.js';
 
@@ -63,7 +63,8 @@ export class EvidenceStore {
     const target = this.resolve(ref);
     if (await fileExists(target)) return ref;
     await mkdir(this.evidenceDir, { recursive: true });
-    await writeAtomically(target, data);
+    // A content-addressed name must never hold partial bytes.
+    await writeFileAtomic(target, data);
     return ref;
   }
 
@@ -109,28 +110,12 @@ function compareCodePoints(a: string, b: string): number {
   return a < b ? -1 : 1;
 }
 
-function isMissingFile(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
-}
-
 async function fileExists(file: string): Promise<boolean> {
   try {
     await access(file);
     return true;
   } catch (error) {
     if (isMissingFile(error)) return false;
-    throw error;
-  }
-}
-
-/** Write to a unique temp file then rename, so a content-addressed name never holds partial bytes. */
-async function writeAtomically(target: string, data: Buffer): Promise<void> {
-  const temp = `${target}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temp, data);
-    await rename(temp, target);
-  } catch (error) {
-    await rm(temp, { force: true });
     throw error;
   }
 }
