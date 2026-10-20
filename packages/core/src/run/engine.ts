@@ -76,7 +76,8 @@ const RUN_LOG_HINT = 'Check that the .lookover directory is writable and its dis
  *    on while a backend the app called is not confirmed as a development or disposable instance.
  *    From then on the session blocks every other backend (`unconfirmed-backend`), login included.
  * 4. The login as `config.auth` says (`auth.completed`).
- * 5. The bounded crawl from `/` and every static route, logging in again once if the session is lost.
+ * 5. The bounded crawl from `/` and every static route. A form login logs in again once if the session
+ *    is lost; a storage state with a `loginUrl` cannot, so losing it fails the run (`E_AUTH_FAILED`).
  * 6. The App Map, written to the run directory and as the project's latest.
  *
  * Any failure is logged as `run.failed` (code `E_RUN_FAILED` for errors that are not a `LookoverError`)
@@ -249,14 +250,28 @@ function crawlOptions(
     maxScreens: config.maxScreens,
     maxPerRoute: config.maxPerRoute,
     viewport: plan.viewport,
-    ...(auth.type === 'none'
-      ? {}
-      : {
-          auth: {
-            isLoginUrl: (url: URL) => isLoginUrl(url, auth, config.baseUrl),
-            recover: auth.type === 'form' ? logIn : savedSessionExpired,
-          },
-        }),
+    ...lostSessionHook(auth, config.baseUrl, logIn),
+  };
+}
+
+/**
+ * How the crawl spots and handles a lost session: a form login logs in again; a storage state cannot,
+ * so with a `loginUrl` to recognise the login page by, losing it fails the run. Without a login page to
+ * recognise (no auth, or a storage state without `loginUrl`) there is no hook.
+ */
+function lostSessionHook(
+  auth: Auth,
+  baseUrl: string,
+  logIn: () => Promise<void>,
+): Pick<CrawlOptions, 'auth'> {
+  if (auth.type === 'none' || (auth.type === 'storageState' && auth.loginUrl === undefined)) {
+    return {};
+  }
+  return {
+    auth: {
+      isLoginUrl: (url: URL) => isLoginUrl(url, auth, baseUrl),
+      recover: auth.type === 'form' ? logIn : savedSessionExpired,
+    },
   };
 }
 

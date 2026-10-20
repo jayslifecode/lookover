@@ -38,7 +38,7 @@ import {
   submitLogin,
 } from './fixtures/serve.js';
 
-// The real login and crawl, wrapped so a test can shorten the login timeout or drive the crawl's hooks.
+// The real login and crawl, wrapped so a test can shorten the login timeout or see the crawl's options.
 vi.mock('../src/browser/auth.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('../src/browser/auth.js')>();
   return { ...original, ensureAuth: vi.fn(original.ensureAuth) };
@@ -538,8 +538,19 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
   describe('with a storage state', () => {
     const STATE_FILE = 'state.json';
 
-    function storageAuth(): Auth {
-      return { type: 'storageState', path: STATE_FILE };
+    function storageAuth(overrides: { loginUrl?: string } = {}): Auth {
+      return { type: 'storageState', path: STATE_FILE, ...overrides };
+    }
+
+    /** An `onEvent` hook that has the server end the session on the next protected page, once one screen is captured. */
+    function endSessionAfterFirstScreen(): (event: RunEvent) => void {
+      let captured = 0;
+      return (event) => {
+        if (event.type === 'screen.captured') {
+          captured += 1;
+          shouldEndSession = captured === 1;
+        }
+      };
     }
 
     async function writeSessionState(cwd: string): Promise<string> {
@@ -572,20 +583,44 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(result.map.screens.map((screen) => screen.title)).toEqual(['Dashboard', 'Home']);
     });
 
-    test('fails with E_AUTH_FAILED instead of logging in again when the saved session is lost', async () => {
-      const { cwd, ctx } = await newProject({ auth: storageAuth() });
+    test('fails with E_AUTH_FAILED when the server ends the saved session, given its loginUrl', async () => {
+      const { cwd, ctx } = await newProject({ auth: storageAuth({ loginUrl: LOGIN_PATH }) });
       await writeSessionState(cwd);
-      vi.mocked(crawl).mockImplementationOnce(async (_session, _ctx, options) => {
-        await options.auth?.recover();
-        return [];
-      });
+      const hooks = { ...confirmingHook().hooks, onEvent: endSessionAfterFirstScreen() };
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, hooks: confirmingHook().hooks }));
+      const error = await failureOf(runDiscovery(ctx, { cwd, hooks }));
 
       expect(error.code).toBe('E_AUTH_FAILED');
       expect(error.message).toBe('The saved session expired during the run');
       expect(error.hint).toBe('Save the storage state again and re-run');
-      expect(eventsOf(await logOf(ctx), 'auth.completed')).toHaveLength(1);
+      const events = await logOf(ctx);
+      const authEvents = events.filter((event) => event.type.startsWith('auth.'));
+      expect(authEvents.map((event) => event.type)).toEqual(['auth.completed', 'auth.lost']);
+      expect(authEvents[1]).toMatchObject({ url: url('/home.html') });
+      expect(eventsOf(events, 'screen.captured').map((event) => event.screen.title)).toEqual(['Dashboard']);
+      expect(events.at(-1)).toMatchObject({
+        type: 'run.failed',
+        error: { code: 'E_AUTH_FAILED', message: error.message },
+      });
+      expect(await exists(join(ctx.dir, APP_MAP_FILE))).toBe(false);
+    });
+
+    test('without a loginUrl attaches no lost-session hook, so a lost session is captured as is', async () => {
+      const { cwd, ctx } = await newProject({ auth: storageAuth(), maxScreens: 2 });
+      await writeSessionState(cwd);
+      vi.mocked(crawl).mockClear();
+      const hooks = { ...confirmingHook().hooks, onEvent: endSessionAfterFirstScreen() };
+
+      const result = await runDiscovery(ctx, { cwd, hooks });
+
+      expect(vi.mocked(crawl)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(crawl).mock.calls[0]?.[2]).not.toHaveProperty('auth');
+      // The documented limitation: `/home.html` is the login page now, and nothing notices.
+      expect(result.map.screens.map((screen) => [screen.url, screen.title])).toEqual([
+        [url('/'), 'Dashboard'],
+        [url('/home.html'), 'Sign in'],
+      ]);
+      expect(eventsOf(await logOf(ctx), 'auth.lost')).toEqual([]);
     });
 
     test('fails with E_AUTH_FAILED naming the file when it does not exist', async () => {

@@ -479,8 +479,16 @@ describe('isLoginUrl', () => {
 
   test.each([
     ['no authentication', { type: 'none' }],
-    ['a storage state', { type: 'storageState', path: 'state.json' }],
+    ['a storage state without a loginUrl', { type: 'storageState', path: 'state.json' }],
   ] satisfies [string, Auth][])('is false for %s', (_label, auth) => {
     expect(isLoginUrl(new URL('http://localhost:3000/login'), auth, baseUrl)).toBe(false);
+  });
+
+  test('applies the same rule to the loginUrl of a storage state', () => {
+    const auth: Auth = { type: 'storageState', path: 'state.json', loginUrl: '/login' };
+
+    expect(isLoginUrl(new URL('http://localhost:3000/login/?next=%2F'), auth, baseUrl)).toBe(true);
+    expect(isLoginUrl(new URL('http://localhost:3000/dashboard'), auth, baseUrl)).toBe(false);
+    expect(isLoginUrl(new URL('http://localhost:4000/login'), auth, baseUrl)).toBe(false);
   });
 });

@@ -86,16 +86,18 @@ export async function ensureAuth(
 }
 
 /**
- * True when `url` is the login page of a form login: same origin as the base URL, and the path of
+ * True when `url` is the app's login page: same origin as the base URL, and the path of the auth's
  * `loginUrl` (query and trailing slash ignored). The crawler's caller uses it to spot a lost
- * session. Always false for other auth types, and for a login page on another origin than the app.
+ * session. Always false without a `loginUrl` (no auth, or a storage state that names none), and for
+ * a login page on another origin than the app.
  */
 export function isLoginUrl(url: URL, auth: Auth, baseUrl: string): boolean {
-  if (auth.type !== 'form') {
+  const loginUrl = auth.type === 'none' ? undefined : auth.loginUrl;
+  if (loginUrl === undefined) {
     return false;
   }
   const base = new URL(baseUrl);
-  const login = resolveSeed(auth.loginUrl, base);
+  const login = resolveSeed(loginUrl, base);
   const current = normaliseUrl(url.href, base);
   return (
     login !== null &&

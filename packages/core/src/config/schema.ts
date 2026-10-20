@@ -26,7 +26,18 @@ const acknowledgementSchema = z.object({
 // environment variables that hold them.
 const authSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('none') }),
-  z.object({ type: z.literal('storageState'), path: z.string() }),
+  z.object({
+    type: z.literal('storageState'),
+    /** A Playwright storage state file, relative to the project directory. */
+    path: z.string(),
+    /**
+     * The app's login page, app-relative like a form login's `loginUrl` (or a full URL on the app's
+     * origin). With it, a crawl that lands there from another page has lost the saved session, and the
+     * run fails with `E_AUTH_FAILED` (a storage state cannot log in again). Without it a lost session
+     * goes unnoticed: the login page is captured in place of each screen behind it.
+     */
+    loginUrl: z.string().optional(),
+  }),
   z.object({
     type: z.literal('form'),
     loginUrl: z.string(),

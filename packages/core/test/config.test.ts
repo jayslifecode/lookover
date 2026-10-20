@@ -80,6 +80,18 @@ describe('config', () => {
     expect(config.auth).toMatchObject({ usernameEnv: 'LOOKOVER_USERNAME', passwordEnv: 'LOOKOVER_PASSWORD' });
   });
 
+  test('a storage state may name its login page, and need not', async () => {
+    const parse = (auth: unknown) =>
+      configSchema.parse({ baseUrl: 'http://localhost:3000', interaction: 'safe', auth }).auth;
+
+    expect(parse({ type: 'storageState', path: 's.json', loginUrl: '/login' })).toEqual({
+      type: 'storageState',
+      path: 's.json',
+      loginUrl: '/login',
+    });
+    expect(parse({ type: 'storageState', path: 's.json' })).toEqual({ type: 'storageState', path: 's.json' });
+  });
+
   test('writeConfig round-trips', async () => {
     const cfg = configSchema.parse({ baseUrl: 'http://localhost:3000', interaction: 'safe' });
     const p = await writeConfig(dir, cfg);
