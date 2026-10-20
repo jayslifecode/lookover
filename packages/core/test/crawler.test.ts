@@ -1,15 +1,16 @@
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { BrowserSession } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
 import { type CrawlOptions, crawl, DESTRUCTIVE_LINK_PATTERN, resolveSeed } from '../src/map/crawler.js';
 import { MAX_ELEMENTS_PER_SCREEN } from '../src/map/elements.js';
+import { extractForms } from '../src/map/forms.js';
 import type { Screen } from '../src/map/types.js';
 import type { RunEvent } from '../src/run/events.js';
 import { createRun, type RunContext } from '../src/run/run-context.js';
@@ -17,6 +18,12 @@ import { RunLog } from '../src/run/run-log.js';
 import { shortId } from '../src/util/hash.js';
 import { redactDeep } from '../src/util/redact.js';
 import { eventStream, type FixtureServer, serveFixture } from './fixtures/serve.js';
+
+// The real form extractor, wrapped so one test can make a single capture throw a LookoverError.
+vi.mock('../src/map/forms.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../src/map/forms.js')>();
+  return { ...original, extractForms: vi.fn(original.extractForms) };
+});
 
 const SITE_DIR = fileURLToPath(new URL('./fixtures/site', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;
@@ -100,11 +107,14 @@ describe('DESTRUCTIVE_LINK_PATTERN', () => {
     '/settings/reset/',
     '/orgs?action=delete',
     '/orgs?a=1&op=remove',
+    '/users/sign_out',
+    '/session/log_out',
+    '/logoff',
   ])('matches %s', (path) => {
     expect(DESTRUCTIVE_LINK_PATTERN.test(path)).toBe(true);
   });
 
-  test.each(['/logouts', '/deleted-items', '/resettle', '/orgs?action=view', '/remove-me-not'])(
+  test.each(['/logouts', '/logoffs', '/deleted-items', '/resettle', '/orgs?action=view', '/remove-me-not'])(
     'does not match %s',
     (path) => {
       expect(DESTRUCTIVE_LINK_PATTERN.test(path)).toBe(false);
@@ -385,14 +395,28 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
   });
 
   test('never visits a destructive seed', async () => {
-    const { screens, events } = await crawlSite({ seeds: ['/logout', '/orgs.html?action=delete'] });
+    const { screens, events } = await crawlSite({
+      seeds: ['/logout', '/orgs.html?action=delete', '/users/sign_out', '/logoff'],
+    });
 
     expect(screens).toEqual([]);
     expect(skippedUrls(events, 'destructive-link')).toEqual([
       url('/logout'),
       url('/orgs.html?action=delete'),
+      url('/users/sign_out'),
+      url('/logoff'),
     ]);
     expect(logoutRequests).toBe(0);
+  });
+
+  test('judges destructive links by their app-relative path, so a base path like /reset/ is crawled', async () => {
+    const { screens, events } = await crawlSite({ baseUrl: `${fixture.url}/reset/`, seeds: ['/'] });
+
+    expect(screens.map((screen) => [screen.url, screen.title])).toEqual([
+      [url('/reset'), 'Reset tool'],
+      [url('/reset/page.html'), 'Reset tool page'],
+    ]);
+    expect(skippedUrls(events, 'destructive-link')).toEqual([url('/reset/logout')]);
   });
 
   test('reports truncation when a screen has more controls than the extractor keeps', async () => {
@@ -515,6 +539,100 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const { screens } = await crawlSite({ seeds: ['/away'], maxScreens: 1 });
 
       expectFailedNavigation(screens[0], /about:blank|interrupted|ERR_/);
+    });
+  });
+
+  describe('when the browser page dies', () => {
+    const DEAD_PAGE = /^Browser page closed or crashed during the crawl: /;
+
+    /** A session of its own, so killing its page or context leaves the shared one alone. */
+    async function withOwnSession(run: (own: BrowserSession) => Promise<void>): Promise<void> {
+      const own = await BrowserSession.launch({ viewport: VIEWPORT, allowHosts: [], onEvent: () => {} });
+      try {
+        await run(own);
+      } finally {
+        await own.close();
+      }
+    }
+
+    /** Runs `kill` once, from the log, right after the first screen is captured. */
+    function afterFirstCapture(ctx: RunContext, kill: () => Promise<unknown>): () => Promise<unknown> {
+      let killing: Promise<unknown> | undefined;
+      ctx.log.subscribe((event) => {
+        if (event.type === 'screen.captured' && killing === undefined) {
+          killing = kill();
+        }
+      });
+      return () => killing ?? Promise.resolve();
+    }
+
+    async function crashCrawlPage(own: BrowserSession): Promise<void> {
+      const [page] = own.context.pages();
+      const cdp = await own.context.newCDPSession(defined(page, 'the crawl page'));
+      // The renderer dies before it can answer.
+      await cdp.send('Page.crash').catch(() => undefined);
+    }
+
+    test('rejects with E_RUN_FAILED instead of failing every queued screen when the context closes', async () => {
+      await withOwnSession(async (own) => {
+        const ctx = await newRun();
+        const killed = afterFirstCapture(ctx, () => own.context.close());
+
+        const crawling = crawl(own, ctx, optionsFor());
+
+        await expect(crawling).rejects.toBeInstanceOf(LookoverError);
+        await expect(crawling).rejects.toMatchObject({
+          code: 'E_RUN_FAILED',
+          message: expect.stringMatching(DEAD_PAGE),
+        });
+        await killed();
+        const events = await RunLog.read(ctx.log.file);
+        expect(eventsOf(events, 'screen.captured').map((event) => event.screen.title)).toEqual(['Index']);
+      });
+    });
+
+    test('rejects with E_RUN_FAILED when the page crashes', async () => {
+      await withOwnSession(async (own) => {
+        const ctx = await newRun();
+        const killed = afterFirstCapture(ctx, () => crashCrawlPage(own));
+
+        const crawling = crawl(own, ctx, optionsFor());
+
+        await expect(crawling).rejects.toMatchObject({
+          code: 'E_RUN_FAILED',
+          message: expect.stringMatching(DEAD_PAGE),
+        });
+        await killed();
+        const events = await RunLog.read(ctx.log.file);
+        const titles = eventsOf(events, 'screen.captured').map((event) => event.screen.title);
+        expect(titles.filter((title) => NAVIGATION_FAILED.test(title))).toEqual([]);
+      });
+    });
+  });
+
+  describe('when something other than the page fails', () => {
+    test('rethrows a LookoverError raised while capturing instead of recording a failed screen', async () => {
+      const injected = new LookoverError('E_RUN_FAILED', 'injected while extracting forms');
+      vi.mocked(extractForms).mockRejectedValueOnce(injected);
+      const ctx = await newRun();
+
+      const crawling = crawl(session, ctx, optionsFor({ seeds: ['/orgs.html'], maxScreens: 1 }));
+
+      await expect(crawling).rejects.toBe(injected);
+      expect(eventsOf(await RunLog.read(ctx.log.file), 'screen.captured')).toEqual([]);
+    });
+
+    test('propagates an evidence store failure instead of recording a failed screen', async () => {
+      const ctx = await newRun();
+      // A file where the evidence directory should be: storing the screenshot fails with ENOTDIR.
+      const evidenceDir = join(ctx.dir, 'evidence');
+      await rm(evidenceDir, { recursive: true, force: true });
+      await writeFile(evidenceDir, 'not a directory');
+
+      const crawling = crawl(session, ctx, optionsFor({ seeds: ['/orgs.html'], maxScreens: 1 }));
+
+      await expect(crawling).rejects.toMatchObject({ code: 'ENOTDIR' });
+      expect(eventsOf(await RunLog.read(ctx.log.file), 'screen.captured')).toEqual([]);
     });
   });
 });

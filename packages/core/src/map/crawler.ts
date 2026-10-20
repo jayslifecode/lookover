@@ -13,10 +13,11 @@ import type { ElementRef, FormInfo, RouteInfo, Screen, TokenSample, Viewport } f
 
 /**
  * Links discovery never follows: logging out or deleting something would change what the rest of
- * the crawl sees. Tested against a URL's route key (path and query).
+ * the crawl sees. Tested against a URL's app-relative path (below the base URL's path) and its
+ * query, so a base path such as `/reset/` does not make every URL look destructive.
  */
 export const DESTRUCTIVE_LINK_PATTERN =
-  /(^|\/)(logout|log-out|signout|sign-out|delete|remove|destroy|reset)(\/|$|\?)|[?&](action|op)=(delete|remove|destroy)/i;
+  /(^|\/)(logout|log-out|log_out|logoff|signout|sign-out|sign_out|delete|remove|destroy|reset)(\/|$|\?)|[?&](action|op)=(delete|remove|destroy)/i;
 
 export interface CrawlOptions {
   /** The app's root: only URLs on its origin and under its path are crawled. */
@@ -94,7 +95,9 @@ const BROWSER_ERROR_PAGE_PREFIX = 'chrome-error://';
  * fails is still a captured screen, titled `(navigation failed: <reason>)` and with nothing in it,
  * so later stages see dead links; the crawl goes on. With `opts.auth`, landing on the login page
  * from elsewhere logs `auth.lost`, logs in again and retries once; landing there again throws
- * `E_AUTH_FAILED`. Errors from the run log, the evidence store and the auth hook propagate.
+ * `E_AUTH_FAILED`. Errors from the run log, the evidence store and the auth hook propagate, and so
+ * does any `LookoverError`. A page that is closed or has crashed ends the crawl with `E_RUN_FAILED`
+ * instead of failing every screen still queued.
  */
 export async function crawl(session: BrowserSession, ctx: RunContext, opts: CrawlOptions): Promise<Screen[]> {
   const ipage = await session.newPage();
@@ -111,6 +114,7 @@ class Crawler {
   private readonly base: URL;
   private readonly frontier: Frontier;
   private readonly timing: Timing;
+  private hasCrashed = false;
 
   constructor(
     private readonly ctx: RunContext,
@@ -123,6 +127,9 @@ class Crawler {
       settleMs: opts.settleMs ?? DEFAULT_SETTLE_MS,
       navigationTimeoutMs: opts.navigationTimeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS,
     };
+    ipage.page.once('crash', () => {
+      this.hasCrashed = true;
+    });
   }
 
   async run(): Promise<Screen[]> {
@@ -169,7 +176,10 @@ class Crawler {
     return screen;
   }
 
-  /** Opens `url` and reads the page; anything the page or the browser throws becomes the reason it failed. */
+  /**
+   * Opens `url` and reads the page. What the page or the browser throws becomes the reason the
+   * screen failed; a `LookoverError` is the run's failure, not the page's, and is rethrown.
+   */
   private async load(url: URL): Promise<LoadResult> {
     const failure = await this.open(url);
     if (failure !== null) {
@@ -178,12 +188,25 @@ class Crawler {
     try {
       return { kind: 'captured', capture: await capturePage(this.ipage) };
     } catch (error) {
+      if (error instanceof LookoverError) {
+        throw error;
+      }
       return this.failed(describeError(error));
     }
   }
 
+  /**
+   * A failed screen, unless the page itself is gone: once it is closed or has crashed every later
+   * navigation fails at once, so that ends the crawl. Checked after the reset to `about:blank`, which
+   * gives a crash or close the moment it takes to be reported (a crash first aborts the navigation
+   * in flight, and only then is reported).
+   */
   private async failed(reason: string): Promise<LoadResult> {
-    await settleOnBlankPage(this.ipage.page);
+    const isDead = (): boolean => this.ipage.page.isClosed() || this.hasCrashed;
+    await settleOnBlankPage(this.ipage.page, isDead);
+    if (isDead()) {
+      throw new LookoverError('E_RUN_FAILED', `Browser page closed or crashed during the crawl: ${reason}`);
+    }
     return { kind: 'failed', reason };
   }
 
@@ -263,7 +286,7 @@ class Frontier {
     if (!isInApp) {
       return 'not-same-app';
     }
-    if (DESTRUCTIVE_LINK_PATTERN.test(key)) {
+    if (DESTRUCTIVE_LINK_PATTERN.test(appRelativeKey(url, this.base))) {
       return 'destructive-link';
     }
     const route = routeOf(url, this.opts.routes);
@@ -301,15 +324,28 @@ export function resolveSeed(seed: string, baseUrl: URL): URL | null {
   return normaliseUrl(seed.trim().replace(/^\//, ''), appRoot);
 }
 
+/**
+ * The part of a same-app URL that belongs to the app: its path below the base URL's path (`/` for
+ * the app's root), then its query. `url` must be in the app (`isSameApp`).
+ */
+function appRelativeKey(url: URL, base: URL): string {
+  const basePath = base.pathname.replace(/\/+$/, '');
+  const path = url.pathname.slice(basePath.length);
+  return `${path === '' ? '/' : path}${url.search}`;
+}
+
 function routeOf(url: URL, routes: readonly RouteInfo[]): string {
   return matchRoute(url.pathname, routes)?.pattern ?? routePatternFromPath(url.pathname);
 }
 
-/** Loads `url` and lets it settle; returns why the navigation failed, or `null`. */
+/** Loads `url` and lets it settle; returns why the navigation failed, or `null`. A `LookoverError` is rethrown. */
 async function navigate(page: Page, url: string, timing: Timing): Promise<string | null> {
   try {
     await page.goto(url, { waitUntil: 'load', timeout: timing.navigationTimeoutMs });
   } catch (error) {
+    if (error instanceof LookoverError) {
+      throw error;
+    }
     return describeError(error);
   }
   await settle(page, timing.settleMs);
@@ -362,13 +398,20 @@ function landingFailure(landed: string): string | null {
  * Leaves the page on `about:blank` with nothing in flight. A failed page can still be busy: Chromium
  * commits its error page for a failed navigation only after `goto` has thrown, and Playwright calls a
  * navigation interrupted as soon as another document commits while the interrupted one still commits
- * after it. Either would interrupt the next screen's navigation, so this asks for `about:blank` and
- * waits until it is the page, which puts every earlier commit behind it. Best effort: if the page
- * cannot get there, the next navigation reports its own failure.
+ * after it. Either would interrupt the next screen's navigation, so this asks for `about:blank` and,
+ * when that request was interrupted, waits until it is the page, which puts every earlier commit
+ * behind it. A dead page has nothing left to commit and would never get there, so it is not waited
+ * on. Best effort: if the page cannot get there, the next navigation reports its own failure.
  */
-async function settleOnBlankPage(page: Page): Promise<void> {
+async function settleOnBlankPage(page: Page, isDead: () => boolean): Promise<void> {
   const options = { timeout: BLANK_PAGE_TIMEOUT_MS };
-  await page.goto(BLANK_PAGE, options).catch(() => undefined);
+  const hasLanded = await page.goto(BLANK_PAGE, options).then(
+    () => true,
+    () => false,
+  );
+  if (hasLanded || isDead()) {
+    return;
+  }
   await page.waitForURL((url) => url.href === BLANK_PAGE, options).catch(() => undefined);
 }
 
