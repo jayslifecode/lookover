@@ -1,4 +1,4 @@
-import { LookoverError } from '@jayslifecode/lookover-core';
+import { LookoverError, redact } from '@jayslifecode/lookover-core';
 
 // All CLI output goes through process.stdout/stderr rather than `console`, so a stray debug
 // print can never pass for user-facing output (and Biome's noConsole stays meaningful).
@@ -41,16 +41,23 @@ export function exitCodeFor(error: unknown): number {
   return REFUSAL_CODES.includes(error.code) ? EXIT_REFUSED : EXIT_FAILURE;
 }
 
+/**
+ * What `fail` prints for `error`, one string per line. Messages and hints are redacted first: an
+ * error can quote a URL, a page or a third-party message that holds an email address or a token.
+ */
+export function errorLines(error: unknown): string[] {
+  if (error instanceof LookoverError) {
+    const hint = error.hint === undefined ? [] : [`  hint: ${redact(error.hint)}`];
+    return [`✖ ${error.code}: ${redact(error.message)}`, ...hint];
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return [`✖ ${redact(message)}`];
+}
+
 /** Prints the error for a human and exits with the code that scripts can rely on. */
 export function fail(error: unknown): never {
-  if (error instanceof LookoverError) {
-    process.stderr.write(`✖ ${error.code}: ${error.message}\n`);
-    if (error.hint !== undefined) {
-      process.stderr.write(`  hint: ${error.hint}\n`);
-    }
-  } else {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`✖ ${message}\n`);
+  for (const line of errorLines(error)) {
+    process.stderr.write(`${line}\n`);
   }
   return process.exit(exitCodeFor(error));
 }
