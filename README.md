@@ -10,21 +10,26 @@ You need Node 22.12 or later and your app running locally. Next.js apps get thei
 
 ```sh
 cd your-app
-pnpm dlx @jayslifecode/lookover init   # a few questions; writes lookover.config.json and ignores .lookover/
-lookover run                           # opens each screen in Chromium and writes .lookover/app-map.json
+pnpm add -D @jayslifecode/lookover
+pnpm lookover init   # a few questions; writes lookover.config.json and ignores .lookover/
+pnpm lookover run    # opens each screen in Chromium and writes .lookover/app-map.json
 ```
 
+To try it once without adding a dependency: `pnpm dlx @jayslifecode/lookover init`, then `pnpm dlx @jayslifecode/lookover run`.
+
+Lookover drives Chromium through Playwright. If Playwright's Chromium is not on your machine yet, install it once with `pnpm dlx playwright@1.64.1 install chromium`.
+
 > **Not on npm yet.** Until the first release, build Lookover from a clone of this repository and use
-> `node <clone>/packages/cli/dist/index.js` wherever this page says `lookover`:
+> `node <clone>/packages/cli/dist/index.js` wherever this page says `pnpm lookover` or `lookover`:
 >
 > ```sh
 > pnpm install
 > pnpm --filter @jayslifecode/lookover-core build
-> pnpm --filter @jayslifecode/lookover-cli build
+> pnpm --filter @jayslifecode/lookover build
 > pnpm --filter @jayslifecode/lookover-core exec playwright install chromium
 > ```
 
-`init` asks for the URL your app runs at, its framework, whether every piece of data the app can reach is disposable, and how to log in. Only a "yes" to the disposable-data question unlocks **full** interaction (Lookover may click anything and submit any form); otherwise the config says **safe**. In scripts, pass the answers as flags: `lookover init --non-interactive --base-url http://localhost:3000`, adding `--interaction full --acknowledge-disposable-data` only when the data really is disposable.
+`init` asks for the URL your app runs at, its framework, whether every piece of data the app can reach is disposable, and how to log in. Only a "yes" to the disposable-data question unlocks **full** interaction (Lookover may click anything and submit any form); otherwise the config says **safe**. In scripts, pass the answers as flags: `pnpm lookover init --non-interactive --base-url http://localhost:3000`, adding `--interaction full --acknowledge-disposable-data` only when the data really is disposable.
 
 A form login reads its credentials from `LOOKOVER_USERNAME` and `LOOKOVER_PASSWORD`; the config stores only the names of those variables, never the values.
 
@@ -55,7 +60,7 @@ Mapping http://localhost:3123 (run 20261021-044428-31vz)
 | ----------------------- | -------------------------------------------------------------------------------------------------- |
 | `--headed`              | Shows the browser window.                                                                          |
 | `--max-screens <n>`     | Captures at most `n` screens this run, instead of `maxScreens` from the config (default 40).       |
-| `--allow-host <host>`   | Lets the browser load this host too, for this run only. Repeatable.                                |
+| `--allow-host <host>`   | Lets the browser load this host without asking, for this run only (CDNs, fonts). Repeatable.       |
 | `--confirm-host <host>` | Confirms a backend as a development or disposable instance and saves it to the config. Repeatable. |
 | `--yes`                 | Never prompts. A backend that is not confirmed stops the run instead.                              |
 
@@ -70,10 +75,10 @@ Exit codes: `0` done, `1` the run failed, `2` the config or a flag is invalid, `
 
 ### Backends and other hosts
 
-The browser only opens your app: `localhost`, `127.0.0.1`, `::1`, any `*.local` or `*.localhost` name, and the hosts in `allowHosts`. Requests to payment, email and SMS providers are blocked unless you add them to `allowHosts`. Any other host the app itself calls (a hosted database, an auth service, an API) is treated as a backend: before logging in, Lookover opens a few pages, lists the backends the app called, and asks you to confirm that each one is a development or disposable instance. The run does not go on until you have, and a backend first called later in the run is blocked and listed at the end.
+The browser only opens your app: `localhost`, `127.0.0.1`, `::1`, any `*.local` or `*.localhost` name, and the hosts in `allowHosts`. Requests to payment, email and SMS providers are blocked unless you add them to `allowHosts`. Any other host the app itself calls (a hosted database, an auth service, an API) is treated as a backend. Before logging in, Lookover opens a few pages without submitting anything; the app's own requests from those pages do reach its backends, which is how Lookover learns what they are. It then lists those backends and asks you to confirm that each one is a development or disposable instance. The run does not go on until you have, and from then on every request to a backend that is not confirmed is blocked; one first called later in the run is listed at the end.
 
 - **Confirming backends.** Answer the prompt, or pass `--confirm-host <host>` (once per host) to confirm them from the start, which is what `--yes` and CI need. Confirmed hosts are saved to `confirmedBackendHosts` in `lookover.config.json`, so later runs do not ask again; you can also edit that list by hand.
-- **CDNs and fonts.** Images, scripts and fonts from another host count as calls to a backend too. Add hosts such as `fonts.gstatic.com` or `*.your-cdn.com` to `allowHosts` in `lookover.config.json` (or pass `--allow-host` for one run); otherwise Lookover asks you to confirm them, and blocks them when they first appear after that step.
+- **CDNs and fonts.** Images, scripts and fonts from another host count as calls to a backend too. Add hosts such as `fonts.gstatic.com` or `*.your-cdn.com` to `allowHosts` in `lookover.config.json` (or pass `--allow-host` for one run); otherwise Lookover asks you to confirm them, and blocks them when they first appear after that step. A host in `allowHosts` is never asked about at all, so real backends do not belong there: confirm them instead.
 
 ## What it finds
 
@@ -81,9 +86,9 @@ Nothing yet: the first lenses (interaction and consistency) come in the next pla
 
 ## What it will not do
 
-- Touch anything you have not declared disposable: full interaction needs the acknowledgement in the config, and every backend must be confirmed first.
+- Act on data you have not declared disposable: full interaction needs the acknowledgement in the config. Before you confirm the backends, Lookover only opens a few pages, logged out and without submitting anything (the app's own requests from them do reach its backends); after that, every backend you have not confirmed is blocked.
 - Store or log your credentials: they are read from environment variables, kept out of errors and logs, and the saved session is readable only by you.
-- Send your data anywhere: in v0 nothing leaves your machine. When the judge arrives, the only outside calls will be model calls, documented in full.
+- Send your data to anyone: in v0 Lookover itself calls no outside service; the only requests that leave your machine are the ones your app makes to its own backends. When the judge arrives, Lookover's only outside calls will be model calls, documented in full.
 - Test apps you do not run yourself. There is no hosted mode.
 
 ## Licence
