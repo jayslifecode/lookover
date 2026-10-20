@@ -1,5 +1,16 @@
 import { describe, expect, test } from 'vitest';
-import { parseId, readOrganisationForm, readSettingsForm } from '../lib/validation.ts';
+import {
+  DATE_PATTERN,
+  PHONE_PATTERN,
+  parseId,
+  readOrganisationForm,
+  readSettingsForm,
+} from '../lib/validation.ts';
+
+/** How the browser applies a `pattern` attribute: anchored to the whole value. */
+function matchesPattern(pattern: string, value: string): boolean {
+  return new RegExp(`^(?:${pattern})$`, 'v').test(value);
+}
 
 function form(fields: Record<string, string>): FormData {
   const data = new FormData();
@@ -43,6 +54,19 @@ describe('readOrganisationForm', () => {
     expect(readOrganisationForm(form({ ...VALID_ORGANISATION, email: 'contact@' })).errors).toHaveProperty(
       'email',
     );
+  });
+});
+
+describe('input patterns agree with the server checks', () => {
+  // Shape only: the server also rejects days that do not exist (2023-02-30), which a pattern cannot.
+  test.each(['2023-02-14', '2023-2-14', '14/02/2023', '2023-02-140', ''])('date %j', (registeredAt) => {
+    const { errors } = readOrganisationForm(form({ ...VALID_ORGANISATION, registeredAt }));
+    expect(matchesPattern(DATE_PATTERN, registeredAt)).toBe(!('registeredAt' in errors));
+  });
+
+  test.each(['99112233', '9911223', '991122334', 'abcdefgh'])('phone %j', (phone) => {
+    const isServerValid = !('phone' in readOrganisationForm(form({ ...VALID_ORGANISATION, phone })).errors);
+    expect(matchesPattern(PHONE_PATTERN, phone)).toBe(isServerValid);
   });
 });
 

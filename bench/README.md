@@ -33,15 +33,18 @@ The login form's fields are `input[name="email"]`, `input[name="password"]` and
 
 ### Screens
 
-| Route                 | What it shows                                                            |
-| --------------------- | ------------------------------------------------------------------------ |
-| `/login`              | Email and password form                                                  |
-| `/`                   | Dashboard: organisation count, latest registration, links                |
-| `/organisations`      | Table of organisations; each name links to its edit page                 |
-| `/organisations/[id]` | Edit form: name, phone (8 digits), email, registered date; Save, Cancel  |
-| `/organisations/new`  | The same form, empty                                                     |
-| `/reports`            | A button that opens the summary report in a `<dialog>`                   |
-| `/settings`           | Workspace name, contact email, time zone; Save                           |
+| Route                 | What it shows                                                                  |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `/login`              | Email and password form                                                        |
+| `/`                   | Dashboard: organisation count, latest registration, links                      |
+| `/organisations`      | Table of organisations; each name links to its edit page                       |
+| `/organisations/[id]` | Edit form: name, phone (8 digits), email, registered on (`YYYY-MM-DD`); Save, Cancel |
+| `/organisations/new`  | The same form, empty                                                           |
+| `/reports`            | A button that opens the summary report in a `<dialog>`                         |
+| `/settings`           | Workspace name, contact email, time zone; Save                                 |
+
+Dates appear in one format everywhere, `YYYY-MM-DD`, including the registered-date field, which is
+a text input rather than the browser's date picker (that one renders in the browser's locale).
 
 ## Data and reset
 

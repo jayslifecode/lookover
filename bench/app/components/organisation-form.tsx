@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useActionState } from 'react';
 import type { OrganisationFormState } from '@/app/organisations/actions';
-import { PHONE_PATTERN } from '@/lib/validation';
+import { DATE_FORMAT, DATE_PATTERN, PHONE_PATTERN } from '@/lib/validation';
 import { InputField } from './field';
 import { BUTTON_PRIMARY, BUTTON_SECONDARY } from './styles';
 
@@ -56,8 +56,13 @@ export function OrganisationForm({ action, initialState }: OrganisationFormProps
         id="registeredAt"
         name="registeredAt"
         label="Registered on"
-        type="date"
+        type="text"
+        inputMode="numeric"
+        placeholder={DATE_FORMAT}
+        pattern={DATE_PATTERN}
+        maxLength={DATE_FORMAT.length}
         required
+        hint={`Format: ${DATE_FORMAT}`}
         defaultValue={values.registeredAt}
         error={errors.registeredAt}
       />

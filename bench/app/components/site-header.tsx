@@ -27,7 +27,7 @@ export function SiteHeader() {
             <li>
               {/* A plain link: <Link> may prefetch, and prefetching /logout would sign the user out. */}
               <a href="/logout" className={LINK}>
-                Log out
+                Sign out
               </a>
             </li>
           </ul>

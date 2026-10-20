@@ -14,7 +14,7 @@ export function ReportDialog({ summary }: { summary: RegistrationSummary }) {
       <dialog
         ref={dialogRef}
         aria-labelledby="report-title"
-        className="m-auto w-full max-w-md rounded-lg p-6 shadow-xl backdrop:bg-slate-900/40"
+        className="m-auto w-full max-w-md rounded-lg p-6 text-slate-900 shadow-xl backdrop:bg-slate-900/40"
       >
         <h2 id="report-title" className="text-lg font-semibold">
           Summary report

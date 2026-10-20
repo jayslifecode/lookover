@@ -1,7 +1,7 @@
 /*
  * Server-side checks for the bench forms. They mirror the constraints the inputs declare
- * (`required`, `pattern`, `type="email"`, `type="date"`), so a submission that skips the
- * browser's validation is still rejected with the same message.
+ * (`required`, `pattern`, `type="email"`), so a submission that skips the browser's validation
+ * is still rejected. Dates are typed as text in the one format the app shows, `YYYY-MM-DD`.
  */
 
 export type OrganisationField = 'name' | 'phone' | 'email' | 'registeredAt';
@@ -14,8 +14,13 @@ export interface FormResult<F extends string> {
   errors: FieldErrors<F>;
 }
 
-/** For the `pattern` attribute: the browser anchors it, so it must match the whole value. */
+/*
+ * For the `pattern` attribute, which the browser anchors to the whole value. The server's checks
+ * are built from the same strings, so the two cannot drift apart.
+ */
 export const PHONE_PATTERN = '\\d{8}';
+export const DATE_PATTERN = '\\d{4}-\\d{2}-\\d{2}';
+export const DATE_FORMAT = 'YYYY-MM-DD';
 export const TIME_ZONES: readonly string[] = [
   'UTC',
   'Asia/Seoul',
@@ -24,8 +29,8 @@ export const TIME_ZONES: readonly string[] = [
   'America/New_York',
 ];
 
-const PHONE = /^\d{8}$/;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const PHONE = new RegExp(`^${PHONE_PATTERN}$`);
+const ISO_DATE = new RegExp(`^${DATE_PATTERN}$`);
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const POSITIVE_INTEGER = /^[1-9]\d*$/;
 
@@ -61,7 +66,7 @@ export function readOrganisationForm(formData: FormData): FormResult<Organisatio
     ['name', values.name === '' ? 'Enter the organisation name.' : null],
     ['phone', PHONE.test(values.phone) ? null : 'Enter the phone number as 8 digits.'],
     ['email', EMAIL.test(values.email) ? null : 'Enter an email address like name@example.com.'],
-    ['registeredAt', isIsoDate(values.registeredAt) ? null : 'Enter the date as YYYY-MM-DD.'],
+    ['registeredAt', isIsoDate(values.registeredAt) ? null : `Enter the date as ${DATE_FORMAT}.`],
   ]);
   return { values, errors };
 }
