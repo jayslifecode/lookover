@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Many controls</title>
+  </head>
+  <body>
+    <main id="controls"></main>
+    <script>
+      // `?count=<n>` buttons, so the test can tie the number to the extractor's limit.
+      const count = Number(new URLSearchParams(location.search).get('count') ?? '0');
+      const controls = document.getElementById('controls');
+      for (let index = 1; index <= count; index += 1) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = `Action ${index}`;
+        controls.append(button);
+      }
+    </script>
+  </body>
+</html>

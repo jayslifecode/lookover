@@ -1,10 +1,16 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 
-/** Handles one exact pathname instead of the static files (redirects, dynamic responses). */
-export type FixtureRoute = (req: IncomingMessage, res: ServerResponse) => void;
+/** Serves the fixture file at `pathname` (by default the request's own), as an unrouted request would be. */
+export type ServeStatic = (pathname?: string) => void;
+
+/**
+ * Handles the requests to one route instead of the static files (redirects, dynamic responses).
+ * `serveStatic` lets a handler fall back to a fixture file once it has had its say.
+ */
+export type FixtureRoute = (req: IncomingMessage, res: ServerResponse, serveStatic: ServeStatic) => void;
 
 export interface FixtureServer {
   /** Origin without a trailing slash, e.g. `http://127.0.0.1:53121`. */
@@ -14,6 +20,7 @@ export interface FixtureServer {
 
 const HOST = '127.0.0.1';
 const EPHEMERAL_PORT = 0;
+const DEFAULT_EVENT_INTERVAL_MS = 200;
 
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8',
@@ -23,7 +30,12 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.png': 'image/png',
 };
 
-/** Serves `dir` on an ephemeral port; `routes` take precedence over files for their exact pathname. */
+/**
+ * Serves `dir` on an ephemeral port. A key of `routes` is a pathname whose `:name` segments match
+ * any one non-empty segment (`/orgs/:id`); routes take precedence over files, and an exact key over
+ * a pattern. A directory requested without its trailing slash is redirected to it, as static
+ * servers do.
+ */
 export async function serveFixture(
   dir: string,
   routes: Readonly<Record<string, FixtureRoute>> = {},
@@ -31,12 +43,13 @@ export async function serveFixture(
   const root = resolve(dir);
   const server = createServer((req, res) => {
     const pathname = new URL(req.url ?? '/', 'http://fixture.invalid').pathname;
-    const route = routes[pathname];
+    const serveStatic: ServeStatic = (file = pathname) => void serveFile(root, file, res);
+    const route = findRoute(routes, pathname);
     if (route) {
-      route(req, res);
+      route(req, res, serveStatic);
       return;
     }
-    void serveFile(root, pathname, res);
+    serveStatic();
   });
 
   await new Promise<void>((done, fail) => {
@@ -55,8 +68,50 @@ export async function serveFixture(
   };
 }
 
+/** A server-sent event stream that never ends: a `tick` event every `intervalMs` until the client leaves. */
+export function eventStream(intervalMs = DEFAULT_EVENT_INTERVAL_MS): FixtureRoute {
+  return (_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+    res.write(': open\n\n');
+    let ticks = 0;
+    const timer = setInterval(() => {
+      ticks += 1;
+      res.write(`data: tick ${ticks}\n\n`);
+    }, intervalMs);
+    res.on('close', () => clearInterval(timer));
+  };
+}
+
+function findRoute(
+  routes: Readonly<Record<string, FixtureRoute>>,
+  pathname: string,
+): FixtureRoute | undefined {
+  const exact = routes[pathname];
+  if (exact) {
+    return exact;
+  }
+  return Object.entries(routes).find(([pattern]) => matchesPattern(pattern, pathname))?.[1];
+}
+
+function matchesPattern(pattern: string, pathname: string): boolean {
+  const expected = pattern.split('/');
+  const actual = pathname.split('/');
+  return (
+    expected.length === actual.length &&
+    expected.every((segment, index) => {
+      const value = actual[index] ?? '';
+      return segment === value || (segment.startsWith(':') && value !== '');
+    })
+  );
+}
+
 async function serveFile(root: string, pathname: string, res: ServerResponse): Promise<void> {
   const file = fileFor(root, pathname);
+  if (file !== null && (await isDirectory(file))) {
+    res.writeHead(301, { location: `${pathname}/` });
+    res.end();
+    return;
+  }
   const type = file === null ? undefined : CONTENT_TYPES[extname(file)];
   if (file === null || type === undefined) {
     notFound(res);
@@ -68,6 +123,14 @@ async function serveFile(root: string, pathname: string, res: ServerResponse): P
     res.end(body);
   } catch {
     notFound(res);
+  }
+}
+
+async function isDirectory(file: string): Promise<boolean> {
+  try {
+    return (await stat(file)).isDirectory();
+  } catch {
+    return false;
   }
 }
 

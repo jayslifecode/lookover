@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Live updates</title>
+  </head>
+  <body>
+    <h1>Live updates</h1>
+    <p id="last">Waiting for the first event</p>
+    <a href="/">Home</a>
+    <script>
+      // The stream never ends, so the network is never idle while this page is open.
+      const source = new EventSource('/events');
+      source.onmessage = (event) => {
+        document.getElementById('last').textContent = event.data;
+      };
+    </script>
+  </body>
+</html>

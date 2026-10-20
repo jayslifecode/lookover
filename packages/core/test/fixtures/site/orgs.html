@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Organisations</title>
+    <style>
+      .collapsed {
+        width: 0;
+        height: 0;
+        padding: 0;
+        border: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="top">Organisations</h1>
+    <ul>
+      <li><a href="/orgs/1">One</a></li>
+      <li><a href="/orgs/2">Two</a></li>
+      <li><a href="/orgs/3">Three</a></li>
+      <li><a href="/orgs/4">Four</a></li>
+      <li><a href="/orgs/5">Five</a></li>
+      <li><a href="/orgs/6">Six</a></li>
+    </ul>
+    <!-- Controls without area: the element extractor drops them, which is not truncation. -->
+    <button type="button" class="collapsed">Hidden filter</button>
+    <button type="button" class="collapsed">Hidden sort</button>
+    <a href="#top">Back to the top</a>
+  </body>
+</html>

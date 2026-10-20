@@ -18,6 +18,8 @@ export type { ErrorCode } from './errors.js';
 export { LookoverError } from './errors.js';
 export type { EvidenceRef } from './evidence/store.js';
 export { EvidenceStore } from './evidence/store.js';
+export type { CrawlOptions } from './map/crawler.js';
+export { crawl, DESTRUCTIVE_LINK_PATTERN } from './map/crawler.js';
 export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './map/elements.js';
 export { extractForms } from './map/forms.js';
 export { discoverNextRoutes, matchRoute, routePatternFromPath } from './map/next-routes.js';
