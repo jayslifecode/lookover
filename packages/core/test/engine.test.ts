@@ -62,12 +62,20 @@ const LATE_HOST = 'late.backend.test';
 /** The auth backend `/login-api.html` signs in through; resolved to the fixture server. */
 const AUTH_API_HOST = 'auth.backend.test';
 const API_LOGIN_PATH = '/login-api.html';
+/** Called by `/login-backend.html` on load: only a probe of the login page itself sees it. */
+const LOGIN_PAGE_HOST = 'config.backend.test';
+const BACKEND_LOGIN_PATH = '/login-backend.html';
 /** The Next.js routes of the project with a root: a login, a destructive and a dynamic route among them. */
 const NEXT_ROUTE_DIRS = ['', 'login', 'logout', 'projects', 'projects/[id]'];
 const NEXT_PATTERNS = ['/', '/login', '/logout', '/projects', '/projects/[id]'];
 const CLEARED_SESSION_COOKIE = `${SESSION_COOKIE.name}=; Path=/; Max-Age=0`;
-const BLOCKED_NOTE_TAIL =
-  '— re-run with --confirm-host <host> if they are development or disposable instances';
+const OR_EDIT_CONFIG = '(or add them to confirmedBackendHosts in lookover.config.json)';
+
+/** The `E_HOSTS_UNCONFIRMED` hint for `hosts`: one command, the flag repeated per host. */
+function confirmHint(...hosts: string[]): string {
+  const flags = hosts.map((host) => `--confirm-host ${host}`).join(' ');
+  return `Run: lookover run ${flags} — only for development or disposable backends ${OR_EDIT_CONFIG}`;
+}
 
 type Auth = LookoverConfig['auth'];
 
@@ -195,7 +203,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       launch({
         ...options,
         testResolver: {
-          blockedHosts: [SUPABASE_HOST, PROJECTS_API_HOST],
+          blockedHosts: [SUPABASE_HOST, PROJECTS_API_HOST, LOGIN_PAGE_HOST],
           loopbackHosts: [LATE_HOST, AUTH_API_HOST],
         },
       }),
@@ -250,7 +258,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
       expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
       expect(error.message.split('\n')).toContain(`  ${SUPABASE_HOST}`);
-      expect(error.hint).toContain(`lookover run --confirm-host ${SUPABASE_HOST}`);
+      expect(error.hint).toBe(confirmHint(SUPABASE_HOST));
       const events = await logOf(ctx);
       expect(events.at(-1)).toMatchObject({
         type: 'run.failed',
@@ -341,7 +349,10 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks }));
 
       expect(error.code).toBe('E_AUTH_FAILED');
-      expect(error.hint).toContain(`Blocked unconfirmed backends: ${AUTH_API_HOST} ${BLOCKED_NOTE_TAIL}`);
+      expect(error.hint).toContain(
+        `Blocked unconfirmed backends: ${AUTH_API_HOST}. If they are development or disposable instances, ` +
+          `re-run with: lookover run --confirm-host ${AUTH_API_HOST} ${OR_EDIT_CONFIG}`,
+      );
       expect(apiLoginCalls).toBe(0);
       const events = await logOf(ctx);
       expect(eventsOf(events, 'request.blocked')).toContainEqual(
@@ -351,6 +362,23 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         }),
       );
       expect(events.at(-1)).toMatchObject({ type: 'run.failed', error: { code: 'E_AUTH_FAILED' } });
+    });
+
+    test('probes the login page too, so the backends it loads are asked about before login', async () => {
+      const { cwd, ctx } = await newProject({
+        auth: formAuth({ loginUrl: BACKEND_LOGIN_PATH }),
+        maxScreens: 1,
+      });
+      const { hooks, asked } = confirmingHook();
+
+      const result = await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks });
+
+      expect(asked).toEqual([[LOGIN_PAGE_HOST, SUPABASE_HOST]]);
+      expect(result.confirmedBackendHosts).toEqual([LOGIN_PAGE_HOST, SUPABASE_HOST]);
+      expect(result.blockedUnconfirmedHosts).toEqual([]);
+      expect(eventsOf(await logOf(ctx), 'auth.completed')).toEqual([
+        expect.objectContaining({ method: 'form' }),
+      ]);
     });
 
     test('launches one session at the first viewport, inside the configured allowlist', async () => {
@@ -448,7 +476,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
         expect(error.message).toMatch(/^The app called these backends/);
         expect(error.message).toMatch(/; additionally, \d+ run-log writes? failed: disk full$/);
-        expect(error.hint).toContain(`lookover run --confirm-host ${SUPABASE_HOST}`);
+        expect(error.hint).toBe(confirmHint(SUPABASE_HOST));
         expect((await logOf(ctx)).at(-1)).toMatchObject({
           type: 'run.failed',
           error: { code: 'E_HOSTS_UNCONFIRMED', message: error.message },
@@ -494,8 +522,16 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
       expect(error.message.split('\n')).toContain(`  ${PROJECTS_API_HOST}`);
       expect(error.message).not.toContain(SUPABASE_HOST);
-      expect(error.hint).toContain(`lookover run --confirm-host ${PROJECTS_API_HOST}`);
-      expect(error.hint).not.toContain(SUPABASE_HOST);
+      expect(error.hint).toBe(confirmHint(PROJECTS_API_HOST));
+    });
+
+    test('hints at one command repeating --confirm-host for each unconfirmed host', async () => {
+      const { cwd, ctx } = await newProject({ auth: formAuth({ loginUrl: '/login' }) }, NEXT_ROUTE_DIRS);
+
+      const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV }));
+
+      expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
+      expect(error.hint).toBe(confirmHint(PROJECTS_API_HOST, SUPABASE_HOST));
     });
   });
 

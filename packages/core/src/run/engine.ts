@@ -9,16 +9,21 @@ import { type CrawlOptions, crawl } from '../map/crawler.js';
 import { discoverNextRoutes, staticRoutePatterns } from '../map/next-routes.js';
 import { writeAppMap } from '../map/persist.js';
 import type { AppMap, RouteInfo, Screen, Viewport } from '../map/types.js';
-import { type ConfirmHosts, confirmBackends } from './backend-probe.js';
+import {
+  type ConfirmHosts,
+  confirmBackends,
+  confirmHostCommand,
+  EDIT_CONFIG_ALTERNATIVE,
+} from './backend-probe.js';
 import type { RunEvent } from './events.js';
 import type { RunContext } from './run-context.js';
 import type { RunLog } from './run-log.js';
 
 export interface DiscoveryHooks {
   /**
-   * Asked once, after the probe, with every backend host the app called that is neither allowed nor
-   * already confirmed in the config (sorted). Returns the ones the user confirms are development or
-   * disposable instances; the run refuses to go on while any host is left out.
+   * Asked once, after the probe, with every backend host the app called during the probe that is
+   * neither allowed nor already confirmed in the config (sorted). Returns the ones the user confirms
+   * are development or disposable instances; the run refuses to go on while any host is left out.
    */
   confirmHosts?: ConfirmHosts;
   /** Every event of the run as the log writes it, from `run.started` to `run.finished` or `run.failed`. */
@@ -40,7 +45,9 @@ export interface DiscoveryResult {
   confirmedBackendHosts: string[];
   /**
    * Hosts the app called after the confirmation step that were blocked as unconfirmed backends
-   * (sorted). Nothing reached them; confirming them lets the next run through.
+   * (sorted); nothing reached them. The engine only asks about hosts the probe observed, so these are
+   * confirmed outside it: with `--confirm-host`, which the CLI merges into `confirmedBackendHosts`
+   * before the run, or by adding them to `confirmedBackendHosts` in lookover.config.json.
    */
   blockedUnconfirmedHosts: string[];
 }
@@ -370,7 +377,9 @@ function withBlockedBackends(error: unknown, hosts: readonly string[]): unknown 
   if (hosts.length === 0 || !(error instanceof LookoverError) || error.code !== 'E_AUTH_FAILED') {
     return error;
   }
-  const note = `Blocked unconfirmed backends: ${hosts.join(', ')} — re-run with --confirm-host <host> if they are development or disposable instances`;
+  const note =
+    `Blocked unconfirmed backends: ${hosts.join(', ')}. If they are development or disposable instances, ` +
+    `re-run with: ${confirmHostCommand(hosts)} ${EDIT_CONFIG_ALTERNATIVE}`;
   return new LookoverError(
     error.code,
     error.message,
