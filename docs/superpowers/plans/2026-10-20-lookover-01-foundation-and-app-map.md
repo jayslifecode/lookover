@@ -30,6 +30,7 @@ Rulings taken while executing this plan that change what the tasks say; the spec
 - Engine: order probe → confirm → enforce → login → crawl; the probe also loads the login page; `runDiscovery` returns `blockedUnconfirmedHosts`; `createRun` accepts `onSubscriberError`.
 - CLI: `--confirm-host` values are merged into `confirmedBackendHosts` before the run and persisted after it; non-interactive confirmation resolves to nothing (the engine refuses with an actionable hint).
 - Bench: `proxy.ts` (Next 16), a text `YYYY-MM-DD` date field instead of a native date input, "Sign in / Sign out", `border-slate-500` controls.
+- Whole-branch review (final fix wave): the host prompt pre-selects nothing; `Screen` gains `status` (`captured` | `navigation-failed`) and `error`, with `isFailedScreen()`; a `storageState` auth may name its `loginUrl`, which makes a lost saved session fail the run with `E_AUTH_FAILED` (without it a loss goes unnoticed); `host.observed.kind` gains `subresource`, and the CLI labels static-asset-only hosts; `runDiscovery` applies `assertAcknowledged`; selectors never use an attribute value holding `@` or a `mailto:`/`tel:` link; `saveConfirmedHosts` patches only `confirmedBackendHosts`, atomically (`writeFileAtomic`); the bench date field has no `inputMode`.
 - Full interaction is the default and is gated: config must contain `interaction: "full"` **and** `acknowledgement.disposableData: true`; without it the run refuses to start (`E_ACK_REQUIRED`). `safe` mode needs no acknowledgement.
 - Secrets never live in config: credentials are referenced by environment-variable name. Emails, JWTs, API keys and bearer tokens are redacted in every stored JSON blob and log line.
 - Everything a run produces goes under `.lookover/` in the user's project: `.lookover/runs/<runId>/{run.jsonl,app-map.json,evidence/}`, `.lookover/app-map.json` (latest), `.lookover/state/` (storage states). `.lookover/` is git-ignored by `init`.
@@ -79,7 +80,7 @@ lookover/
 │  ├─ src/map/crawler.ts               crawl()
 │  ├─ src/map/persist.ts               writeAppMap(), readLatestAppMap(), diffAppMaps()
 │  └─ test/…                           one test file per module + test/fixtures/serve.ts (static fixture server)
-├─ packages/cli/                       @jayslifecode/lookover-cli, bin "lookover"
+├─ packages/cli/                       @jayslifecode/lookover, bin "lookover"
 │  ├─ src/index.ts  src/ui.ts  src/commands/init.ts  src/commands/run.ts
 │  └─ test/init.test.ts  test/run.test.ts  test/e2e/bench.test.ts
 └─ bench/
@@ -99,7 +100,7 @@ lookover/
 
 **Interfaces:**
 - Produces: `LookoverError` (`src/errors.ts`): `class LookoverError extends Error { constructor(readonly code: ErrorCode, message: string, readonly hint?: string) }`; `type ErrorCode = 'E_CONFIG_NOT_FOUND' | 'E_CONFIG_INVALID' | 'E_ACK_REQUIRED' | 'E_HOSTS_UNCONFIRMED' | 'E_AUTH_FAILED' | 'E_NAVIGATION_BLOCKED' | 'E_RUN_FAILED'`.
-- Root scripts: `pnpm check` = `biome check . && pnpm -r typecheck && pnpm -r test`; `pnpm test:e2e` = `pnpm --filter @jayslifecode/lookover-cli test:e2e`.
+- Root scripts: `pnpm check` = `biome check . && pnpm -r typecheck && pnpm -r test`; `pnpm test:e2e` = `pnpm --filter @jayslifecode/lookover test:e2e`.
 
 - [ ] **Step 1: Write the root workspace files**
 
@@ -107,7 +108,7 @@ lookover/
 
 - [ ] **Step 2: Write the two package manifests**
 
-`packages/core/package.json`: name `@jayslifecode/lookover-core`, `exports: { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } }`, scripts `build: tsc -p tsconfig.json`, `typecheck: tsc -p tsconfig.json --noEmit`, `test: vitest run`; dependencies `playwright 1.64.1`, `zod ^4.6`. `packages/cli/package.json`: name `@jayslifecode/lookover-cli`, `bin: { "lookover": "./dist/index.js" }`, dependencies `@jayslifecode/lookover-core: workspace:*`, `commander ^15`, `@clack/prompts ^1.8`; scripts as core plus `test:e2e: vitest run --config vitest.e2e.config.ts`. Both `tsconfig.json` extend the base with `rootDir: src`, `outDir: dist`, `include: ['src']`.
+`packages/core/package.json`: name `@jayslifecode/lookover-core`, `exports: { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } }`, scripts `build: tsc -p tsconfig.json`, `typecheck: tsc -p tsconfig.json --noEmit`, `test: vitest run`; dependencies `playwright 1.64.1`, `zod ^4.6`. `packages/cli/package.json`: name `@jayslifecode/lookover`, `bin: { "lookover": "./dist/index.js" }`, dependencies `@jayslifecode/lookover-core: workspace:*`, `commander ^15`, `@clack/prompts ^1.8`; scripts as core plus `test:e2e: vitest run --config vitest.e2e.config.ts`. Both `tsconfig.json` extend the base with `rootDir: src`, `outDir: dist`, `include: ['src']`.
 
 - [ ] **Step 3: Write the failing test**
 
@@ -540,7 +541,7 @@ git commit -m "feat(core): config schema with the disposable-data acknowledgemen
   `Yes` → `interaction: 'full'` + `acknowledgement: { disposableData: true, acknowledgedAt: now, by: os.userInfo().username }`; `No` → `interaction: 'safe'` and a one-line note that safe mode never submits forms. Then optional form-login setup (login URL, three selectors, success URL; prints the two env var names it will read). Writes `lookover.config.json` via `writeConfig`, appends `.lookover/` to `.gitignore` (creates it if missing, no duplicate line), prints next steps. Non-interactive mode requires `--base-url`; `--interaction full` without `--acknowledge-disposable-data` exits with code 3 and the `E_ACK_REQUIRED` message. Exit codes: 0 ok, 2 invalid flags, 3 refused.
 - `ui.ts`: `info()`, `success()`, `warn()`, `fail(err: unknown): never` (prints `code`, message and hint for `LookoverError`, maps codes to exit codes: `E_CONFIG_*` → 2, `E_ACK_REQUIRED`/`E_HOSTS_UNCONFIRMED` → 3, else 1), `table(rows)`.
 
-- [ ] **Step 1: Write the failing tests** (spawn `node dist/index.js` after `pnpm --filter @jayslifecode/lookover-cli build`, cwd = temp dir with a `package.json` depending on `next`): non-interactive full + acknowledge → config has `interaction: 'full'`, `acknowledgement.disposableData === true`, `framework: 'next'`, `.gitignore` contains `.lookover/`; non-interactive full without the flag → exit 3, stderr contains `E_ACK_REQUIRED`; `--interaction safe` → config without `acknowledgement`; running twice does not duplicate the `.gitignore` line.
+- [ ] **Step 1: Write the failing tests** (spawn `node dist/index.js` after `pnpm --filter @jayslifecode/lookover build`, cwd = temp dir with a `package.json` depending on `next`): non-interactive full + acknowledge → config has `interaction: 'full'`, `acknowledgement.disposableData === true`, `framework: 'next'`, `.gitignore` contains `.lookover/`; non-interactive full without the flag → exit 3, stderr contains `E_ACK_REQUIRED`; `--interaction safe` → config without `acknowledgement`; running twice does not duplicate the `.gitignore` line.
 - [ ] **Step 2: Run to verify they fail.** · **Step 3: Implement.** · **Step 4: Run to verify they pass.**
 - [ ] **Step 5: Commit** — `git commit -m "feat(cli): init with the disposable-data acknowledgement"`
 
@@ -553,7 +554,7 @@ git commit -m "feat(core): config schema with the disposable-data acknowledgemen
 - Modify: `packages/cli/src/index.ts`, `README.md` (getting started), `.github/workflows/ci.yml` (create)
 
 **Interfaces:**
-- `lookover run [--headed] [--max-screens <n>] [--allow-host <host>...] [--confirm-host <host>...] [--yes]` — `loadConfig(cwd)` (errors → `ui.fail`), merges `--allow-host` into `allowHosts` for this run, `createRun`, `runDiscovery` with `hooks.confirmHosts`: interactive → a clack multiselect pre-filled with all hosts titled "These backends were called by the app. Confirm each one is a development or disposable instance"; non-interactive (`--yes` or no TTY) → the subset given by `--confirm-host`; confirmed hosts are written back into `lookover.config.json` (`confirmedBackendHosts`, deduplicated). Prints progress lines from `onEvent` (one per `screen.captured`: `✓ /organisations/[id]  18 elements · 1 form`), then a summary table: screens, elements, forms, backend hosts, blocked requests, run dir, `app-map.json` path, duration. Exit codes as in `ui.fail`.
+- `lookover run [--headed] [--max-screens <n>] [--allow-host <host>...] [--confirm-host <host>...] [--yes]` — `loadConfig(cwd)` (errors → `ui.fail`), merges `--allow-host` into `allowHosts` for this run, `createRun`, `runDiscovery` with `hooks.confirmHosts`: interactive → a clack multiselect with nothing pre-selected titled "These backends were called by the app. Confirm each one is a development or disposable instance" (the whole-branch review changed this from "pre-filled with all hosts": Enter alone now confirms nothing, so the engine refuses with its `--confirm-host` hint); non-interactive (`--yes` or no TTY) → the subset given by `--confirm-host`; confirmed hosts are written back into `lookover.config.json` (`confirmedBackendHosts`, deduplicated). Prints progress lines from `onEvent` (one per `screen.captured`: `✓ /organisations/[id]  18 elements · 1 form`), then a summary table: screens, elements, forms, backend hosts, blocked requests, run dir, `app-map.json` path, duration. Exit codes as in `ui.fail`.
 - `test/e2e/global-setup.ts`: runs `bench/scripts/reset.ts`, starts `pnpm --filter @jayslifecode/lookover-bench dev` (port 3123) and waits for `GET /login` to return 200 (60 s), tears it down after the suite.
 - `bench.test.ts`: in a temp project dir, `lookover init --non-interactive --base-url http://localhost:3123 --root <abs path to bench/app> --interaction full --acknowledge-disposable-data`; patches the config with form auth (`loginUrl: '/login'`, `usernameSelector: 'input[name="email"]'`, `passwordSelector: 'input[name="password"]'`, `submitSelector: 'button[type="submit"]'`, `successUrl: 'http://localhost:3123/'`); runs `lookover run --yes --max-screens 12` with `LOOKOVER_USERNAME=demo@lookover.dev LOOKOVER_PASSWORD=demo-password`; asserts exit 0; `app-map.json` has routes including `/organisations/[id]` from the filesystem, ≥ 6 screens, a screen whose `route === '/organisations/[id]'` with a form of 4 fields whose phone field has `label === 'Phone'`, no screen whose URL ends with `/login` except the login route itself, `/logout` absent, and the log ends with `run.finished`; the run takes under 90 s.
 - `ci.yml`: Node 24, pnpm 10, `pnpm install`, `pnpm exec playwright install --with-deps chromium`, `pnpm check`, `pnpm test:e2e`.

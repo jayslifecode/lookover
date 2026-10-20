@@ -33,6 +33,8 @@ Lookover drives Chromium through Playwright. If Playwright's Chromium is not on 
 
 A form login reads its credentials from `LOOKOVER_USERNAME` and `LOOKOVER_PASSWORD`; the config stores only the names of those variables, never the values.
 
+To use a session you saved with Playwright instead, set `"auth": { "type": "storageState", "path": "state.json", "loginUrl": "/login" }` in `lookover.config.json`. A saved session cannot log in again, so if the app ends it during a run, Lookover stops with `E_AUTH_FAILED` and asks you to save it again. It can only tell from `loginUrl`: without it, a lost session goes unnoticed and the login page is mapped in place of every screen behind it.
+
 `lookover run` prints a line per screen and a summary. Against the bench app in this repository:
 
 ```text
@@ -62,6 +64,8 @@ Mapping http://localhost:3123 (run 20261021-044428-31vz)
 | `--max-screens <n>`     | Captures at most `n` screens this run, instead of `maxScreens` from the config (default 40).       |
 | `--allow-host <host>`   | Lets the browser load this host without asking, for this run only (CDNs, fonts). Repeatable.       |
 | `--confirm-host <host>` | Confirms a backend as a development or disposable instance and saves it to the config. Repeatable. |
+
+Each host flag takes one host: repeat it for more (`--confirm-host a.dev.test --confirm-host b.dev.test`), since a comma-separated list is refused.
 | `--yes`                 | Never prompts. A backend that is not confirmed stops the run instead.                              |
 
 Exit codes: `0` done, `1` the run failed, `2` the config or a flag is invalid, `3` refused (the disposable-data acknowledgement is missing, or a backend is not confirmed).
@@ -69,16 +73,16 @@ Exit codes: `0` done, `1` the run failed, `2` the config or a flag is invalid, `
 ### What `.lookover/app-map.json` contains
 
 - **`routes`**: every route pattern, in Next.js syntax (`/organisations/[id]`), from the filesystem or from links.
-- **`screens`**: one per page visited (at the first viewport in the config, and by default at most two instances of one dynamic route), each with its URL, route pattern, title, a screenshot, the interactive elements (role, accessible name, a selector, position, whether it is disabled or focusable), the forms (each field's label and where the label came from, type, required, pattern and length limits, and the submit button), the design tokens it renders (colours, font sizes and families, radii, spacing, with how often each appears) and the links to other screens of the app.
+- **`screens`**: one per page visited (at the first viewport in the config, and by default at most two instances of one dynamic route), each with its URL, route pattern, title, whether it loaded (`status` is `captured`, or `navigation-failed` with the reason in `error` and nothing else captured), a screenshot, the interactive elements (role, accessible name, a selector, position, whether it is disabled or focusable), the forms (each field's label and where the label came from, type, required, pattern and length limits, and the submit button), the design tokens it renders (colours, font sizes and families, radii, spacing, with how often each appears) and the links to other screens of the app.
 
 `.lookover/app-map.json` is always the latest run's map. Each run also keeps its own copy, an append-only event log (`run.jsonl`) and its screenshots under `.lookover/runs/<run id>/`. Values that look like secrets are redacted in the map and the log, and nothing in `.lookover/` leaves your machine.
 
 ### Backends and other hosts
 
-The browser only opens your app: `localhost`, `127.0.0.1`, `::1`, any `*.local` or `*.localhost` name, and the hosts in `allowHosts`. Requests to payment, email and SMS providers are blocked unless you add them to `allowHosts`. Any other host the app itself calls (a hosted database, an auth service, an API) is treated as a backend. Before logging in, Lookover opens a few pages without submitting anything; the app's own requests from those pages do reach its backends, which is how Lookover learns what they are. It then lists those backends and asks you to confirm that each one is a development or disposable instance. The run does not go on until you have, and from then on every request to a backend that is not confirmed is blocked; one first called later in the run is listed at the end.
+The browser only opens your app: `localhost`, `127.0.0.1`, `::1`, any `*.local` or `*.localhost` name, and the hosts in `allowHosts`. Requests to payment, email and SMS providers are blocked unless you add them to `allowHosts`. Any other host the app itself calls (a hosted database, an auth service, an API) is treated as a backend. Before logging in, Lookover opens a few pages without submitting anything; the app's own requests from those pages do reach its backends, which is how Lookover learns what they are. It then lists those backends, none of them selected, and asks you to select each one that is a development or disposable instance; pressing Enter without selecting confirms nothing. The run does not go on until every backend on the list is confirmed, and from then on every request to a backend that is not confirmed is blocked; one first called later in the run is listed at the end.
 
 - **Confirming backends.** Answer the prompt, or pass `--confirm-host <host>` (once per host) to confirm them from the start, which is what `--yes` and CI need. Confirmed hosts are saved to `confirmedBackendHosts` in `lookover.config.json`, so later runs do not ask again; you can also edit that list by hand.
-- **CDNs and fonts.** Images, scripts and fonts from another host count as calls to a backend too. Add hosts such as `fonts.gstatic.com` or `*.your-cdn.com` to `allowHosts` in `lookover.config.json` (or pass `--allow-host` for one run); otherwise Lookover asks you to confirm them, and blocks them when they first appear after that step. A host in `allowHosts` is never asked about at all, so real backends do not belong there: confirm them instead.
+- **CDNs and fonts.** Images, scripts and fonts from another host count as calls to a backend too. Add hosts such as `fonts.gstatic.com` or `*.your-cdn.com` to `allowHosts` in `lookover.config.json` (or pass `--allow-host` for one run); otherwise Lookover asks you to confirm them, and blocks them when they first appear after that step. A host the app only loaded such static assets from is listed as `(static assets — consider allowHosts)`. A host in `allowHosts` is never asked about at all, so real backends do not belong there: confirm them instead.
 
 ## What it finds
 
