@@ -22,6 +22,7 @@ export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './m
 export { extractForms } from './map/forms.js';
 export { discoverNextRoutes, matchRoute, routePatternFromPath } from './map/next-routes.js';
 export { BUILD_SELECTOR_SOURCE } from './map/selectors.js';
+export { collectTokens } from './map/tokens.js';
 export type {
   AppMap,
   Box,

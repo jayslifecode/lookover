@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tokens fixture</title>
+    <style>
+      /* Reset so that every padding and margin below is one the test chose, and the rest are 0px. */
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background-color: rgb(250, 250, 250);
+        color: rgb(17, 24, 39);
+        font-family: 'Helvetica Neue', Arial, sans-serif;
+        font-size: 16px;
+      }
+      h1 {
+        font-family: Georgia, serif;
+        font-size: 24px;
+      }
+      .brand {
+        color: rgb(47, 107, 224);
+      }
+      .near-brand {
+        color: rgb(45, 102, 214);
+      }
+      .note {
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+      }
+      .card {
+        background-color: rgb(240, 244, 255);
+        border-radius: 6px;
+        margin: 0 0 12px;
+        padding: 8px 16px;
+      }
+      .modal {
+        background-color: rgb(255, 255, 255);
+        border-radius: 8px;
+        padding: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Rendered design tokens</h1>
+
+      <!-- 20 elements in one blue, 2 in a near-duplicate blue. -->
+      <ul>
+        <li class="brand">One</li>
+        <li class="brand">Two</li>
+        <li class="brand">Three</li>
+        <li class="brand">Four</li>
+        <li class="brand">Five</li>
+        <li class="brand">Six</li>
+        <li class="brand">Seven</li>
+        <li class="brand">Eight</li>
+        <li class="brand">Nine</li>
+        <li class="brand">Ten</li>
+        <li class="brand">Eleven</li>
+        <li class="brand">Twelve</li>
+        <li class="brand">Thirteen</li>
+        <li class="brand">Fourteen</li>
+        <li class="brand">Fifteen</li>
+        <li class="brand">Sixteen</li>
+        <li class="brand">Seventeen</li>
+        <li class="brand">Eighteen</li>
+        <li class="brand">Nineteen</li>
+        <li class="brand">Twenty</li>
+      </ul>
+      <p>
+        Close but not equal:
+        <span class="near-brand">first</span>
+        <span class="near-brand">second</span>
+      </p>
+
+      <!-- 5 elements with a 6px radius, 1 with 8px. Everything else has a 0px radius. -->
+      <section class="card">Card one</section>
+      <section class="card">Card two</section>
+      <section class="card">Card three</section>
+      <section class="card">Card four</section>
+      <section class="card">Card five</section>
+      <aside class="modal">Modal</aside>
+
+      <p class="note">Small print in a monospace face.</p>
+
+      <!-- Nothing below is rendered for a person to see, so none of it is sampled. -->
+      <p style="visibility: hidden; color: rgb(1, 2, 3)">Hidden by visibility</p>
+      <p style="display: none; color: rgb(4, 5, 6)">Hidden by display</p>
+      <div style="width: 0; height: 0; color: rgb(7, 8, 9)"></div>
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="color: rgb(21, 22, 23)">
+        <circle cx="12" cy="12" r="10" style="color: rgb(10, 11, 12)" />
+      </svg>
+      <script type="text/plain" style="display: block; color: rgb(13, 14, 15)">not code</script>
+
+      <!-- A visible child of a hidden parent is rendered. -->
+      <div style="visibility: hidden">
+        <span style="visibility: visible; color: rgb(12, 34, 56)">peek</span>
+      </div>
+    </main>
+  </body>
+</html>
