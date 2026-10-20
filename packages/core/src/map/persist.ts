@@ -3,7 +3,7 @@ import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { LookoverError } from '../errors.js';
 import type { RunContext } from '../run/run-context.js';
-import { redactDeep } from '../util/redact.js';
+import { redact, redactDeep } from '../util/redact.js';
 import type { AppMap, Screen } from './types.js';
 
 const APP_MAP_FILE = 'app-map.json';
@@ -15,7 +15,10 @@ export interface AppMapDiff {
   addedScreens: string[];
   /** Screen keys present only in the older map. */
   removedScreens: string[];
-  /** Screens in both maps whose element selectors differ; `screenId` is the newer map's. */
+  /**
+   * Screens in both maps whose element selectors differ; `screenId` is the newer map's. Selectors are
+   * reported in their redacted form.
+   */
   changedScreens: { screenId: string; addedElements: string[]; removedElements: string[] }[];
 }
 
@@ -43,7 +46,7 @@ export async function readLatestAppMap(lookoverDir: string): Promise<AppMap | nu
   return parseAppMap(raw, path);
 }
 
-/** Compares two maps screen by screen. Neither input is modified. */
+/** Compares two maps screen by screen, on redacted selectors. Neither input is modified. */
 export function diffAppMaps(prev: AppMap, next: AppMap): AppMapDiff {
   const before = indexScreens(prev);
   const after = indexScreens(next);
@@ -71,7 +74,10 @@ interface ScreenSummary {
 
 /**
  * One entry per `route|viewport name`. Several instances of a dynamic route (`/orgs/1`, `/orgs/2`)
- * share a key: their selectors are merged and the first instance's id is kept.
+ * share a key: their selectors are merged and the smallest id (string order) is kept, so the result
+ * does not depend on capture order. The union masks a removal on one instance while another instance
+ * still has the selector. Selectors are redacted, as `writeAppMap` stores them, so a persisted map
+ * and a raw in-memory one compare equal (redaction is idempotent).
  */
 function indexScreens(map: AppMap): ReadonlyMap<string, ScreenSummary> {
   const index = new Map<string, ScreenSummary>();
@@ -79,10 +85,10 @@ function indexScreens(map: AppMap): ReadonlyMap<string, ScreenSummary> {
     const key = screenKey(screen);
     const known = index.get(key);
     index.set(key, {
-      screenId: known?.screenId ?? screen.id,
+      screenId: known === undefined || screen.id < known.screenId ? screen.id : known.screenId,
       selectors: new Set([
         ...(known?.selectors ?? []),
-        ...screen.elements.map((element) => element.selector),
+        ...screen.elements.map((element) => redact(element.selector)),
       ]),
     });
   }

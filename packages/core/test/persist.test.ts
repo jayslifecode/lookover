@@ -153,6 +153,31 @@ describe('persistence', () => {
     });
   });
 
+  describe('diffing a persisted map against the raw map it was written from', () => {
+    test('reports no drift for selectors that redaction rewrote on disk', async () => {
+      const ctx = await createRun({ cwd, config });
+      const raw = appMap(
+        [screen('/', ['a[href="mailto:jay@example.com"]', 'a[href="/reset?token=abc"]', '#plain'])],
+        ctx.runId,
+      );
+
+      await writeAppMap(ctx, raw);
+      const persisted = await readLatestAppMap(ctx.lookoverDir);
+
+      expect(persisted?.screens[0]?.elements.map((element) => element.selector)).toEqual([
+        'a[href="mailto:[email]"]',
+        'a[href="/reset?token=[redacted]"]',
+        '#plain',
+      ]);
+      expect(persisted).not.toBeNull();
+      expect(diffAppMaps(persisted as AppMap, raw)).toEqual({
+        addedScreens: [],
+        removedScreens: [],
+        changedScreens: [],
+      });
+    });
+  });
+
   describe('readLatestAppMap', () => {
     test('returns null for a directory with no app map', async () => {
       expect(await readLatestAppMap(cwd)).toBeNull();
@@ -275,6 +300,46 @@ describe('diffAppMaps', () => {
     ]);
 
     expect(diffAppMaps(before, after).changedScreens).toEqual([]);
+  });
+
+  test('treats a raw token selector and its persisted redacted form as the same element', () => {
+    const persisted = appMap([screen('/', ['a[href="/reset?token=[redacted]"]'])]);
+    const raw = appMap([screen('/', ['a[href="/reset?token=abc"]'])], 'run-2');
+
+    expect(diffAppMaps(persisted, raw).changedScreens).toEqual([]);
+    expect(diffAppMaps(raw, persisted).changedScreens).toEqual([]);
+  });
+
+  test('reports changed selectors in their redacted form', () => {
+    const before = appMap([screen('/', ['#a', 'a[href="mailto:old@example.com"]'], { id: 'prev' })]);
+    const after = appMap([screen('/', ['#a', 'a[href="/reset?token=abc"]'], { id: 'next' })], 'run-2');
+
+    expect(diffAppMaps(before, after).changedScreens).toEqual([
+      {
+        screenId: 'next',
+        addedElements: ['a[href="/reset?token=[redacted]"]'],
+        removedElements: ['a[href="mailto:[email]"]'],
+      },
+    ]);
+  });
+
+  test('gives the same diff however the screens of a shared route are ordered', () => {
+    const before = [
+      screen('/orgs/[id]', ['#a'], { id: 'org-b' }),
+      screen('/orgs/[id]', ['#b'], { id: 'org-a' }),
+    ];
+    const after = [
+      screen('/orgs/[id]', ['#a', '#c'], { id: 'org-d' }),
+      screen('/orgs/[id]', ['#b', '#e'], { id: 'org-c' }),
+    ];
+
+    const forward = diffAppMaps(appMap(before), appMap(after, 'run-2'));
+    const reversed = diffAppMaps(appMap(before.toReversed()), appMap(after.toReversed(), 'run-2'));
+
+    expect(forward.changedScreens).toEqual([
+      { screenId: 'org-c', addedElements: ['#c', '#e'], removedElements: [] },
+    ]);
+    expect(reversed).toEqual(forward);
   });
 
   test('never mutates its inputs', () => {
