@@ -1,3 +1,5 @@
+export type { EnsureAuthOptions, EnsureAuthResult } from './browser/auth.js';
+export { ensureAuth, isLoginUrl } from './browser/auth.js';
 export type { AXNode } from './browser/cdp.js';
 export { boxFor, callOnNode, getAXTree, resolveBackendNode } from './browser/cdp.js';
 export type { NetworkPolicy, RequestKind, ResolverTestHooks, Verdict } from './browser/network-policy.js';

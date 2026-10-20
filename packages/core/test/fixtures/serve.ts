@@ -68,6 +68,65 @@ export async function serveFixture(
   };
 }
 
+/** The cookie that marks a logged-in browser (see `requireSession` and `submitLogin`). */
+export const SESSION_COOKIE = { name: 'session', value: 'valid' } as const;
+export const LOGIN_PATH = '/login.html';
+export const HOME_PATH = '/home.html';
+/** What `submitLogin` accepts, as the form fields `user` and `pass`. */
+export const DEMO_CREDENTIALS = { user: 'demo', pass: 'demo-password' } as const;
+
+export function redirect(res: ServerResponse, location: string, headers: Record<string, string> = {}): void {
+  res.writeHead(302, { location, ...headers });
+  res.end();
+}
+
+export function hasSessionCookie(req: IncomingMessage): boolean {
+  const expected = `${SESSION_COOKIE.name}=${SESSION_COOKIE.value}`;
+  return (req.headers.cookie ?? '').split(';').some((pair) => pair.trim() === expected);
+}
+
+/** A page behind the session cookie: served as the fixture file with it, a 302 to the login page without. */
+export const requireSession: FixtureRoute = (req, res, serveStatic) => {
+  if (hasSessionCookie(req)) {
+    serveStatic();
+    return;
+  }
+  redirect(res, LOGIN_PATH);
+};
+
+/**
+ * `POST /login`: the right `user` and `pass` (`DEMO_CREDENTIALS`) set the session cookie and redirect
+ * to the home page; anything else re-renders the login page with a 200, as many apps do.
+ */
+export const submitLogin: FixtureRoute = (req, res, serveStatic) => {
+  if (req.method !== 'POST') {
+    serveStatic();
+    return;
+  }
+  readForm(req).then(
+    (form) => {
+      const isValid =
+        form.get('user') === DEMO_CREDENTIALS.user && form.get('pass') === DEMO_CREDENTIALS.pass;
+      if (isValid) {
+        redirect(res, HOME_PATH, {
+          'set-cookie': `${SESSION_COOKIE.name}=${SESSION_COOKIE.value}; Path=/; HttpOnly`,
+        });
+        return;
+      }
+      serveStatic(LOGIN_PATH);
+    },
+    () => res.destroy(),
+  );
+};
+
+async function readForm(req: IncomingMessage): Promise<URLSearchParams> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(chunk as Buffer);
+  }
+  return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+}
+
 /** A server-sent event stream that never ends: a `tick` event every `intervalMs` until the client leaves. */
 export function eventStream(intervalMs = DEFAULT_EVENT_INTERVAL_MS): FixtureRoute {
   return (_req, res) => {

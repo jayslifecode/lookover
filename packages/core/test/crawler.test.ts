@@ -1,5 +1,5 @@
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
@@ -17,7 +17,15 @@ import { createRun, type RunContext } from '../src/run/run-context.js';
 import { RunLog } from '../src/run/run-log.js';
 import { shortId } from '../src/util/hash.js';
 import { redactDeep } from '../src/util/redact.js';
-import { eventStream, type FixtureServer, serveFixture } from './fixtures/serve.js';
+import {
+  eventStream,
+  type FixtureServer,
+  LOGIN_PATH,
+  redirect,
+  requireSession,
+  SESSION_COOKIE,
+  serveFixture,
+} from './fixtures/serve.js';
 
 // The real form extractor, wrapped so one test can make a single capture throw a LookoverError.
 vi.mock('../src/map/forms.js', async (importOriginal) => {
@@ -32,8 +40,6 @@ const SSE_SETTLE_MS = 800;
 const SSE_CAPTURE_BUDGET_MS = 5_000;
 /** Not allowed by the network policy; the test resolver points it at the loopback. */
 const FOREIGN_HOST = 'foreign.test';
-const SESSION_COOKIE = { name: 'session', value: 'valid' };
-const LOGIN_PATH = '/login.html';
 const SCREEN_ID = /^[0-9a-f]{10}$/;
 const NAVIGATION_FAILED = /^\(navigation failed: .+\)$/;
 const ORG_IDS = [1, 2, 3, 4, 5, 6];
@@ -64,16 +70,6 @@ function loggedUrls(events: readonly RunEvent[]): string[] {
   return events.flatMap((event) =>
     event.type === 'screen.discovered' || event.type === 'screen.skipped' ? [event.url] : [],
   );
-}
-
-function redirect(res: ServerResponse, location: string): void {
-  res.writeHead(302, { location });
-  res.end();
-}
-
-function hasSessionCookie(req: IncomingMessage): boolean {
-  const expected = `${SESSION_COOKIE.name}=${SESSION_COOKIE.value}`;
-  return (req.headers.cookie ?? '').split(';').some((pair) => pair.trim() === expected);
 }
 
 /** An origin on the loopback where nothing listens, so every connection to it is refused. */
@@ -170,13 +166,7 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
         logoutRequests += 1;
         serveStatic('/logout.html');
       },
-      '/home.html': (req, res, serveStatic) => {
-        if (hasSessionCookie(req)) {
-          serveStatic();
-          return;
-        }
-        redirect(res, LOGIN_PATH);
-      },
+      '/home.html': requireSession,
       '/broken': (req) => req.socket.destroy(),
       '/away': (req, res) => redirect(res, `http://${FOREIGN_HOST}:${req.socket.localPort}/index.html`),
     });
