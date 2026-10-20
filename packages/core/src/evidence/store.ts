@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { access, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { sha256 } from '../util/hash.js';
 import { redactDeep } from '../util/redact.js';
 
@@ -20,14 +20,20 @@ export interface EvidenceRef {
 }
 
 /**
- * Content-addressed store for everything a run produces. Identical bytes are stored once,
- * and JSON is redacted before it is hashed or written, so no secret reaches disk.
+ * Content-addressed store for everything a run produces. Identical bytes are stored once.
+ *
+ * JSON values are flattened to plain JSON (so `toJSON`, class instances, `Date`s and `URL`s are
+ * already strings) and then run through `redactDeep` before they are hashed or written. String
+ * values and values under sensitive keys are therefore redacted; object keys are not, because
+ * that is `redactDeep`'s contract. PNGs are stored as given: they are pixels, not text.
  */
 export class EvidenceStore {
+  private readonly runDir: string;
   private readonly evidenceDir: string;
 
-  constructor(private readonly runDir: string) {
-    this.evidenceDir = join(runDir, EVIDENCE_DIR);
+  constructor(runDir: string) {
+    this.runDir = resolve(runDir);
+    this.evidenceDir = join(this.runDir, EVIDENCE_DIR);
   }
 
   async putPng(buffer: Buffer): Promise<EvidenceRef> {
@@ -36,7 +42,7 @@ export class EvidenceStore {
   }
 
   async putJson(name: string, value: unknown): Promise<EvidenceRef> {
-    const text = `${JSON.stringify(redactDeep(value), null, 2) ?? 'null'}\n`;
+    const text = `${JSON.stringify(redactDeep(toPlainJson(value)), null, 2)}\n`;
     const data = Buffer.from(text, 'utf8');
     const id = idOf(data);
     const path = `${EVIDENCE_DIR}/${sanitiseName(name)}-${id}.json`;
@@ -78,6 +84,11 @@ export class EvidenceStore {
     const { size } = await stat(join(this.evidenceDir, file));
     return { id, path: `${EVIDENCE_DIR}/${file}`, bytes: size, kind: pngId === undefined ? 'json' : 'png' };
   }
+}
+
+/** Round-trip through JSON so redaction sees the final strings; values with no JSON form become null. */
+function toPlainJson(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value) ?? 'null');
 }
 
 function idOf(data: Buffer): string {

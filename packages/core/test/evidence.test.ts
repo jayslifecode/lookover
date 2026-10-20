@@ -1,6 +1,6 @@
 import { access, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { EvidenceStore } from '../src/evidence/store.js';
 import { sha256 } from '../src/util/hash.js';
@@ -105,6 +105,34 @@ describe('EvidenceStore', () => {
       expect(text).not.toContain('abcdefghijklmnop1234567890');
     });
 
+    test('redacts a URL value that only becomes a string through its toJSON', async () => {
+      const ref = await store.putJson('callback', { url: new URL('https://a.test/cb?token=abc123456789') });
+
+      const text = await readFile(join(runDir, ref.path), 'utf8');
+      expect(text).toContain('[redacted]');
+      expect(text).not.toContain('abc123456789');
+    });
+
+    test('redacts string fields of a class instance', async () => {
+      class Contact {
+        readonly note = 'mail jane@example.com';
+      }
+
+      const ref = await store.putJson('contact', { contact: new Contact() });
+
+      const text = await readFile(join(runDir, ref.path), 'utf8');
+      expect(text).toContain('[email]');
+      expect(text).not.toContain('jane@example.com');
+    });
+
+    test('stores a Date as its ISO string', async () => {
+      const ref = await store.putJson('when', { at: new Date('2026-10-20T00:00:00.000Z') });
+
+      expect(JSON.parse(await readFile(join(runDir, ref.path), 'utf8'))).toEqual({
+        at: '2026-10-20T00:00:00.000Z',
+      });
+    });
+
     test('stores pretty-printed JSON with a trailing newline under evidence/<name>-<id>.json', async () => {
       const ref = await store.putJson('page', { title: 'Home', links: [1, 2] });
 
@@ -171,6 +199,21 @@ describe('EvidenceStore', () => {
         expect(resolved).toBe(join(runDir, ref.path));
         await expect(access(resolved)).resolves.toBeUndefined();
       }
+    });
+  });
+
+  describe('resolve with a relative run directory', () => {
+    test('returns an absolute path to the written file', async () => {
+      const relativeRunDir = relative(process.cwd(), runDir);
+      expect(isAbsolute(relativeRunDir)).toBe(false);
+      const relativeStore = new EvidenceStore(relativeRunDir);
+
+      const ref = await relativeStore.putJson('page', { ok: true });
+
+      const resolved = relativeStore.resolve(ref);
+      expect(isAbsolute(resolved)).toBe(true);
+      expect(resolved).toBe(join(runDir, ref.path));
+      await expect(access(resolved)).resolves.toBeUndefined();
     });
   });
 
