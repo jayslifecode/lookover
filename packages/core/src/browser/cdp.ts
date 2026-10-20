@@ -11,10 +11,16 @@ export interface AXNode {
   backendDOMNodeId?: number;
   /** `AXProperty.name` → its value, e.g. `{ focusable: true, disabled: false }`. */
   properties: Record<string, unknown>;
+  /** Child node ids in tree order, ignored children included; `[]` for a leaf. */
+  childIds: string[];
 }
 
 const QUAD_POINTS = 4;
 
+/**
+ * Every node of the main frame's accessibility tree. Chromium lists them breadth-first, not in
+ * reading order; walk `childIds` from the root for that.
+ */
 export async function getAXTree(cdp: CDPSession): Promise<AXNode[]> {
   await cdp.send('DOM.enable');
   await cdp.send('Accessibility.enable');
@@ -28,6 +34,7 @@ export async function getAXTree(cdp: CDPSession): Promise<AXNode[]> {
     properties: Object.fromEntries(
       (node.properties ?? []).map((property) => [property.name, property.value.value]),
     ),
+    childIds: node.childIds ?? [],
   }));
 }
 

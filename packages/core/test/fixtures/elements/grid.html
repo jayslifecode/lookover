@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Grid fixture</title>
+    <style>
+      #grid {
+        display: grid;
+        grid-template-columns: repeat(20, 1fr);
+        gap: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="grid"></div>
+    <script>
+      const CELLS = 1200;
+      document.getElementById('grid').append(
+        ...Array.from({ length: CELLS }, (_, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = `Cell ${index + 1}`;
+          return button;
+        }),
+      );
+    </script>
+  </body>
+</html>

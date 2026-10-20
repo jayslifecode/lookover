@@ -291,6 +291,17 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
         expect(save.properties).toMatchObject({ focusable: true });
       });
 
+      test('getAXTree links each node to its children', async () => {
+        const save = await saveButton();
+        const nodes = await getAXTree(ipage.cdp);
+
+        const parents = nodes.filter((node) => node.childIds.includes(save.nodeId));
+        const children = nodes.filter((node) => save.childIds.includes(node.nodeId));
+
+        expect(parents).toHaveLength(1);
+        expect(children.map((node) => node.name)).toContain('Save');
+      });
+
       test('boxFor measures the button with a positive area', async () => {
         const backendId = await saveButtonBackendId();
 

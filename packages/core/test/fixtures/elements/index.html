@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Elements fixture</title>
+  </head>
+  <body>
+    <main>
+      <button type="button" data-testid="save">Save</button>
+      <button type="button" id=":r1:">Generated id</button>
+      <a href="/orgs">Organisations</a>
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" />
+      <!-- biome-ignore lint/a11y/useSemanticElements: the extractor must find ARIA-role widgets too -->
+      <div role="button" tabindex="0">Custom</div>
+      <button type="button" hidden>Nope</button>
+      <button type="button" disabled>Off</button>
+    </main>
+    <section id="settings">
+      <button type="button">Edit</button>
+      <button type="button">Edit</button>
+    </section>
+    <form>
+      <input name="email" type="email" aria-label="Email" />
+      <button type="button" aria-label='Say "hi"'>Hi</button>
+      <button type="button" id="42">Answer</button>
+      <button type="button" data-testid="dup" name="first">First</button>
+      <button type="button" data-testid="dup">Second</button>
+    </form>
+    <!-- Makes the page taller than the viewport, so boxes can be checked on a scrolled page. -->
+    <div style="height: 3000px"></div>
+    <button type="button" data-testid="bottom">Bottom</button>
+  </body>
+</html>

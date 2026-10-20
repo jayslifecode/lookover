@@ -18,7 +18,9 @@ export type { ErrorCode } from './errors.js';
 export { LookoverError } from './errors.js';
 export type { EvidenceRef } from './evidence/store.js';
 export { EvidenceStore } from './evidence/store.js';
+export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './map/elements.js';
 export { discoverNextRoutes, matchRoute, routePatternFromPath } from './map/next-routes.js';
+export { BUILD_SELECTOR_SOURCE } from './map/selectors.js';
 export type {
   AppMap,
   Box,
