@@ -1,0 +1,7 @@
+node_modules
+dist
+.lookover
+.superpowers/
+bench/app/.next
+bench/app/data/*.json
+!bench/app/data/seed/
