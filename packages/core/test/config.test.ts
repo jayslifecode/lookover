@@ -32,6 +32,17 @@ describe('config', () => {
     expect(config.model.judge).toBe('claude-sonnet-5-5');
   });
 
+  test('gives each parse its own default viewports, so changing one config cannot change another', () => {
+    const minimal = { baseUrl: 'http://localhost:3000', interaction: 'safe' };
+
+    const first = configSchema.parse(minimal);
+    const second = configSchema.parse(minimal);
+
+    expect(second.viewports).toEqual(first.viewports);
+    expect(second.viewports).not.toBe(first.viewports);
+    expect(second.viewports[0]).not.toBe(first.viewports[0]);
+  });
+
   test('refuses full interaction without the disposable-data acknowledgement', async () => {
     await write({ baseUrl: 'http://localhost:3000', interaction: 'full' });
     await expect(loadConfig(dir)).rejects.toMatchObject({ code: 'E_ACK_REQUIRED' });

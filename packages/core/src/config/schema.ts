@@ -63,7 +63,8 @@ export const configSchema = z.object({
   acknowledgement: acknowledgementSchema.optional(),
   allowHosts: z.array(z.string()).default([]),
   confirmedBackendHosts: z.array(z.string()).default([]),
-  viewports: z.array(viewportSchema).default(defaultViewports),
+  // A factory: a shared default would let one parsed config's change show up in every other one.
+  viewports: z.array(viewportSchema).default(() => defaultViewports.map((viewport) => ({ ...viewport }))),
   maxScreens: z.number().int().positive().default(40),
   maxPerRoute: z.number().int().positive().default(2),
   auth: authSchema.default({ type: 'none' }),

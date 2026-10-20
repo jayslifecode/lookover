@@ -4,7 +4,8 @@ import { redact, redactDeep } from '../src/util/redact.js';
 const STRIPE_LIVE = 'sk_live_1234567890abcd';
 const SUPABASE_PAT = ['sbp', '0123456789abcdef0123456789abcdef01234567'].join('_');
 const LONG_RUN_LENGTH = 50_000;
-const LONG_RUN_MAX_MS = 200;
+/** Linear time takes a few milliseconds; quadratic takes seconds. Loose enough for a cold CI runner. */
+const LONG_RUN_MAX_MS = 1_000;
 
 describe('redact', () => {
   test.each([
