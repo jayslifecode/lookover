@@ -12,6 +12,11 @@
  * 6. a `tag:nth-of-type(n)` path down from the nearest ancestor with a unique test id or stable
  *    id, else from `body`
  *
+ * An attribute value (test id, id, name, aria-label, href) that holds an `@` or starts with
+ * `mailto:` or `tel:` is never used, here or for an ancestor: the stored App Map is redacted, which
+ * turns `a[href="mailto:support@x.com"]` into `a[href="mailto:[email]"]`, a selector that matches
+ * nothing in the live page. Such an element gets the next candidate, or the path.
+ *
  * It runs in the page (CDP `Runtime.callFunctionOn`, Playwright `page.evaluate`) from its source
  * text, so it must stay self-contained: no imports, no references to module scope.
  *
@@ -21,6 +26,7 @@
 function buildSelector(el: Element): string {
   const GENERATED_ID = /^(:r|:R|«r|«R|_r_|_R_|radix-|headlessui-|mui-|react-aria)/;
   const DIGITS_ONLY = /^\d+$/;
+  const CONTACT_SCHEME = /^\s*(mailto|tel):/i;
 
   /** A CSS string literal. `CSS.escape` is for identifiers and would turn `/orgs` into `\/orgs`. */
   const quote = (value: string): string => {
@@ -33,15 +39,17 @@ function buildSelector(el: Element): string {
     const matches = document.querySelectorAll(selector);
     return matches.length === 1 && matches[0] === target;
   };
+  /** Survives redaction unchanged: no email address, no `mailto:` or `tel:` link. */
+  const isRedactionSafe = (value: string): boolean => !value.includes('@') && !CONTACT_SCHEME.test(value);
   const tagOf = (node: Element): string => CSS.escape(node.localName);
   const attributeSelector = (node: Element, name: string, prefix: string): string | null => {
     const value = node.getAttribute(name);
-    return value === null ? null : `${prefix}[${name}=${quote(value)}]`;
+    return value === null || !isRedactionSafe(value) ? null : `${prefix}[${name}=${quote(value)}]`;
   };
   const testIdSelector = (node: Element): string | null => attributeSelector(node, 'data-testid', '');
   const idSelector = (node: Element): string | null => {
     const { id } = node;
-    const isStable = id !== '' && !GENERATED_ID.test(id) && !DIGITS_ONLY.test(id);
+    const isStable = id !== '' && !GENERATED_ID.test(id) && !DIGITS_ONLY.test(id) && isRedactionSafe(id);
     return isStable ? `#${CSS.escape(id)}` : null;
   };
   const firstUniqueFor = (node: Element, candidates: readonly (string | null)[]): string | null =>

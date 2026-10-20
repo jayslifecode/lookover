@@ -5,6 +5,7 @@ import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js
 import { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from '../src/map/elements.js';
 import { BUILD_SELECTOR_SOURCE } from '../src/map/selectors.js';
 import type { Box, ElementRef } from '../src/map/types.js';
+import { redact } from '../src/util/redact.js';
 import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/elements', import.meta.url));
@@ -223,6 +224,12 @@ describe('extractElements', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(backendIds).toEqual(elements.map((element) => element.backendNodeId));
     });
 
+    test('builds only selectors that redaction leaves as they are', () => {
+      expect(elements.map((element) => redact(element.selector))).toEqual(
+        elements.map((element) => element.selector),
+      );
+    });
+
     test('leaves out a hidden button', () => {
       expect(elements.map((element) => element.name)).not.toContain('Nope');
     });
@@ -244,6 +251,54 @@ describe('extractElements', { timeout: BROWSER_TIMEOUT_MS }, () => {
       for (const { name, box } of elements) {
         expect({ name, isPositive: box.width > 0 && box.height > 0 }).toEqual({ name, isPositive: true });
       }
+    });
+  });
+
+  describe('on a page whose attributes hold email addresses and contact links', () => {
+    let elements: ElementRef[];
+
+    beforeAll(async () => {
+      await open('contact.html');
+      ({ elements } = await extractElements(ipage));
+    }, BROWSER_TIMEOUT_MS);
+
+    function selectorOf(name: string): string {
+      return defined(
+        elements.find((element) => element.name === name),
+        `an element named ${name}`,
+      ).selector;
+    }
+
+    // A persisted map holds redacted selectors; one that redaction changed would match nothing live.
+    test('builds only selectors that redaction leaves as they are', () => {
+      expect(elements).toHaveLength(9);
+      for (const { selector } of elements) {
+        expect(redact(selector)).toBe(selector);
+        expect(selector).not.toMatch(/@|mailto:|tel:/i);
+      }
+    });
+
+    test('still gives each mailto and tel link a selector unique to it', async () => {
+      const links = elements.filter((element) => element.role === 'link');
+      const counts = await Promise.all(links.map((link) => ipage.page.locator(link.selector).count()));
+
+      expect(links.map((link) => link.name)).toEqual(['Email support', 'Email sales', 'Call us', 'Team']);
+      expect(counts).toEqual([1, 1, 1, 1]);
+      expect(await backendIdsOf(links.map((link) => link.selector))).toEqual(
+        links.map((link) => link.backendNodeId),
+      );
+      expect(selectorOf('Email support')).toBe('body > main:nth-of-type(1) > a:nth-of-type(1)');
+    });
+
+    test('falls through to the next safe attribute, or to a path', () => {
+      expect(selectorOf('Contact')).toBe('input[aria-label="Contact"]');
+      expect(selectorOf('Invite')).toBe('body > main:nth-of-type(1) > button:nth-of-type(1)');
+      expect(selectorOf('Profile')).toBe('body > main:nth-of-type(1) > button:nth-of-type(2)');
+    });
+
+    test('anchors a path at a stable id, but never at an id holding an address', () => {
+      expect(selectorOf('Team')).toBe('#team > a:nth-of-type(1)');
+      expect(selectorOf('Owner')).toBe('body > section:nth-of-type(2) > button:nth-of-type(1)');
     });
   });
 

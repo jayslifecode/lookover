@@ -275,7 +275,7 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(discovered.map((event) => [event.url, event.from])).toEqual(
         result.screens.map((screen) => [screen.url, screen.discoveredFrom]),
       );
-      // The log redacts what it writes (the fixture's `mailto:` address, here); the screens returned are not.
+      // The log holds the screens as redaction leaves them; the screens returned are not redacted.
       expect(captured.map((event) => event.screen)).toEqual(redactDeep(result.screens));
       discovered.forEach((event, index) => {
         expect(event.seq).toBeLessThan(captured[index]?.seq ?? 0);
