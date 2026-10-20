@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Forms fixture: ARIA fields</title>
+  </head>
+  <body>
+    <form id="compose" action="">
+      <!-- biome-ignore lint/a11y/useSemanticElements: the extractor must find ARIA-role fields too -->
+      <div id="message" role="textbox" contenteditable="true" tabindex="0" aria-label="Message" aria-required="true"></div>
+
+      <span id="priority-heading">Priority</span>
+      <span id="priority-value">level</span>
+      <button type="button" role="combobox" aria-expanded="false" aria-labelledby="priority-heading priority-value">
+        Normal
+      </button>
+
+      <input id="nick" name="nick" aria-label="Nickname (aria)" placeholder="Nick" />
+      <label for="nick">Nickname</label>
+
+      <input name="alias" aria-label="   " placeholder="Alias" />
+
+      <span id="legal-first">Legal</span>
+      <span id="legal-last">name</span>
+      <input name="legal" aria-labelledby="legal-first missing-id legal-last" placeholder="As on your passport" />
+
+      <select name="tags" multiple aria-label="Tags">
+        <option>Red</option>
+        <option>Blue</option>
+      </select>
+
+      <input name="mystery" type="Mystery" minlength="abc" maxlength="-1" />
+    </form>
+
+    <!-- Owned by #compose through the form attribute, though they sit outside it. -->
+    <input name="remote" form="compose" aria-label="Remote" />
+    <button id="send" type="submit" form="compose">Send</button>
+  </body>
+</html>

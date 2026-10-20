@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Forms fixture</title>
+  </head>
+  <body>
+    <form id="profile" action="/profile" method="POST">
+      <label for="phone">
+        Phone
+        number
+      </label>
+      <input id="phone" name="phone" type="tel" required pattern="\d{8}" maxlength="8" inputmode="numeric" />
+
+      <input name="email" type="email" aria-label="Email address" />
+
+      <label for="start">Start date</label>
+      <input id="start" name="start" type="date" min="2026-01-01" max="2026-12-31" />
+
+      <label>
+        Country
+        <select name="country">
+          <option value="mn">Mongolia</option>
+          <option value="kr">South Korea</option>
+        </select>
+      </label>
+
+      <textarea name="notes" placeholder="Anything we should know?" minlength="10" maxlength="200"></textarea>
+
+      <input type="hidden" name="csrf" value="token" />
+      <input name="promo" style="display: none" />
+
+      <input type="reset" value="Clear" />
+      <input type="button" value="Preview" />
+      <input type="image" alt="Send" />
+      <button type="button">Cancel</button>
+      <button id="save" type="submit">
+        Save
+      </button>
+      <input type="submit" value="Save and close" />
+    </form>
+
+    <form id="search-form">
+      <input type="search" name="q" aria-label="Search" />
+      <input type="submit" value="Go" />
+    </form>
+
+    <form id="newsletter">
+      <!-- biome-ignore lint/a11y/useButtonType: a button without a type submits, which the extractor must see -->
+      <button>Subscribe</button>
+    </form>
+
+    <input name="search" />
+
+    <!-- Makes the page taller than the viewport, so boxes can be checked on a scrolled page. -->
+    <div style="height: 3000px"></div>
+  </body>
+</html>
