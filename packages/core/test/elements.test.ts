@@ -13,7 +13,21 @@ const VIEWPORT = { name: 'desktop', width: 1280, height: 800 };
 /** Different measuring APIs may round sub-pixel layout differently in the last digits. */
 const BOX_PRECISION_DIGITS = 2;
 /** Ids that frameworks generate per render, plus a digits-only id; none may appear in a selector. */
-const UNSTABLE_IDS = [':r5:', 'radix-:r2:', 'headlessui-menu-button-1', 'mui-123', 'react-aria-7', '1234'];
+const UNSTABLE_IDS = [
+  ':r5:', // React 18 and 19.0 useId, client
+  ':R6:', // React 18 and 19.0 useId, server
+  '«r1»', // React 19.1 useId, client
+  '«R3»', // React 19.1 useId, server
+  '_r_1_', // React 19.2 useId, client
+  '_R_2_', // React 19.2 useId, server
+  'radix-:r2:',
+  'headlessui-menu-button-1',
+  'mui-123',
+  'react-aria-7',
+  '1234',
+];
+/** Chromium exposes a date input's year, month and day fields and its picker button as controls. */
+const DATE_INPUT_OWN_CONTROLS = 4;
 
 function defined<T>(value: T | null | undefined, what: string): T {
   if (value === null || value === undefined) {
@@ -85,9 +99,14 @@ describe('extractElements', { timeout: BROWSER_TIMEOUT_MS }, () => {
     );
   }
 
-  test('treats the sixteen widget roles as interactive and caps a screen at 500', () => {
+  test('treats the widget roles and the native date, colour and disclosure roles as interactive', () => {
     expect([...INTERACTIVE_ROLES].toSorted()).toEqual(
       [
+        'ColorWell',
+        'Date',
+        'DateTime',
+        'DisclosureTriangle',
+        'InputTime',
         'button',
         'link',
         'textbox',
@@ -140,9 +159,22 @@ describe('extractElements', { timeout: BROWSER_TIMEOUT_MS }, () => {
         'Answer',
         'First',
         'Second',
+        'Due',
+        'More',
         'Bottom',
       ]);
-      expect(total).toBe(elements.length);
+      // The date input's own controls are candidates, but live in the browser's shadow tree.
+      expect(total).toBe(elements.length + DATE_INPUT_OWN_CONTROLS);
+    });
+
+    test('lists native date and disclosure controls under their Chromium roles', () => {
+      const due = named('Due');
+
+      expect(due).toMatchObject({ role: 'Date', tag: 'input', selector: '#due' });
+      expect(due.box.width).toBeGreaterThan(0);
+      expect(due.box.height).toBeGreaterThan(0);
+      expect(elements.filter((element) => element.role === 'spinbutton')).toEqual([]);
+      expect(named('More')).toMatchObject({ role: 'DisclosureTriangle', tag: 'summary' });
     });
 
     test('prefers the test id, then a stable id, then the link href', () => {
@@ -249,41 +281,54 @@ describe('extractElements', { timeout: BROWSER_TIMEOUT_MS }, () => {
         host.attachShadow({ mode }).append(button);
         return host;
       };
-      // A date input's year, month and day spinbuttons live in the browser's own shadow tree.
-      const date = Object.assign(document.createElement('input'), { type: 'date' });
-      document.body.append(hostWith('open', 'Inside open'), hostWith('closed', 'Inside closed'), date);
+      document.body.append(hostWith('open', 'Inside open'), hostWith('closed', 'Inside closed'));
     });
 
     const { elements, total } = await extractElements(ipage);
     const backendIds = await backendIdsOf(elements.map((element) => element.selector));
 
     expect(elements.map((element) => element.name)).toEqual(before.elements.map((element) => element.name));
-    // Still counted: both shadow-root buttons and at least one of the date input's own controls.
-    expect(total).toBeGreaterThan(before.total + 2);
+    expect(total).toBe(before.total + 2);
     expect(backendIds).toEqual(elements.map((element) => element.backendNodeId));
   });
 
-  test('builds selectors through page.evaluate, skipping generated and digits-only ids', async () => {
+  test('skips the options of a collapsed select and keeps those of a multiple select', async () => {
+    await open('select.html');
+
+    const { elements, total } = await extractElements(ipage);
+
+    expect(elements.map(({ role, name, selector }) => ({ role, name, selector }))).toEqual([
+      { role: 'combobox', name: 'Country', selector: '#country' },
+      { role: 'listbox', name: 'Tags', selector: '#tags' },
+      { role: 'option', name: 'Red', selector: '#tags > option:nth-of-type(1)' },
+      { role: 'option', name: 'Blue', selector: '#tags > option:nth-of-type(2)' },
+      { role: 'button', name: 'After', selector: 'body > button:nth-of-type(1)' },
+    ]);
+    expect(total).toBeLessThan(20);
+  });
+
+  test('builds selectors through page.evaluate', async () => {
     await open('index.html');
-    await ipage.page.evaluate((ids) => {
-      const buttons = ids.map((id) => {
-        const button = document.createElement('button');
-        button.id = id;
-        button.className = 'unstable';
-        button.textContent = id;
-        return button;
-      });
-      document.body.append(...buttons);
-    }, UNSTABLE_IDS);
 
-    const [phone] = await buildSelectorsFor('#phone');
-    const unstable = await buildSelectorsFor('.unstable');
-    const counts = await Promise.all(unstable.map((selector) => ipage.page.locator(selector).count()));
+    expect(await buildSelectorsFor('#phone')).toEqual(['#phone']);
+    expect(await buildSelectorsFor('[data-testid="save"]')).toEqual(['[data-testid="save"]']);
+  });
 
-    expect(phone).toBe('#phone');
-    expect(unstable).toHaveLength(UNSTABLE_IDS.length);
-    expect(unstable.filter((selector) => selector.includes('#'))).toEqual([]);
-    expect(counts).toEqual(unstable.map(() => 1));
+  test.each(UNSTABLE_IDS)('never uses the generated or digits-only id %s as a selector', async (id) => {
+    await open('index.html');
+    await ipage.page.evaluate((unstableId) => {
+      const button = document.createElement('button');
+      button.id = unstableId;
+      button.className = 'unstable';
+      button.textContent = unstableId;
+      document.body.append(button);
+    }, id);
+
+    const [selector] = await buildSelectorsFor('.unstable');
+
+    expect(selector).toBeDefined();
+    expect(selector).not.toContain('#');
+    expect(await ipage.page.locator(defined(selector, 'a selector')).count()).toBe(1);
   });
 
   test('stops after 500 elements on a grid of 1,200 buttons and reports the total', async () => {

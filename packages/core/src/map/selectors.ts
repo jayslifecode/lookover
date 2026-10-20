@@ -3,8 +3,9 @@
  * exactly one element in the document, and that element is `el`:
  *
  * 1. `[data-testid="…"]`
- * 2. `#id`, unless the id is generated per render (React `useId`, Radix, Headless UI, MUI,
- *    React Aria) or digits only
+ * 2. `#id`, unless the id is generated per render or digits only. Generated: React `useId` in every
+ *    format so far, client and server (`:r1:`/`:R1:` up to 19.0, `«r1»`/`«R1»` in 19.1,
+ *    `_r_1_`/`_R_1_` from 19.2), Radix, Headless UI, MUI and React Aria
  * 3. `tag[name="…"]`
  * 4. `tag[aria-label="…"]`
  * 5. `a[href="…"]` (the attribute as written, not the resolved URL)
@@ -18,7 +19,7 @@
  * path stops at the shadow root and does not resolve, which callers check for.
  */
 function buildSelector(el: Element): string {
-  const GENERATED_ID = /^(:r|radix-|headlessui-|mui-|react-aria)/;
+  const GENERATED_ID = /^(:r|:R|«r|«R|_r_|_R_|radix-|headlessui-|mui-|react-aria)/;
   const DIGITS_ONLY = /^\d+$/;
 
   /** A CSS string literal. `CSS.escape` is for identifiers and would turn `/orgs` into `\/orgs`. */

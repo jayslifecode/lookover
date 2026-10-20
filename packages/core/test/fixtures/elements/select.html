@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Select fixture</title>
+  </head>
+  <body>
+    <label for="country">Country</label>
+    <select id="country"></select>
+    <label for="tags">Tags</label>
+    <select id="tags" multiple>
+      <option>Red</option>
+      <option>Blue</option>
+    </select>
+    <button type="button">After</button>
+    <script>
+      const OPTIONS = 600;
+      document.getElementById('country').append(
+        ...Array.from({ length: OPTIONS }, (_, index) => new Option(`Country ${index + 1}`, String(index + 1))),
+      );
+    </script>
+  </body>
+</html>

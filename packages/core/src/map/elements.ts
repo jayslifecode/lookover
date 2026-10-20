@@ -4,8 +4,18 @@ import type { InstrumentedPage } from '../browser/session.js';
 import { BUILD_SELECTOR_SOURCE } from './selectors.js';
 import type { Box, ElementRef } from './types.js';
 
-/** Accessibility roles of the widgets a user can operate; every other role is structure or text. */
+/**
+ * Accessibility roles of the widgets a user can operate; every other role is structure or text.
+ * The capitalised ones are Chromium's own roles for native controls that have no ARIA role: date,
+ * time, `datetime-local`/`month`/`week` and colour inputs, and `<summary>`. `ElementRef.role` keeps
+ * them verbatim.
+ */
 export const INTERACTIVE_ROLES: ReadonlySet<string> = new Set([
+  'ColorWell',
+  'Date',
+  'DateTime',
+  'DisclosureTriangle',
+  'InputTime',
   'button',
   'link',
   'textbox',
@@ -26,6 +36,12 @@ export const INTERACTIVE_ROLES: ReadonlySet<string> = new Set([
 
 /** Past this many interactive elements a screen is truncated; the caller reports it. */
 export const MAX_ELEMENTS_PER_SCREEN = 500;
+
+/**
+ * Chromium's role for the closed drop-down of a `<select>`. Its options are in the tree but have no
+ * box until it opens. A `<select multiple>` lists its options under a `listbox` instead, laid out.
+ */
+const COLLAPSED_SELECT_POPUP_ROLE = 'MenuListPopup';
 
 /**
  * How many elements are measured at once: enough to overlap the CDP round trips, few enough to keep
@@ -77,9 +93,11 @@ const MEASURE_ELEMENT_SOURCE = `function () { return (${measureElement.toString(
  * to exactly that element and its box in document coordinates.
  *
  * Only the first `MAX_ELEMENTS_PER_SCREEN` candidates are measured; `total` counts all of them, so
- * the caller can tell the screen was truncated. Candidates without area (hidden, collapsed), whose
- * DOM node can no longer be resolved, or that a document selector cannot reach (shadow trees) are
- * left out of `elements`. Elements in other frames are not in the main frame's tree.
+ * the screen was truncated exactly when `total > MAX_ELEMENTS_PER_SCREEN`. Candidates without area
+ * (hidden, collapsed), whose DOM node can no longer be resolved, or that a document selector cannot
+ * reach (shadow trees) are left out of `elements`, so `total > elements.length` alone does not mean
+ * truncation. The options of a closed `<select>` are not candidates at all. Elements in other frames
+ * are not in the main frame's tree.
  */
 export async function extractElements(
   ipage: InstrumentedPage,
@@ -99,18 +117,24 @@ export async function extractElements(
 /**
  * The nodes depth-first from the root, which is reading order; `getAXTree` lists them breadth-first,
  * which would put a shallow footer link ahead of the main content. A child id with no listed node
- * (an iframe's document) is skipped.
+ * (an iframe's document) is skipped, and so is the inside of a closed `<select>`'s popup: hundreds
+ * of options without a box would otherwise use up the element budget and count toward `total`.
  */
 function inReadingOrder(nodes: readonly AXNode[]): AXNode[] {
   const byId = new Map(nodes.map((node) => [node.nodeId, node]));
   const childIds = new Set(nodes.flatMap((node) => node.childIds));
-  const walk = (node: AXNode): AXNode[] => [
-    node,
-    ...node.childIds.flatMap((id) => {
-      const child = byId.get(id);
-      return child === undefined ? [] : walk(child);
-    }),
-  ];
+  const walk = (node: AXNode): AXNode[] => {
+    if (node.role === COLLAPSED_SELECT_POPUP_ROLE) {
+      return [node];
+    }
+    return [
+      node,
+      ...node.childIds.flatMap((id) => {
+        const child = byId.get(id);
+        return child === undefined ? [] : walk(child);
+      }),
+    ];
+  };
   return nodes.filter((node) => !childIds.has(node.nodeId)).flatMap(walk);
 }
 
