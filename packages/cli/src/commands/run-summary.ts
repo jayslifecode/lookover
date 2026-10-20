@@ -55,10 +55,16 @@ export function formatDuration(ms: number): string {
   return `${Math.floor(whole / SECONDS_PER_MINUTE)} min ${whole % SECONDS_PER_MINUTE} s`;
 }
 
-/** For backends the app called only after the confirmation step: nothing reached them. */
-export function blockedHostsWarning(hosts: readonly string[]): string {
+/**
+ * For backends the app called only after the confirmation step: nothing reached them. Each host is
+ * listed as `labelHost` shows it; the command names the bare hosts.
+ */
+export function blockedHostsWarning(
+  hosts: readonly string[],
+  labelHost: (host: string) => string = (host) => host,
+): string {
   return (
-    `Blocked requests to backends that are not confirmed: ${hosts.join(', ')}. ` +
+    `Blocked requests to backends that are not confirmed: ${hosts.map(labelHost).join(', ')}. ` +
     `If they are development or disposable instances, run: ${confirmHostCommand(hosts)}`
   );
 }

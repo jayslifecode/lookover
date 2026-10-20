@@ -76,6 +76,19 @@ describe('host confirmation', () => {
       expect(confirmed).toEqual(['api.dev.example.com', 'xyz.supabase.co']);
     });
 
+    test('shows each host as the label function shows it, keeping the bare host as the value', async () => {
+      vi.mocked(multiselect).mockResolvedValueOnce([]);
+      const labelHost = (host: string): string => (host.startsWith('cdn.') ? `${host} (static)` : host);
+
+      await createConfirmHosts(true, labelHost)(HOSTS);
+
+      expect(promptOptions().options).toEqual([
+        { value: 'api.dev.example.com', label: 'api.dev.example.com' },
+        { value: 'cdn.example.com', label: 'cdn.example.com (static)' },
+        { value: 'xyz.supabase.co', label: 'xyz.supabase.co' },
+      ]);
+    });
+
     test('throws RunCancelledError when the person cancels', async () => {
       // clack's own cancel symbol is internal; the mocked isCancel recognises this one instead.
       vi.mocked(multiselect).mockResolvedValueOnce(CANCELLED as Awaited<ReturnType<typeof multiselect>>);

@@ -25,20 +25,23 @@ export function shouldPrompt(context: PromptContext): boolean {
 }
 
 /**
- * The engine's `confirmHosts` hook. Interactive: a multiselect of the hosts with none selected, so
- * pressing Enter alone confirms nothing; a cancel throws
+ * The engine's `confirmHosts` hook. Interactive: a multiselect of the hosts, each shown as `labelHost`
+ * shows it, with none selected, so pressing Enter alone confirms nothing; a cancel throws
  * `RunCancelledError`, which ends the run with the browser closed. Non-interactive: confirms nothing.
  * Either way, a host left unconfirmed makes the engine refuse with `E_HOSTS_UNCONFIRMED` naming it and
  * the `--confirm-host` command (hosts passed with the flag already count as confirmed).
  */
-export function createConfirmHosts(isInteractive: boolean): ConfirmHosts {
+export function createConfirmHosts(
+  isInteractive: boolean,
+  labelHost: (host: string) => string = (host) => host,
+): ConfirmHosts {
   if (!isInteractive) {
     return () => Promise.resolve([]);
   }
   return async (hosts) => {
     const answer = await multiselect({
       message: CONFIRM_HOSTS_MESSAGE,
-      options: hosts.map((host) => ({ value: host, label: host })),
+      options: hosts.map((host) => ({ value: host, label: labelHost(host) })),
       // Confirming a backend lets the run send it requests: that takes a deliberate choice per host.
       initialValues: [],
       // Confirming none is an answer: the engine then refuses the run and names the hosts.

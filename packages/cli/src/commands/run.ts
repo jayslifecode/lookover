@@ -12,6 +12,7 @@ import {
 } from '@jayslifecode/lookover-core';
 import type { Command } from 'commander';
 import * as ui from '../ui.js';
+import { type HostKinds, hostLabel, labelUnconfirmedHosts, withObservedHost } from './run-hosts.js';
 import {
   collectRepeated,
   configForRun,
@@ -23,10 +24,15 @@ import {
 import { createConfirmHosts, RunCancelledError, shouldPrompt } from './run-prompts.js';
 import { blockedHostsWarning, progressLine, summaryRows } from './run-summary.js';
 
-/** Prints a line per captured screen and counts the blocked requests, as the run log records them. */
+/**
+ * Prints a line per captured screen, counts the blocked requests and notes what the app used each host
+ * for, as the run log records them.
+ */
 interface Progress {
   readonly onEvent: (event: RunEvent) => void;
   readonly blockedRequests: () => number;
+  /** A host as the CLI lists it (see `hostLabel`), from the events so far. */
+  readonly labelHost: (host: string) => string;
 }
 
 export function registerRun(program: Command): void {
@@ -84,10 +90,13 @@ export async function runRun(flags: RunFlags): Promise<void> {
       durationMs,
     }),
   );
-  reportHosts(savedHosts, result.blockedUnconfirmedHosts);
+  reportHosts(savedHosts, result.blockedUnconfirmedHosts, progress.labelHost);
 }
 
-/** Runs the discovery engine; a cancelled prompt exits 1 once the engine has closed the browser. */
+/**
+ * Runs the discovery engine; a cancelled prompt exits 1 once the engine has closed the browser. The
+ * hosts an `E_HOSTS_UNCONFIRMED` lists are labelled as the prompt labels them.
+ */
 async function discover(
   ctx: RunContext,
   cwd: string,
@@ -103,21 +112,26 @@ async function discover(
     return await runDiscovery(ctx, {
       cwd,
       ...(options.isHeaded ? { headless: false } : {}),
-      hooks: { confirmHosts: createConfirmHosts(isInteractive), onEvent: progress.onEvent },
+      hooks: {
+        confirmHosts: createConfirmHosts(isInteractive, progress.labelHost),
+        onEvent: progress.onEvent,
+      },
     });
   } catch (error) {
     if (error instanceof RunCancelledError) {
       cancel(error.message);
       process.exit(ui.EXIT_FAILURE);
     }
-    throw error;
+    throw labelUnconfirmedHosts(error, progress.labelHost);
   }
 }
 
 function createProgress(): Progress {
   let blocked = 0;
+  let hostKinds: HostKinds = new Map();
   return {
     onEvent: (event) => {
+      hostKinds = withObservedHost(hostKinds, event);
       if (event.type === 'screen.captured') {
         ui.info(progressLine(event.screen));
       } else if (event.type === 'request.blocked') {
@@ -125,15 +139,20 @@ function createProgress(): Progress {
       }
     },
     blockedRequests: () => blocked,
+    labelHost: (host) => hostLabel(host, hostKinds),
   };
 }
 
-function reportHosts(savedHosts: readonly string[], blockedHosts: readonly string[]): void {
+function reportHosts(
+  savedHosts: readonly string[],
+  blockedHosts: readonly string[],
+  labelHost: (host: string) => string,
+): void {
   if (savedHosts.length > 0) {
     ui.success(`Saved to confirmedBackendHosts in ${CONFIG_FILENAME}: ${savedHosts.join(', ')}`);
   }
   if (blockedHosts.length > 0) {
-    ui.warn(blockedHostsWarning(blockedHosts));
+    ui.warn(blockedHostsWarning(blockedHosts, labelHost));
   }
 }
 
