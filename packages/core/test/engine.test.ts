@@ -681,6 +681,11 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
   describe('before opening a browser', () => {
     test.each([
+      [
+        'interaction is full without the disposable-data acknowledgement',
+        { interaction: 'full' },
+        'E_ACK_REQUIRED',
+      ],
       ['no viewport is configured', { viewports: [] }, 'E_CONFIG_INVALID'],
       [
         'the base URL is not on an allowed host',

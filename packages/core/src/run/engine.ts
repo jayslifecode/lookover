@@ -2,7 +2,7 @@ import { join, resolve } from 'node:path';
 import { checkStorageState, type EnsureAuthOptions, ensureAuth, isLoginUrl } from '../browser/auth.js';
 import { isAllowedHost, networkHost, normaliseHost } from '../browser/network-policy.js';
 import { BrowserSession, type SessionEvent, type SessionOptions } from '../browser/session.js';
-import { CONFIG_FILENAME } from '../config/load.js';
+import { assertAcknowledged, CONFIG_FILENAME } from '../config/load.js';
 import type { LookoverConfig } from '../config/schema.js';
 import { type ErrorCode, LookoverError } from '../errors.js';
 import { type CrawlOptions, crawl } from '../map/crawler.js';
@@ -70,6 +70,8 @@ const RUN_LOG_HINT = 'Check that the .lookover directory is writable and its dis
 /**
  * Stage 1 end to end, recorded in the run log from `run.started` to `run.finished`:
  *
+ * 0. The checks that need no browser: the disposable-data acknowledgement of a `full` config
+ *    (`E_ACK_REQUIRED`, the same gate as `loadConfig`), a viewport, and a base URL on an allowed host.
  * 1. The routes on disk (Next.js only), each logged as `route.discovered`.
  * 2. One browser session inside the network envelope, at the first viewport; its events go to the
  *    run log.
@@ -118,6 +120,7 @@ async function discover(
     interaction: config.interaction,
     viewports: config.viewports,
   });
+  assertAcknowledged(config);
   const viewport = firstViewport(config);
   assertBaseUrlAllowed(config);
   const routes = await discoverRoutes(ctx, opts.cwd);

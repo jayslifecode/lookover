@@ -2,7 +2,9 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { LookoverError } from '@jayslifecode/lookover-core';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { buildConfig, type InitAnswers } from '../src/commands/init-config.js';
 import { ACKNOWLEDGEMENT_LINES } from '../src/commands/init-prompts.js';
 import { runCli } from './run-cli.js';
 
@@ -202,5 +204,42 @@ describe('acknowledgement copy', () => {
       'Lookover will click anything and submit any form in this app, including actions that delete or change data.',
       'Is every piece of data this app can reach disposable — a local or development database you can recreate?',
     ]);
+  });
+});
+
+describe('buildConfig', () => {
+  const answers = (overrides: Partial<InitAnswers>): InitAnswers => ({
+    baseUrl: BASE_URL,
+    framework: 'next',
+    interaction: 'safe',
+    acknowledgedDisposableData: false,
+    ...overrides,
+  });
+
+  test('refuses full interaction without the acknowledgement, hinting at the init flag', () => {
+    const build = () => buildConfig(answers({ interaction: 'full' }), '.');
+
+    expect(build).toThrow(LookoverError);
+    expect(build).toThrow(
+      expect.objectContaining({
+        code: 'E_ACK_REQUIRED',
+        hint: expect.stringContaining('--acknowledge-disposable-data'),
+      }),
+    );
+  });
+
+  test('records the acknowledgement for full interaction when it was given', () => {
+    const config = buildConfig(answers({ interaction: 'full', acknowledgedDisposableData: true }), '.');
+
+    expect(config.acknowledgement).toMatchObject({
+      disposableData: true,
+      acknowledgedAt: expect.any(String),
+    });
+  });
+
+  test('records no acknowledgement for safe interaction', () => {
+    const config = buildConfig(answers({ interaction: 'safe', acknowledgedDisposableData: true }), '.');
+
+    expect(config).not.toHaveProperty('acknowledgement');
   });
 });

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { CONFIG_FILENAME, loadConfig, writeConfig } from '../src/config/load.js';
+import { assertAcknowledged, CONFIG_FILENAME, loadConfig, writeConfig } from '../src/config/load.js';
 import { configSchema } from '../src/config/schema.js';
 
 describe('config', () => {
@@ -105,5 +105,20 @@ describe('config', () => {
     const p = await writeConfig(dir, cfg);
     const text = await readFile(p, 'utf8');
     expect(text).toBe(`${JSON.stringify(cfg, null, 2)}\n`);
+  });
+});
+
+describe('assertAcknowledged', () => {
+  const acknowledgement = { disposableData: true, acknowledgedAt: '2026-10-20T10:00:00.000Z' } as const;
+
+  test('refuses full interaction without the acknowledgement, naming how to give it', () => {
+    expect(() => assertAcknowledged({ interaction: 'full' })).toThrow(
+      expect.objectContaining({ code: 'E_ACK_REQUIRED', hint: expect.stringContaining('lookover init') }),
+    );
+  });
+
+  test('lets full interaction with the acknowledgement, and safe interaction, through', () => {
+    expect(() => assertAcknowledged({ interaction: 'full', acknowledgement })).not.toThrow();
+    expect(() => assertAcknowledged({ interaction: 'safe' })).not.toThrow();
   });
 });

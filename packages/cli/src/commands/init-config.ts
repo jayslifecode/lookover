@@ -1,5 +1,10 @@
 import { userInfo } from 'node:os';
-import { configSchema, type LookoverConfig, LookoverError } from '@jayslifecode/lookover-core';
+import {
+  assertAcknowledged,
+  configSchema,
+  type LookoverConfig,
+  LookoverError,
+} from '@jayslifecode/lookover-core';
 
 export type Framework = LookoverConfig['framework'];
 export type Interaction = LookoverConfig['interaction'];
@@ -67,23 +72,32 @@ function formAuth(login: FormLogin) {
 }
 
 /**
- * The one place a `full` config comes into being. It refuses to without the acknowledgement, so
- * a caller validates here before anything is written to disk.
+ * The one place a `full` config comes into being. It refuses to without the acknowledgement (core's
+ * own gate, `assertAcknowledged`, with init's flag in the hint), so a caller validates here before
+ * anything is written to disk.
  */
 export function buildConfig(answers: InitAnswers, root: string): LookoverConfig {
-  if (answers.interaction === 'full' && !answers.acknowledgedDisposableData) {
-    throw new LookoverError(
-      'E_ACK_REQUIRED',
-      'interaction is "full" but the disposable-data acknowledgement is missing',
-      ACK_HINT,
-    );
+  const config = parseAnswers(answers, root);
+  try {
+    assertAcknowledged(config);
+  } catch (error) {
+    if (error instanceof LookoverError && error.code === 'E_ACK_REQUIRED') {
+      throw new LookoverError(error.code, error.message, ACK_HINT);
+    }
+    throw error;
   }
+  return config;
+}
+
+/** The config the answers describe, with the acknowledgement only when the person gave it. */
+function parseAnswers(answers: InitAnswers, root: string): LookoverConfig {
+  const isAcknowledged = answers.interaction === 'full' && answers.acknowledgedDisposableData;
   const result = configSchema.safeParse({
     baseUrl: answers.baseUrl,
     root,
     framework: answers.framework,
     interaction: answers.interaction,
-    ...(answers.interaction === 'full' ? { acknowledgement: acknowledgement() } : {}),
+    ...(isAcknowledged ? { acknowledgement: acknowledgement() } : {}),
     ...(answers.login === undefined ? {} : { auth: formAuth(answers.login) }),
   });
   if (!result.success) {
