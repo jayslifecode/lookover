@@ -1,4 +1,6 @@
 import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -439,4 +441,57 @@ describe('lookover run', () => {
     expect(result.stderr).toContain('--confirm-host "a.test,b.test" is not a host name');
     expect(result.stderr).toContain('--confirm-host a.test --confirm-host b.test');
   });
+});
+
+describe('lookover run in a browser', () => {
+  /** Loopback addresses that are not `127.0.0.1`, so the network policy treats them as other hosts. */
+  const ASSET_HOST = '127.0.0.2';
+  const API_HOST = '127.0.0.3';
+  const BROWSER_RUN_TIMEOUT_MS = 60_000;
+  let dir: string;
+  let server: Server;
+  let baseUrl: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'lookover-run-browser-'));
+    // The page loads an image from one host and calls another; neither request needs an answer, and
+    // the image starts after the load event, so a host that never answers cannot hold the page up.
+    server = createServer((_req, res) => {
+      const port = (server.address() as AddressInfo).port;
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(
+        '<!doctype html><title>App</title><script>' +
+          `fetch('http://${API_HOST}:${port}/api', { mode: 'no-cors' }).catch(() => undefined);` +
+          `addEventListener('load', () => { new Image().src = 'http://${ASSET_HOST}:${port}/logo.png'; });` +
+          '</script>',
+      );
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', () => done()));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterEach(async () => {
+    server.closeAllConnections();
+    await new Promise<void>((done) => server.close(() => done()));
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test(
+    'labels the host the app only loaded static assets from when it refuses the run',
+    async () => {
+      await writeFile(
+        join(dir, 'lookover.config.json'),
+        JSON.stringify({ baseUrl, interaction: 'safe', framework: 'unknown' }),
+      );
+
+      const result = await runCli(dir, ['run', '--yes'], { timeoutMs: BROWSER_RUN_TIMEOUT_MS });
+
+      expect(result.code, result.stderr).toBe(3);
+      expect(result.stderr).toContain('E_HOSTS_UNCONFIRMED');
+      const lines = result.stderr.split('\n');
+      expect(lines).toContain(`  ${ASSET_HOST} (static assets — consider allowHosts)`);
+      expect(lines).toContain(`  ${API_HOST}`);
+    },
+    BROWSER_RUN_TIMEOUT_MS,
+  );
 });
