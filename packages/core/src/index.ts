@@ -18,6 +18,7 @@ export type { ErrorCode } from './errors.js';
 export { LookoverError } from './errors.js';
 export type { EvidenceRef } from './evidence/store.js';
 export { EvidenceStore } from './evidence/store.js';
+export { discoverNextRoutes, matchRoute, routePatternFromPath } from './map/next-routes.js';
 export type {
   AppMap,
   Box,
