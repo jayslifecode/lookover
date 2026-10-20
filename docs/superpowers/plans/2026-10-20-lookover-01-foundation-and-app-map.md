@@ -12,9 +12,24 @@
 
 ## Global Constraints
 
-- TypeScript end to end, ESM only (`"type": "module"`), Node `>=22` in every `engines` field. pnpm workspace; no npm/yarn lockfiles.
-- MIT licence file at the root from the first commit; package names `@jayslifecode/lookover-core`, `@jayslifecode/lookover-cli` (the published CLI package is `@jayslifecode/lookover`; the bin is `lookover`).
-- The explorer navigates only to allowlisted hosts: `localhost`, `127.0.0.1`, `::1`, `*.local`, plus `allowHosts` from config / `--allow-host`. The app's own calls to other hosts pass through but are recorded and must be confirmed before a run; calls to payment, email and SMS providers are blocked at the network layer unless allowlisted.
+- TypeScript end to end, ESM only (`"type": "module"`), Node `>=22.12` in every `engines` field (amended during execution: commander 15 / Vitest 5 / `URL.parse` need it). pnpm workspace; no npm/yarn lockfiles.
+- MIT licence file at the root from the first commit; package names `@jayslifecode/lookover-core` and `@jayslifecode/lookover` (the CLI; the bin is `lookover`) — the CLI workspace package was renamed from `-cli` to the published name during execution.
+- The explorer navigates only to allowlisted hosts: `localhost`, `127.0.0.1`, `::1`, `*.local`, `*.localhost`, plus `allowHosts` from config / `--allow-host`. The app's own calls to other hosts pass through during the unauthenticated probe, are listed for confirmation, and after confirmation any call to a host that is neither allowlisted nor confirmed is blocked, recorded and reported (amended during execution; see the spec's safety envelope); calls to payment, email and SMS providers are blocked at the network and DNS layers unless allowlisted.
+
+## Amendments during execution (2026-10-21)
+
+Rulings taken while executing this plan that change what the tasks say; the spec was updated where it mattered.
+- Task order: Task 5 ran before Task 4 (the run context constructs the real evidence store); Task 4 also created `src/map/types.ts`.
+- `Screen.screenshot` is `EvidenceRef | null`; `ElementRef.backendNodeId` is optional; `ElementRef.role` carries Chromium's AX role verbatim; `INTERACTIVE_ROLES` also has `Date`, `DateTime`, `InputTime`, `ColorWell`, `DisclosureTriangle`; collapsed `<select>` option popups are skipped; `screen.truncated` fires only when `total > MAX_ELEMENTS_PER_SCREEN`; `Box` is in document coordinates.
+- `matchRoute` ranks candidates by Next.js segment precedence (static < `[x]` < `[...x]` < `[[...x]]`), not pattern length.
+- Redaction: key-aware `redactDeep`, quoted-value-aware generic rule, case-insensitive Bearer, lookbehinds against quadratic backtracking; `writeAppMap` redacts; `diffAppMaps` compares redacted selectors; evidence JSON is normalised through a JSON round-trip before redaction.
+- Run log: subscriber errors never reject `append` (`onSubscriberError`, default re-raise via `queueMicrotask`); a missing trailing newline is repaired on reopen.
+- Browser session: `readonly context`; `routeWebSocket` enforcement; `--host-resolver-rules` with trailing-dot variants and `--no-proxy-server`; `serviceWorkers: 'block'`; all-frame containment; fail-closed handlers; `enforceConfirmedHosts()` with the `unconfirmed-backend` block reason; test-only `testResolver` hooks never set from config.
+- Crawler: seeds are app-relative; navigation failures are captured screens with `screenshot: null`; a closed/crashed page and any `LookoverError` propagate; `CrawlOptions.auth` recovery hook; destructive-link pattern also matches `sign_out|log_out|logoff` and is applied to the app-relative path.
+- Auth: form login happens inside the session's context (no relaunch); storage state written atomically with mode 0600; no credential or raw Playwright text in any error; a `successUrl` that still matches the login page fails closed.
+- Engine: order probe → confirm → enforce → login → crawl; the probe also loads the login page; `runDiscovery` returns `blockedUnconfirmedHosts`; `createRun` accepts `onSubscriberError`.
+- CLI: `--confirm-host` values are merged into `confirmedBackendHosts` before the run and persisted after it; non-interactive confirmation resolves to nothing (the engine refuses with an actionable hint).
+- Bench: `proxy.ts` (Next 16), a text `YYYY-MM-DD` date field instead of a native date input, "Sign in / Sign out", `border-slate-500` controls.
 - Full interaction is the default and is gated: config must contain `interaction: "full"` **and** `acknowledgement.disposableData: true`; without it the run refuses to start (`E_ACK_REQUIRED`). `safe` mode needs no acknowledgement.
 - Secrets never live in config: credentials are referenced by environment-variable name. Emails, JWTs, API keys and bearer tokens are redacted in every stored JSON blob and log line.
 - Everything a run produces goes under `.lookover/` in the user's project: `.lookover/runs/<runId>/{run.jsonl,app-map.json,evidence/}`, `.lookover/app-map.json` (latest), `.lookover/state/` (storage states). `.lookover/` is git-ignored by `init`.
