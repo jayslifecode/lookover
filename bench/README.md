@@ -44,7 +44,8 @@ The login form's fields are `input[name="email"]`, `input[name="password"]` and
 | `/settings`           | Workspace name, contact email, time zone; Save                                 |
 
 Dates appear in one format everywhere, `YYYY-MM-DD`, including the registered-date field, which is
-a text input rather than the browser's date picker (that one renders in the browser's locale).
+a text input rather than the browser's date picker (that one renders in the browser's locale). It
+keeps the default keyboard: a numeric keypad (`inputMode="numeric"`) has no hyphen on iOS.
 
 ## Data and reset
 

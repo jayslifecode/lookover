@@ -57,7 +57,6 @@ export function OrganisationForm({ action, initialState }: OrganisationFormProps
         name="registeredAt"
         label="Registered on"
         type="text"
-        inputMode="numeric"
         placeholder={DATE_FORMAT}
         pattern={DATE_PATTERN}
         maxLength={DATE_FORMAT.length}

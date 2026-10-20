@@ -122,7 +122,7 @@ describe('lookover run against the bench app', () => {
     expect(map.routes).toContainEqual(expect.objectContaining({ pattern: EDIT_ROUTE, source: 'filesystem' }));
   });
 
-  test('captures at least six screens, with the edit form and its labelled phone field', async () => {
+  test('captures at least six screens, with the edit form and its labelled fields', async () => {
     const map = await readAppMap(project);
 
     expect(map.screens.filter((screen) => !isFailedScreen(screen)).length).toBeGreaterThanOrEqual(
@@ -135,6 +135,11 @@ describe('lookover run against the bench app', () => {
     expect(editForms.length).toBeGreaterThan(0);
     for (const form of editForms) {
       expect(form.fields.find((field) => field.name === 'phone')?.label).toBe('Phone');
+      // The YYYY-MM-DD field keeps the default keyboard: a numeric keypad has no hyphen on iOS.
+      expect(form.fields.find((field) => field.name === 'registeredAt')).toMatchObject({
+        label: 'Registered on',
+        inputMode: null,
+      });
     }
   });
 
