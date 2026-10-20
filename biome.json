@@ -7,7 +7,15 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/node_modules", "!**/dist", "!**/.superpowers", "!**/.lookover", "!pnpm-lock.yaml"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/.superpowers",
+      "!**/.lookover",
+      "!pnpm-lock.yaml",
+      "!docs/superpowers/specs/*.html"
+    ]
   },
   "formatter": {
     "enabled": true,
