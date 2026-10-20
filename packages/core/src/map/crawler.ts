@@ -21,7 +21,7 @@ export const DESTRUCTIVE_LINK_PATTERN =
 export interface CrawlOptions {
   /** The app's root: only URLs on its origin and under its path are crawled. */
   baseUrl: string;
-  /** Where the crawl starts, each resolved against `baseUrl`. Hrefs that cannot be navigated are ignored. */
+  /** Where the crawl starts, app-relative (see `resolveSeed`). Hrefs that cannot be navigated are ignored. */
   seeds: string[];
   /** Known routes (Next.js patterns) that label the screens. */
   routes: RouteInfo[];
@@ -127,7 +127,7 @@ class Crawler {
 
   async run(): Promise<Screen[]> {
     await this.offer(
-      this.opts.seeds.flatMap((seed) => normaliseUrl(seed, this.base) ?? []),
+      this.opts.seeds.flatMap((seed) => resolveSeed(seed, this.base) ?? []),
       null,
     );
     let screens: Screen[] = [];
@@ -286,6 +286,19 @@ class Frontier {
     }
     return next;
   }
+}
+
+/**
+ * Resolves a crawl seed against the app, normalised like every other crawl URL. Seeds are
+ * app-relative: a leading `/` means the app's root, so the base URL's path is kept (`/orgs` under
+ * `http://host/sub/` is `http://host/sub/orgs`); with a base URL at the origin's root nothing
+ * changes. An absolute URL is used as is, and the crawl still checks that it is in the app.
+ * `null` for an href that cannot be navigated.
+ */
+export function resolveSeed(seed: string, baseUrl: URL): URL | null {
+  const appRoot = new URL(baseUrl.href);
+  appRoot.pathname = appRoot.pathname.endsWith('/') ? appRoot.pathname : `${appRoot.pathname}/`;
+  return normaliseUrl(seed.trim().replace(/^\//, ''), appRoot);
 }
 
 function routeOf(url: URL, routes: readonly RouteInfo[]): string {

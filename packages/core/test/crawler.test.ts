@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { BrowserSession } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
-import { type CrawlOptions, crawl, DESTRUCTIVE_LINK_PATTERN } from '../src/map/crawler.js';
+import { type CrawlOptions, crawl, DESTRUCTIVE_LINK_PATTERN, resolveSeed } from '../src/map/crawler.js';
 import { MAX_ELEMENTS_PER_SCREEN } from '../src/map/elements.js';
 import type { Screen } from '../src/map/types.js';
 import type { RunEvent } from '../src/run/events.js';
@@ -110,6 +110,32 @@ describe('DESTRUCTIVE_LINK_PATTERN', () => {
       expect(DESTRUCTIVE_LINK_PATTERN.test(path)).toBe(false);
     },
   );
+});
+
+// Results are normalised like every crawl URL, so `/sub/` comes back as `/sub`.
+describe('resolveSeed', () => {
+  const origin = 'http://127.0.0.1:3000';
+
+  test.each([`${origin}/sub/`, `${origin}/sub`])(
+    'keeps the base path of %s for a seed starting with /',
+    (base) => {
+      expect(resolveSeed('/', new URL(base))?.href).toBe(`${origin}/sub`);
+      expect(resolveSeed('/orgs.html', new URL(base))?.href).toBe(`${origin}/sub/orgs.html`);
+    },
+  );
+
+  test.each([`${origin}/`, origin])('changes nothing under the root base URL %s', (base) => {
+    expect(resolveSeed('/', new URL(base))?.href).toBe(`${origin}/`);
+    expect(resolveSeed('/orgs.html', new URL(base))?.href).toBe(`${origin}/orgs.html`);
+  });
+
+  test('uses an absolute seed as is', () => {
+    expect(resolveSeed(`${origin}/orgs.html`, new URL(`${origin}/sub/`))?.href).toBe(`${origin}/orgs.html`);
+  });
+
+  test('returns null for a seed that cannot be navigated', () => {
+    expect(resolveSeed('mailto:x@y.z', new URL(`${origin}/sub/`))).toBeNull();
+  });
 });
 
 describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
@@ -342,11 +368,15 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(screens[0]?.screenshot).not.toBeNull();
   });
 
-  test('keeps a crawl with a base path inside that path', async () => {
-    const { screens, events } = await crawlSite({ baseUrl: `${fixture.url}/sub/`, seeds: ['/sub/'] });
+  test('keeps a crawl with a base path inside that path, with app-relative seeds', async () => {
+    const { screens, events } = await crawlSite({
+      baseUrl: `${fixture.url}/sub/`,
+      seeds: ['/', url('/index.html')],
+    });
 
     expect(screens.map((screen) => screen.url)).toEqual([url('/sub'), url('/sub/page.html')]);
     expect(skippedUrls(events, 'not-same-app')).toEqual([
+      url('/index.html'),
       url('/orgs.html'),
       url('/'),
       url('/subway.html'),
