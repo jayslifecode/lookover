@@ -1,6 +1,6 @@
 export type { AXNode } from './browser/cdp.js';
 export { boxFor, callOnNode, getAXTree, resolveBackendNode } from './browser/cdp.js';
-export type { NetworkPolicy, RequestKind, Verdict } from './browser/network-policy.js';
+export type { NetworkPolicy, RequestKind, ResolverTestHooks, Verdict } from './browser/network-policy.js';
 export {
   BLOCKED_PROVIDERS,
   classifyRequest,

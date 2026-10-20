@@ -12,10 +12,11 @@ import type { Viewport } from '../map/types.js';
 import type { RunEventBody } from '../run/events.js';
 import {
   classifyRequest,
-  hostResolverRules,
+  launchArgs,
   type NetworkPolicy,
   networkHost,
   type RequestKind,
+  type ResolverTestHooks,
   type Verdict,
 } from './network-policy.js';
 
@@ -31,6 +32,8 @@ export interface SessionOptions {
   storageStatePath?: string;
   allowHosts: string[];
   onEvent: (event: SessionEvent) => void;
+  /** Test-only resolver overrides (see `ResolverTestHooks`); the engine never sets it. */
+  testResolver?: ResolverTestHooks;
 }
 
 /** A page plus the CDP session later stages instrument (accessibility tree, forced states). */
@@ -51,6 +54,8 @@ const APP_CALL_RESOURCE_TYPES: ReadonlySet<string> = new Set(['fetch', 'xhr', 'w
  */
 const NAVIGATION_ABORT_CODE = 'aborted';
 const REQUEST_ABORT_CODE = 'blockedbyclient';
+/** Used when deciding a request threw: it must neither go out undecided nor hang. */
+const FAIL_CLOSED_ABORT_CODE = 'failed';
 const WS_POLICY_VIOLATION = 1008;
 const WS_BLOCKED_REASON = 'Blocked by Lookover';
 
@@ -59,10 +64,13 @@ const WS_BLOCKED_REASON = 'Blocked by Lookover';
  * request: provider calls and navigations off the allowed hosts are blocked, everything else is let
  * through and its host recorded for the backend-confirmation step.
  *
- * Layers: `context.route` blocks what it sees; `context.routeWebSocket` does the same for
- * websockets; the host-resolver rules make providers unresolvable, which also covers redirect hops
- * the route never sees; a main frame that still lands on a host that is not allowed is sent to
- * `about:blank`. Service workers are blocked because their requests bypass `context.route`.
+ * Layers:
+ * - `context.route` blocks what it sees, and fails closed if deciding throws.
+ * - `context.routeWebSocket` does the same for websockets.
+ * - The host-resolver rules, with the proxy off, make providers unresolvable. That also covers
+ *   redirect hops, which the route never sees; `requestfailed` reports those hops.
+ * - Any frame that still lands on a host that is not allowed is sent to `about:blank`.
+ * - Service workers are blocked, because their requests bypass `context.route`.
  */
 export class BrowserSession {
   private hostKinds: ReadonlyMap<string, ReadonlySet<HostKind>> = new Map();
@@ -79,7 +87,7 @@ export class BrowserSession {
     const policy: NetworkPolicy = { allowHosts: Object.freeze([...opts.allowHosts]) };
     const browser = await chromium.launch({
       headless: opts.headless ?? true,
-      args: [`--host-resolver-rules=${hostResolverRules(policy.allowHosts)}`],
+      args: launchArgs(policy.allowHosts, opts.testResolver),
     });
     try {
       const context = await browser.newContext({
@@ -123,12 +131,21 @@ export class BrowserSession {
 
   private async install(): Promise<void> {
     this.context.on('request', (request) => this.observe(request));
-    this.context.on('page', (page) => this.containMainFrame(page));
+    this.context.on('requestfailed', (request) => this.reportFailedProviderHop(request));
+    this.context.on('page', (page) => this.containFrames(page));
     await this.context.route(ALL_REQUESTS, (route) => this.enforce(route));
     await this.context.routeWebSocket(ALL_WEBSOCKETS, (ws) => this.enforceWebSocket(ws));
   }
 
-  private async enforce(route: Route): Promise<void> {
+  private enforce(route: Route): Promise<void> {
+    return this.failClosed(
+      route.request().url(),
+      () => this.decide(route),
+      () => route.abort(FAIL_CLOSED_ABORT_CODE),
+    );
+  }
+
+  private async decide(route: Route): Promise<void> {
     const request = route.request();
     const { verdict } = assess(request.url(), requestKind(request), this.policy);
     if (verdict.kind !== 'block') {
@@ -139,7 +156,15 @@ export class BrowserSession {
     this.reportBlocked(request.url(), verdict.reason);
   }
 
-  private async enforceWebSocket(ws: WebSocketRoute): Promise<void> {
+  private enforceWebSocket(ws: WebSocketRoute): Promise<void> {
+    return this.failClosed(
+      ws.url(),
+      () => this.decideWebSocket(ws),
+      () => ws.close({ code: WS_POLICY_VIOLATION, reason: WS_BLOCKED_REASON }),
+    );
+  }
+
+  private async decideWebSocket(ws: WebSocketRoute): Promise<void> {
     const { verdict, host } = assess(ws.url(), 'fetch', this.policy);
     if (verdict.kind === 'block') {
       await ws.close({ code: WS_POLICY_VIOLATION, reason: WS_BLOCKED_REASON });
@@ -152,36 +177,63 @@ export class BrowserSession {
     ws.connectToServer();
   }
 
+  /**
+   * Runs `decide`; if it throws, the request is refused instead of left undecided (which would hang
+   * it), and reported. The refusal is best effort: Playwright marks a route handled before it sends
+   * `continue()`, so when `continue()` itself throws the request can no longer be aborted; it stays
+   * paused, never reaching the network, until its page closes. A throwing policy check never gets
+   * here: `assess` already turns it into a block.
+   */
+  private async failClosed(
+    url: string,
+    decide: () => Promise<void>,
+    refuse: () => Promise<void>,
+  ): Promise<void> {
+    try {
+      await decide();
+    } catch {
+      await refuse().catch(() => undefined);
+      this.reportBlocked(url, 'host-not-allowed');
+    }
+  }
+
   /** Fires for redirect hops too, which `enforce` never sees. */
   private observe(request: Request): void {
     const kind = requestKind(request);
     const { verdict, host } = assess(request.url(), kind, this.policy);
-    if (verdict.kind === 'block') {
-      // A provider hop behind a redirect is stopped by the host-resolver rules; a navigation hop is
-      // left to `containMainFrame`, which only acts once it has landed.
-      if (verdict.reason === 'provider' && request.redirectedFrom() !== null) {
-        this.reportBlocked(request.url(), verdict.reason);
-      }
+    // Blocked hops behind a redirect are reported once they have failed (`reportFailedProviderHop`)
+    // or landed in a frame (`containFrames`), never on the strength of the verdict alone.
+    if (verdict.kind === 'block' || host === null) {
       return;
     }
-    if (host !== null) {
-      this.recordHost(host, kind === 'navigation' ? 'navigation' : 'app-call');
+    this.recordHost(host, kind === 'navigation' ? 'navigation' : 'app-call');
+  }
+
+  /** A provider hop behind a redirect never reaches `enforce`; the DNS rules make it fail. */
+  private reportFailedProviderHop(request: Request): void {
+    if (request.redirectedFrom() === null) {
+      return;
+    }
+    const { verdict } = assess(request.url(), requestKind(request), this.policy);
+    if (verdict.kind === 'block' && verdict.reason === 'provider') {
+      this.reportBlocked(request.url(), verdict.reason);
     }
   }
 
-  private containMainFrame(page: Page): void {
+  /** Any frame (main or iframe) that lands on a host that is not allowed is sent to a blank page. */
+  private containFrames(page: Page): void {
     page.on('framenavigated', (frame) => {
-      if (frame !== page.mainFrame()) {
+      const url = frame.url();
+      if (!URL.canParse(url)) {
         return;
       }
-      const url = URL.parse(frame.url());
-      const verdict = url === null ? null : classifyRequest(url, 'navigation', this.policy);
-      if (verdict?.kind !== 'block') {
+      const { verdict } = assess(url, 'navigation', this.policy);
+      if (verdict.kind !== 'block') {
         return;
       }
-      this.reportBlocked(frame.url(), verdict.reason);
-      // Best effort: the page may be closing, or already navigating somewhere else.
-      void page.goto(BLANK_PAGE).catch(() => undefined);
+      this.reportBlocked(url, verdict.reason);
+      // Best effort: the frame may be detaching, or already navigating somewhere else.
+      void frame.goto(BLANK_PAGE).catch(() => undefined);
     });
   }
 
@@ -221,15 +273,23 @@ function requestKind(request: Request): RequestKind {
   return APP_CALL_RESOURCE_TYPES.has(request.resourceType()) ? 'fetch' : 'subresource';
 }
 
-/** A URL that cannot be parsed cannot be checked, so it is refused. */
+/**
+ * The verdict for a request, failing closed: a URL that cannot be parsed cannot be checked, and a
+ * policy check that throws must not let the request through, so both are refused.
+ */
 function assess(
   rawUrl: string,
   kind: RequestKind,
   policy: NetworkPolicy,
 ): { verdict: Verdict; host: string | null } {
+  const refused = { verdict: { kind: 'block', reason: 'host-not-allowed' }, host: null } as const;
   const url = URL.parse(rawUrl);
   if (url === null) {
-    return { verdict: { kind: 'block', reason: 'host-not-allowed' }, host: null };
+    return refused;
   }
-  return { verdict: classifyRequest(url, kind, policy), host: networkHost(url) };
+  try {
+    return { verdict: classifyRequest(url, kind, policy), host: networkHost(url) };
+  } catch {
+    return refused;
+  }
 }

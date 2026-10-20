@@ -6,6 +6,7 @@ import {
   isAllowedHost,
   isBlockedProvider,
   LOCAL_HOSTS,
+  launchArgs,
   type RequestKind,
   type Verdict,
 } from '../src/browser/network-policy.js';
@@ -19,7 +20,11 @@ describe('isAllowedHost', () => {
     ['a .local name', 'app.local', [], true],
     ['a nested .local name', 'a.b.local', [], true],
     ['the bare word local', 'local', [], false],
+    ['a .localhost name', 'app.localhost', [], true],
+    ['a nested .localhost name with a trailing dot', 'a.b.localhost.', [], true],
+    ['a name that only ends with the letters localhost', 'notlocalhost', [], false],
     ['an outside host', 'api.example.com', [], false],
+    ['a reserved .test name', 'foreign.test', [], false],
     ['an upper-case local host', 'LOCALHOST', [], true],
     ['a local host with a trailing dot', 'localhost.', [], true],
     ['a subdomain of a glob entry', 'x.ngrok.app', ['*.ngrok.app'], true],
@@ -232,19 +237,36 @@ describe('hostResolverRules', () => {
     expect(rules).toContain('MAP sns.*.amazonaws.com ~NOTFOUND');
   });
 
+  test('also maps every provider pattern with a trailing dot, which Chromium resolves literally', () => {
+    const rules = rulesOf([]);
+
+    for (const entry of BLOCKED_PROVIDERS) {
+      expect(rules).toContain(`MAP ${entry}. ~NOTFOUND`);
+      expect(rules).toContain(`MAP *.${entry}. ~NOTFOUND`);
+    }
+    expect(rules).toContain('MAP stripe.com. ~NOTFOUND');
+    expect(rules).toContain('MAP *.stripe.com. ~NOTFOUND');
+    expect(rules).toContain('MAP email.*.amazonaws.com. ~NOTFOUND');
+  });
+
   test('has no exclusions without allowHosts', () => {
     expect(rulesOf([]).filter((rule) => rule.startsWith('EXCLUDE'))).toEqual([]);
   });
 
-  test('excludes an allowlisted provider host', () => {
-    expect(rulesOf(['api.stripe.com'])).toContain('EXCLUDE api.stripe.com');
+  test('excludes an allowlisted provider host, with and without a trailing dot', () => {
+    const rules = rulesOf(['api.stripe.com']);
+
+    expect(rules).toContain('EXCLUDE api.stripe.com');
+    expect(rules).toContain('EXCLUDE api.stripe.com.');
   });
 
   test('excludes allowlisted globs and normalises entries', () => {
     const rules = rulesOf(['*.stripe.com', 'API.Twilio.com.']);
 
     expect(rules).toContain('EXCLUDE *.stripe.com');
+    expect(rules).toContain('EXCLUDE *.stripe.com.');
     expect(rules).toContain('EXCLUDE api.twilio.com');
+    expect(rules).toContain('EXCLUDE api.twilio.com.');
   });
 
   test('drops entries that are not host names, so they cannot inject rules', () => {
@@ -257,5 +279,59 @@ describe('hostResolverRules', () => {
     for (const rule of rulesOf(['api.stripe.com', '*.ngrok.app'])) {
       expect(rule).toMatch(/^(MAP \S+ ~NOTFOUND|EXCLUDE \S+)$/);
     }
+  });
+});
+
+describe('launchArgs', () => {
+  const RESOLVER_RULES_ARG = '--host-resolver-rules=';
+
+  function resolverRulesOf(args: string[]): string[] {
+    const rulesArgs = args.filter((arg) => arg.startsWith(RESOLVER_RULES_ARG));
+    expect(rulesArgs).toHaveLength(1);
+    return (rulesArgs[0] ?? '').slice(RESOLVER_RULES_ARG.length).split(', ');
+  }
+
+  test('turns the proxy off, so the browser resolves every name itself', () => {
+    expect(launchArgs([])).toContain('--no-proxy-server');
+  });
+
+  test('passes the host-resolver rules for the allowlist', () => {
+    const args = launchArgs(['api.stripe.com']);
+
+    expect(args).toEqual([
+      '--no-proxy-server',
+      `${RESOLVER_RULES_ARG}${hostResolverRules(['api.stripe.com'])}`,
+    ]);
+  });
+
+  test('adds test-only blocked hosts as provider-style rules', () => {
+    const rules = resolverRulesOf(launchArgs([], { blockedHosts: ['blocked.localhost'] }));
+
+    expect(rules).toEqual(
+      expect.arrayContaining([
+        'MAP blocked.localhost ~NOTFOUND',
+        'MAP blocked.localhost. ~NOTFOUND',
+        'MAP *.blocked.localhost ~NOTFOUND',
+        'MAP *.blocked.localhost. ~NOTFOUND',
+        'MAP stripe.com ~NOTFOUND',
+      ]),
+    );
+  });
+
+  test('maps test-only loopback hosts to 127.0.0.1', () => {
+    const rules = resolverRulesOf(launchArgs([], { loopbackHosts: ['foreign.test'] }));
+
+    expect(rules).toContain('MAP foreign.test 127.0.0.1');
+  });
+
+  test('drops test-only entries that are not host names', () => {
+    const rules = resolverRulesOf(
+      launchArgs([], { blockedHosts: ['x, EXCLUDE *'], loopbackHosts: ['y.test 10.0.0.1, MAP *'] }),
+    );
+
+    for (const rule of rules) {
+      expect(rule).toMatch(/^MAP \S+ ~NOTFOUND$/);
+    }
+    expect(rules.some((rule) => rule.includes('y.test'))).toBe(false);
   });
 });

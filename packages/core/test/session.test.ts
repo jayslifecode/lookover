@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Page } from 'playwright';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { boxFor, callOnNode, getAXTree, resolveBackendNode } from '../src/browser/cdp.js';
 import { BrowserSession, type InstrumentedPage, type SessionEvent } from '../src/browser/session.js';
@@ -11,9 +12,15 @@ import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/session', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;
 const SOCKET_SETTLE_MS = 5_000;
+/** How long the page waits for a fetch the session may hold paused before calling it timed out. */
+const FETCH_WAIT_MS = 1_000;
 const WS_POLICY_VIOLATION = 1008;
 const UNKNOWN_BACKEND_NODE_ID = 2_147_483_647;
 const VIEWPORT = { name: 'desktop', width: 1280, height: 800 };
+/** Not allowed by the policy; the test resolver hook points them at the fixture server. */
+const FOREIGN_HOST = 'foreign.test';
+const BACKEND_HOST = 'backend.test';
+const NAME_NOT_RESOLVED = 'net::ERR_NAME_NOT_RESOLVED';
 
 type FixtureResults = Record<string, string>;
 
@@ -22,6 +29,18 @@ function redirectTo(target: (port: number) => string) {
     res.writeHead(302, { location: target(req.socket.localPort ?? 0) });
     res.end();
   };
+}
+
+/** Fetches `url` in the page: `'ok'` for any response, `'failed'` for a network error. */
+function fetchOutcome(page: Page, url: string): Promise<string> {
+  return page.evaluate(
+    ({ target, timeoutMs }) =>
+      fetch(target, { signal: AbortSignal.timeout(timeoutMs) }).then(
+        () => 'ok',
+        (error: Error) => (error.name === 'TimeoutError' ? 'timed out' : 'failed'),
+      ),
+    { target: url, timeoutMs: FETCH_WAIT_MS },
+  );
 }
 
 function defined<T>(value: T | undefined, what: string): T {
@@ -37,8 +56,9 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
   beforeAll(async () => {
     fixture = await serveFixture(FIXTURE_DIR, {
-      '/out': redirectTo((port) => `http://foreign.localhost:${port}/landing.html`),
-      '/hop': redirectTo((port) => `http://backend.localhost:${port}/ok.json`),
+      '/out': redirectTo((port) => `http://${FOREIGN_HOST}:${port}/landing.html`),
+      '/hop-frame': redirectTo((port) => `http://${FOREIGN_HOST}:${port}/landing.html?in=frame`),
+      '/hop': redirectTo((port) => `http://${BACKEND_HOST}:${port}/ok.json`),
       '/pay': redirectTo(() => 'https://api.stripe.com/v1/redirected'),
     });
     fixturePort = new URL(fixture.url).port;
@@ -48,7 +68,7 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
     await fixture.close();
   });
 
-  describe('with the default policy', () => {
+  describe('with the default policy and two foreign fixture hosts', () => {
     let session: BrowserSession;
     let ipage: InstrumentedPage;
     let events: SessionEvent[];
@@ -58,6 +78,7 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
       session = await BrowserSession.launch({
         viewport: VIEWPORT,
         allowHosts: [],
+        testResolver: { loopbackHosts: [FOREIGN_HOST, BACKEND_HOST] },
         onEvent: (event) => {
           events = [...events, event];
         },
@@ -136,10 +157,29 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
       await expect.poll(() => ipage.page.url()).toBe('about:blank');
       expect(events).toContainEqual({
         type: 'request.blocked',
-        url: `http://foreign.localhost:${fixturePort}/landing.html`,
+        url: `http://${FOREIGN_HOST}:${fixturePort}/landing.html`,
         reason: 'host-not-allowed',
       });
-      expect(session.observedHosts()).not.toContain('foreign.localhost');
+      expect(session.observedHosts()).not.toContain(FOREIGN_HOST);
+    });
+
+    test('sends an iframe to about:blank when a redirect takes it to another host', async () => {
+      await ipage.page.goto(`${fixture.url}/frame.html`);
+
+      await expect
+        .poll(() => events)
+        .toContainEqual({
+          type: 'request.blocked',
+          url: `http://${FOREIGN_HOST}:${fixturePort}/landing.html?in=frame`,
+          reason: 'host-not-allowed',
+        });
+      await expect
+        .poll(() =>
+          ipage.page.frames().flatMap((frame) => (frame === ipage.page.mainFrame() ? [] : [frame.url()])),
+        )
+        .toEqual(['about:blank']);
+      expect(ipage.page.url()).toBe(`${fixture.url}/frame.html`);
+      expect(session.observedHosts()).not.toContain(FOREIGN_HOST);
     });
 
     test('records a backend the app reaches through a redirect', async () => {
@@ -147,8 +187,24 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
       await ipage.page.evaluate(() => fetch('/hop').then(String, String));
 
-      await expect.poll(() => session.observedHosts()).toEqual(['127.0.0.1', 'backend.localhost']);
-      expect(events).toContainEqual({ type: 'host.observed', host: 'backend.localhost', kind: 'app-call' });
+      await expect.poll(() => session.observedHosts()).toEqual(['127.0.0.1', BACKEND_HOST]);
+      expect(events).toContainEqual({ type: 'host.observed', host: BACKEND_HOST, kind: 'app-call' });
+    });
+
+    test('reports a request whose routing throws as blocked, and it never goes out', async () => {
+      await openFixture();
+      // Registered after the session's own handler, so it runs first and hands the session a URL
+      // whose scheme change makes the session's `route.continue()` throw. Playwright then holds the
+      // request paused (the route counts as handled), so the page sees it time out, not succeed.
+      const swappedUrl = 'ftp://fail-closed.invalid/fail-closed.json';
+      await session.context.route('**/fail-closed.json', (route) => route.fallback({ url: swappedUrl }));
+
+      const outcome = await fetchOutcome(ipage.page, '/fail-closed.json');
+
+      expect(outcome).not.toBe('ok');
+      await expect
+        .poll(() => events)
+        .toContainEqual({ type: 'request.blocked', url: swappedUrl, reason: 'host-not-allowed' });
     });
 
     test('reports a provider the app reaches through a redirect as blocked', async () => {
@@ -319,6 +375,96 @@ describe('BrowserSession', { timeout: BROWSER_TIMEOUT_MS }, () => {
     } finally {
       await session.close();
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('refuses requests and contains frames when the policy check throws', async () => {
+    let isArmed = false;
+    // Stands in for a bug in the policy code: an allowHosts entry that throws once armed. Local
+    // hosts are decided before allowHosts is read, so only the foreign hosts below reach it.
+    const trap = {
+      trim: () => {
+        if (isArmed) {
+          throw new Error('policy bug');
+        }
+        return 'never.example';
+      },
+    } as unknown as string;
+    let events: SessionEvent[] = [];
+    const session = await BrowserSession.launch({
+      viewport: VIEWPORT,
+      allowHosts: [trap],
+      testResolver: { loopbackHosts: [BACKEND_HOST, FOREIGN_HOST] },
+      onEvent: (event) => {
+        events = [...events, event];
+      },
+    });
+    try {
+      const { page } = await session.newPage();
+      await page.goto(`${fixture.url}/landing.html`);
+      const target = `http://${BACKEND_HOST}:${fixturePort}/ok.json`;
+      const landed = `http://${FOREIGN_HOST}:${fixturePort}/landing.html`;
+      isArmed = true;
+
+      const outcome = await fetchOutcome(page, target);
+      // The redirect hop is never routed, so only frame containment can catch where it lands.
+      await page.evaluate(() => location.assign('/out'));
+
+      expect(outcome).toBe('failed');
+      await expect.poll(() => page.url()).toBe('about:blank');
+      expect(events).toEqual(
+        expect.arrayContaining([
+          { type: 'request.blocked', url: target, reason: 'host-not-allowed' },
+          { type: 'request.blocked', url: landed, reason: 'host-not-allowed' },
+        ]),
+      );
+      expect(session.observedHosts()).not.toContain(BACKEND_HOST);
+    } finally {
+      await session.close();
+    }
+  });
+
+  test('the DNS layer makes blocked names unresolvable with or without a trailing dot', async () => {
+    // `*.localhost` is allowed by the policy and always resolves to loopback, so every request below
+    // passes the route handler and only the host-resolver rules decide the outcome.
+    const session = await BrowserSession.launch({
+      viewport: VIEWPORT,
+      allowHosts: ['ok.blocked.localhost'],
+      testResolver: { blockedHosts: ['blocked.localhost'] },
+      onEvent: () => {},
+    });
+    try {
+      const { page } = await session.newPage();
+      const outcomes = new Map<string, string>();
+      page.on('requestfailed', (request) =>
+        outcomes.set(request.url(), request.failure()?.errorText ?? 'failed'),
+      );
+      page.on('requestfinished', (request) => outcomes.set(request.url(), 'finished'));
+      await page.goto(`${fixture.url}/landing.html`);
+      // A plain-text 404: any response proves the name resolved, and unlike JSON it is not withheld
+      // from a no-cors fetch by Chromium's opaque-response blocking.
+      const urlFor = (host: string): string => `http://${host}:${fixturePort}/dns-probe`;
+      const blocked = [
+        'a.blocked.localhost',
+        'a.blocked.localhost.',
+        'blocked.localhost',
+        'blocked.localhost.',
+      ].map(urlFor);
+      const excluded = ['ok.blocked.localhost', 'ok.blocked.localhost.'].map(urlFor);
+
+      await page.evaluate(
+        (urls) => Promise.all(urls.map((url) => fetch(url, { mode: 'no-cors' }).then(String, String))),
+        [...blocked, ...excluded],
+      );
+
+      await expect
+        .poll(() => [...blocked, ...excluded].map((url) => [url, outcomes.get(url)]))
+        .toEqual([
+          ...blocked.map((url) => [url, NAME_NOT_RESOLVED]),
+          ...excluded.map((url) => [url, 'finished']),
+        ]);
+    } finally {
+      await session.close();
     }
   });
 });
