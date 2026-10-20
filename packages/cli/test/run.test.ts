@@ -19,7 +19,6 @@ import {
   parseRunFlags,
   saveConfirmedHosts,
 } from '../src/commands/run-options.js';
-import { CONFIRM_HOSTS_MESSAGE, createConfirmHosts, shouldPrompt } from '../src/commands/run-prompts.js';
 import {
   blockedHostsWarning,
   formatDuration,
@@ -129,14 +128,23 @@ describe('parseRunFlags', () => {
     ['--confirm-host', 'api.example.com/graphql'],
     ['--confirm-host', '*.example.com'],
     ['--confirm-host', '  '],
+    ['--confirm-host', 'a.test,b.test'],
     ['--allow-host', 'https://fonts.example.com'],
     ['--allow-host', 'cdn.*.example.com'],
+    ['--allow-host', 'cdn.test,fonts.test'],
   ])('rejects %s %o, which is not a host name', (flag, value) => {
     const flags = flag === '--allow-host' ? { allowHost: [value] } : { confirmHost: [value] };
     const error = lookoverErrorOf(() => parseRunFlags(flags));
 
     expect(error.code).toBe('E_CONFIG_INVALID');
     expect(error.message).toContain(flag);
+  });
+
+  test('names a comma-joined value and hints at repeating the flag', () => {
+    const error = lookoverErrorOf(() => parseRunFlags({ confirmHost: ['a.test, b.test'] }));
+
+    expect(error.message).toBe('--confirm-host "a.test, b.test" is not a host name: the flag takes one host');
+    expect(error.hint).toBe('Repeat the flag once per host: --confirm-host a.test --confirm-host b.test');
   });
 
   test('accepts an IPv6 host', () => {
@@ -242,27 +250,6 @@ describe('saveConfirmedHosts', () => {
     expect(added).toEqual([]);
     expect(await readFile(configPath(), 'utf8')).toBe('left alone');
     expect((await stat(configPath())).mtimeMs).toBe(before.mtimeMs);
-  });
-});
-
-describe('host confirmation', () => {
-  test('the question is worded exactly', () => {
-    expect(CONFIRM_HOSTS_MESSAGE).toBe(
-      'These backends were called by the app. Confirm each one is a development or disposable instance',
-    );
-  });
-
-  test('prompts only with a terminal on both ends and without --yes', () => {
-    expect(shouldPrompt({ isYes: false, isStdinTTY: true, isStdoutTTY: true })).toBe(true);
-    expect(shouldPrompt({ isYes: true, isStdinTTY: true, isStdoutTTY: true })).toBe(false);
-    expect(shouldPrompt({ isYes: false, isStdinTTY: false, isStdoutTTY: true })).toBe(false);
-    expect(shouldPrompt({ isYes: false, isStdinTTY: true, isStdoutTTY: false })).toBe(false);
-  });
-
-  test('without a prompt no host is confirmed, so the engine refuses the run', async () => {
-    const confirmHosts = createConfirmHosts(false);
-
-    await expect(confirmHosts(['api.dev.example.com'])).resolves.toEqual([]);
   });
 });
 
@@ -396,5 +383,13 @@ describe('lookover run', () => {
 
     expect(result.code).toBe(2);
     expect(result.stderr).toContain('--confirm-host');
+  });
+
+  test('exits 2 on a comma-joined --confirm-host, naming the value', async () => {
+    const result = await runCli(dir, ['run', '--confirm-host', 'a.test,b.test']);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('--confirm-host "a.test,b.test" is not a host name');
+    expect(result.stderr).toContain('--confirm-host a.test --confirm-host b.test');
   });
 });

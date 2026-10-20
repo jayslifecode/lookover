@@ -41,6 +41,8 @@ const CONFIRM_HOST: HostFlag = {
 const POSITIVE_INTEGER = /^[1-9]\d*$/;
 /** A scheme, path, query, fragment, credentials or whitespace: what a URL has and a host name does not. */
 const NOT_IN_A_HOST = /[\s/?#@]/;
+/** Several hosts in one value: each flag takes one host, repeated for more. */
+const HOST_LIST_SEPARATOR = ',';
 const WILDCARD = '*';
 const WILDCARD_PREFIX = '*.';
 
@@ -123,11 +125,30 @@ function parseHosts(flag: HostFlag, values: readonly string[]): string[] {
 }
 
 function parseHost(flag: HostFlag, value: string): string {
+  if (value.includes(HOST_LIST_SEPARATOR)) {
+    throw new LookoverError(
+      'E_CONFIG_INVALID',
+      `${flag.name} "${value}" is not a host name: the flag takes one host`,
+      repeatedFlagHint(flag, value),
+    );
+  }
   const host = normaliseHost(value);
   if (host === '' || NOT_IN_A_HOST.test(host) || hasPort(host) || !hasValidWildcard(host, flag)) {
     throw new LookoverError('E_CONFIG_INVALID', `${flag.name} "${value}" is not a host name`, flag.hint);
   }
   return host;
+}
+
+/** For `a.test,b.test`: the same hosts as one flag each. */
+function repeatedFlagHint(flag: HostFlag, value: string): string {
+  const hosts = value
+    .split(HOST_LIST_SEPARATOR)
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+  if (hosts.length < 2) {
+    return flag.hint;
+  }
+  return `Repeat the flag once per host: ${hosts.map((host) => `${flag.name} ${host}`).join(' ')}`;
 }
 
 /** `host:port` has exactly one colon; an IPv6 address has several. */
