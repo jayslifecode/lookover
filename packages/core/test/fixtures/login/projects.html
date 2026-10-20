@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Projects</title>
+  </head>
+  <body>
+    <h1>Projects</h1>
+    <script>
+      // A second backend, called from this page only (nothing links here).
+      fetch('https://api.backend.test/v1/projects').catch(() => undefined);
+    </script>
+  </body>
+</html>

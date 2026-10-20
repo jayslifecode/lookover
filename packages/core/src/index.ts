@@ -1,5 +1,5 @@
 export type { EnsureAuthOptions, EnsureAuthResult } from './browser/auth.js';
-export { ensureAuth, isLoginUrl } from './browser/auth.js';
+export { checkStorageState, ensureAuth, isLoginUrl } from './browser/auth.js';
 export type { AXNode } from './browser/cdp.js';
 export { boxFor, callOnNode, getAXTree, resolveBackendNode } from './browser/cdp.js';
 export type { NetworkPolicy, RequestKind, ResolverTestHooks, Verdict } from './browser/network-policy.js';
@@ -10,6 +10,7 @@ export {
   isAllowedHost,
   isBlockedProvider,
   LOCAL_HOSTS,
+  normaliseHost,
 } from './browser/network-policy.js';
 export type { InstrumentedPage, SessionEvent, SessionOptions } from './browser/session.js';
 export { BrowserSession } from './browser/session.js';
@@ -26,7 +27,7 @@ export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './m
 export { extractForms } from './map/forms.js';
 export { discoverNextRoutes, matchRoute, routePatternFromPath } from './map/next-routes.js';
 export type { AppMapDiff } from './map/persist.js';
-export { diffAppMaps, readLatestAppMap, writeAppMap } from './map/persist.js';
+export { APP_MAP_FILE, diffAppMaps, readLatestAppMap, writeAppMap } from './map/persist.js';
 export { BUILD_SELECTOR_SOURCE } from './map/selectors.js';
 export { collectTokens } from './map/tokens.js';
 export type {
@@ -41,6 +42,8 @@ export type {
   TokenSample,
   Viewport,
 } from './map/types.js';
+export type { DiscoveryHooks, DiscoveryOptions, DiscoveryResult } from './run/engine.js';
+export { runDiscovery } from './run/engine.js';
 export type { RunEvent, RunEventBody } from './run/events.js';
 export type { CreateRunOptions, RunContext } from './run/run-context.js';
 export { createRun } from './run/run-context.js';

@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LookoverConfig } from '../config/schema.js';
 import { EvidenceStore } from '../evidence/store.js';
-import { RunLog } from './run-log.js';
+import { RunLog, type RunLogOptions } from './run-log.js';
 
 const LOOKOVER_DIR = '.lookover';
 const RUNS_DIR = 'runs';
@@ -33,15 +33,21 @@ export interface CreateRunOptions {
   now?: Date;
   /** Returns the 4-character suffix of the run id. Injectable so ids are predictable in tests. */
   random?: () => string;
+  /** Receives what a run log subscriber throws (see `RunLogOptions`); the CLI turns it into a warning. */
+  onSubscriberError?: RunLogOptions['onSubscriberError'];
 }
 
 export async function createRun(options: CreateRunOptions): Promise<RunContext> {
-  const { cwd, config, now = new Date(), random = randomSuffix } = options;
+  const { cwd, config, now = new Date(), random = randomSuffix, onSubscriberError } = options;
   const runId = formatRunId(now, random());
   const lookoverDir = join(cwd, LOOKOVER_DIR);
   const dir = join(lookoverDir, RUNS_DIR, runId);
   await mkdir(join(dir, EVIDENCE_DIR), { recursive: true });
-  const log = await RunLog.open(join(dir, RUN_LOG_FILE), runId);
+  const log = await RunLog.open(
+    join(dir, RUN_LOG_FILE),
+    runId,
+    onSubscriberError === undefined ? {} : { onSubscriberError },
+  );
   return { runId, dir, lookoverDir, log, evidence: new EvidenceStore(dir), config, startedAt: now };
 }
 

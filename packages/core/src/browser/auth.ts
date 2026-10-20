@@ -107,7 +107,11 @@ export function isLoginUrl(url: URL, auth: Auth, baseUrl: string): boolean {
   );
 }
 
-async function checkStorageState(path: string): Promise<void> {
+/**
+ * Checks that `path` is a Playwright storage state (JSON with a `cookies` array); every problem is an
+ * `E_AUTH_FAILED` naming the file. The engine runs it before it launches a session with the file.
+ */
+export async function checkStorageState(path: string): Promise<void> {
   const hint = `auth.path must be a Playwright storage state (JSON with a "cookies" array): ${path}`;
   const fail = (problem: string): LookoverError =>
     new LookoverError('E_AUTH_FAILED', `${problem}: ${path}`, hint);

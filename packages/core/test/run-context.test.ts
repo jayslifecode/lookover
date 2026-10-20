@@ -74,4 +74,21 @@ describe('createRun', () => {
     expect(ctx.evidence.resolve(ref).startsWith(ctx.dir)).toBe(true);
     expect(ctx.config).toBe(config);
   });
+
+  test('passes onSubscriberError to the run log', async () => {
+    const reported: [unknown, string][] = [];
+    const ctx = await createRun({
+      cwd,
+      config,
+      onSubscriberError: (error, event) => reported.push([error, event.type]),
+    });
+    const thrown = new Error('subscriber failed');
+    ctx.log.subscribe(() => {
+      throw thrown;
+    });
+
+    await ctx.log.append({ type: 'auth.lost', url: 'https://app.test/' });
+
+    expect(reported).toEqual([[thrown, 'auth.lost']]);
+  });
 });

@@ -6,7 +6,8 @@ import type { RunContext } from '../run/run-context.js';
 import { redact, redactDeep } from '../util/redact.js';
 import type { AppMap, Screen } from './types.js';
 
-const APP_MAP_FILE = 'app-map.json';
+/** The map's file name, in the run directory and in the lookover directory (the project's latest). */
+export const APP_MAP_FILE = 'app-map.json';
 const SUPPORTED_VERSION = 1;
 const REBUILD_HINT = 'Delete the file and run again to rebuild the map';
 
