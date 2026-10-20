@@ -11,7 +11,7 @@ import { LookoverError } from '../src/errors.js';
 import { type CrawlOptions, crawl } from '../src/map/crawler.js';
 import { MAX_ELEMENTS_PER_SCREEN } from '../src/map/elements.js';
 import { extractForms } from '../src/map/forms.js';
-import type { Screen } from '../src/map/types.js';
+import { isFailedScreen, type Screen } from '../src/map/types.js';
 import type { RunEvent } from '../src/run/events.js';
 import { createRun, type RunContext } from '../src/run/run-context.js';
 import { RunLog } from '../src/run/run-log.js';
@@ -89,9 +89,14 @@ function defined<T>(value: T | null | undefined, what: string): T {
 }
 
 function expectFailedNavigation(screen: Screen | undefined, reason: RegExp): void {
-  expect(screen?.title).toMatch(NAVIGATION_FAILED);
-  expect(screen?.title).toMatch(reason);
-  expect(screen).toMatchObject({ screenshot: null, elements: [], forms: [], tokens: [], links: [] });
+  const failed = defined(screen, 'a failed screen');
+  expect(isFailedScreen(failed)).toBe(true);
+  expect(failed.status).toBe('navigation-failed');
+  expect(failed.error).toMatch(reason);
+  // The title says the same for people; nothing reads it back.
+  expect(failed.title).toBe(`(navigation failed: ${failed.error})`);
+  expect(failed.title).toMatch(NAVIGATION_FAILED);
+  expect(failed).toMatchObject({ screenshot: null, elements: [], forms: [], tokens: [], links: [] });
 }
 
 describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
@@ -236,6 +241,13 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(org?.forms.map((form) => form.action)).toEqual(['/orgs/save']);
       expect(org?.tokens.length).toBeGreaterThan(0);
       expect(result.screens.map((screen) => screen.viewport)).toEqual(result.screens.map(() => VIEWPORT));
+    });
+
+    test('marks every loaded screen as captured, with no error', () => {
+      expect(result.screens.map(({ status, error }) => ({ status, error }))).toEqual(
+        result.screens.map(() => ({ status: 'captured', error: null })),
+      );
+      expect(result.screens.filter(isFailedScreen)).toEqual([]);
     });
 
     test('gives each screen a short id derived from its route, route key and viewport', () => {
@@ -544,8 +556,8 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
         });
         await killed();
         const events = await RunLog.read(ctx.log.file);
-        const titles = eventsOf(events, 'screen.captured').map((event) => event.screen.title);
-        expect(titles.filter((title) => NAVIGATION_FAILED.test(title))).toEqual([]);
+        const screens = eventsOf(events, 'screen.captured').map((event) => event.screen);
+        expect(screens.filter(isFailedScreen)).toEqual([]);
       });
     });
   });

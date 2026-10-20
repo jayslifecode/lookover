@@ -38,7 +38,10 @@ export interface CrawlOptions {
 
 type CrawlAuth = NonNullable<CrawlOptions['auth']>;
 type SkipReason = Extract<RunEventBody, { type: 'screen.skipped' }>['reason'];
-type ScreenContent = Pick<Screen, 'title' | 'screenshot' | 'elements' | 'forms' | 'tokens' | 'links'>;
+type ScreenContent = Pick<
+  Screen,
+  'title' | 'status' | 'error' | 'screenshot' | 'elements' | 'forms' | 'tokens' | 'links'
+>;
 
 interface QueuedScreen {
   url: URL;
@@ -85,8 +88,9 @@ const BROWSER_ERROR_PAGE_PREFIX = 'chrome-error://';
  *
  * Logs `screen.discovered` before each visit and `screen.captured` after it, then
  * `screen.truncated` when the screen had more controls than the extractor keeps. A navigation that
- * fails is still a captured screen, titled `(navigation failed: <reason>)` and with nothing in it,
- * so later stages see dead links; the crawl goes on. With `opts.auth`, landing on the login page
+ * fails is still a screen in the map, with status `navigation-failed`, the reason as its `error`, a
+ * title of `(navigation failed: <reason>)` and nothing in it, so later stages see dead links; the
+ * crawl goes on. With `opts.auth`, landing on the login page
  * from elsewhere logs `auth.lost`, logs in again and retries once; landing there again throws
  * `E_AUTH_FAILED`. Errors from the run log, the evidence store and the auth hook propagate, and so
  * does any `LookoverError`. A page that is closed or has crashed ends the crawl with `E_RUN_FAILED`
@@ -150,6 +154,8 @@ class Crawler {
     const links = normaliseLinks(capture.hrefs, this.base);
     const screen = this.screenOf(item, {
       title: capture.title,
+      status: 'captured',
+      error: null,
       screenshot: await this.ctx.evidence.putPng(capture.png),
       elements: capture.elements,
       forms: capture.forms,
@@ -240,6 +246,8 @@ class Crawler {
       url: item.url.href,
       route: item.route,
       title: content.title,
+      status: content.status,
+      error: content.error,
       viewport,
       screenshot: content.screenshot,
       elements: content.elements,
@@ -417,6 +425,8 @@ function normaliseLinks(hrefs: readonly string[], base: URL): URL[] {
 function failedContent(reason: string): ScreenContent {
   return {
     title: `(navigation failed: ${reason})`,
+    status: 'navigation-failed',
+    error: reason,
     screenshot: null,
     elements: [],
     forms: [],

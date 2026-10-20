@@ -1,7 +1,7 @@
 import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type AppMap, loadConfig, RunLog } from '@jayslifecode/lookover-core';
+import { type AppMap, isFailedScreen, loadConfig, RunLog } from '@jayslifecode/lookover-core';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { type CliResult, runCli } from '../run-cli.js';
 import { BENCH_APP_DIR, BENCH_DATA_FILES, BENCH_URL, E2E_OUTPUT_DIR } from './bench-env.js';
@@ -125,7 +125,9 @@ describe('lookover run against the bench app', () => {
   test('captures at least six screens, with the edit form and its labelled phone field', async () => {
     const map = await readAppMap(project);
 
-    expect(map.screens.length).toBeGreaterThanOrEqual(MIN_SCREENS);
+    expect(map.screens.filter((screen) => !isFailedScreen(screen)).length).toBeGreaterThanOrEqual(
+      MIN_SCREENS,
+    );
     const editForms = map.screens
       .filter((screen) => screen.route === EDIT_ROUTE)
       .flatMap((screen) => screen.forms)

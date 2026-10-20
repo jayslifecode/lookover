@@ -44,10 +44,12 @@ export type {
   FormInfo,
   RouteInfo,
   Screen,
+  ScreenStatus,
   TokenProperty,
   TokenSample,
   Viewport,
 } from './map/types.js';
+export { isFailedScreen } from './map/types.js';
 export type { ConfirmHosts } from './run/backend-probe.js';
 export { confirmHostCommand } from './run/backend-probe.js';
 export type { DiscoveryHooks, DiscoveryOptions, DiscoveryResult } from './run/engine.js';

@@ -1,5 +1,5 @@
 import { relative } from 'node:path';
-import { type AppMap, confirmHostCommand, type Screen } from '@jayslifecode/lookover-core';
+import { type AppMap, confirmHostCommand, isFailedScreen, type Screen } from '@jayslifecode/lookover-core';
 
 /** What the summary table reports about a finished run. */
 export interface RunSummary {
@@ -13,8 +13,6 @@ export interface RunSummary {
   readonly durationMs: number;
 }
 
-/** How the crawler titles a screen it could not load (see `crawl`). */
-const FAILED_NAVIGATION_TITLE = '(navigation failed';
 const NO_HOSTS = 'none';
 const MS_PER_SECOND = 1_000;
 const SECONDS_PER_MINUTE = 60;
@@ -22,7 +20,7 @@ const TENTHS_PER_SECOND = 10;
 
 /** One line per captured screen: `✓ /organisations/[id]  18 elements · 1 form`. */
 export function progressLine(screen: Screen): string {
-  if (screen.title.startsWith(FAILED_NAVIGATION_TITLE)) {
+  if (isFailedScreen(screen)) {
     return `! ${screen.route}  navigation failed`;
   }
   const elements = count(screen.elements.length, 'element');

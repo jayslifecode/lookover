@@ -55,6 +55,8 @@ function screen(overrides: Partial<Screen> = {}): Screen {
     url: 'http://localhost:3000/',
     route: '/',
     title: 'Home',
+    status: 'captured',
+    error: null,
     viewport: { name: 'desktop', width: 1440, height: 900 },
     screenshot: null,
     elements: [],
@@ -280,9 +282,20 @@ describe('progressLine', () => {
   });
 
   test('flags a screen whose navigation failed', () => {
-    const failed = screen({ route: '/reports', title: '(navigation failed: net::ERR_ABORTED)' });
+    const failed = screen({
+      route: '/reports',
+      title: '(navigation failed: net::ERR_ABORTED)',
+      status: 'navigation-failed',
+      error: 'net::ERR_ABORTED',
+    });
 
     expect(progressLine(failed)).toBe('! /reports  navigation failed');
+  });
+
+  test('goes by the status, not the title', () => {
+    const titledLikeAFailure = screen({ route: '/help', title: '(navigation failed: how to fix it)' });
+
+    expect(progressLine(titledLikeAFailure)).toBe('✓ /help  0 elements · 0 forms');
   });
 });
 

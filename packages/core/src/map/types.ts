@@ -70,11 +70,18 @@ export interface TokenSample {
   count: number;
 }
 
+/** `navigation-failed`: the page could not be loaded or read, so nothing in it was captured. */
+export type ScreenStatus = 'captured' | 'navigation-failed';
+
 export interface Screen {
   id: string;
   url: string;
   route: string;
+  /** The page's title; `(navigation failed: <error>)` for a failed navigation, for people to read. */
   title: string;
+  status: ScreenStatus;
+  /** Why the navigation failed (the first line of the browser's message); `null` when captured. */
+  error: string | null;
   viewport: Viewport;
   /** `null` when navigation failed, so there was nothing to capture. */
   screenshot: EvidenceRef | null;
@@ -84,6 +91,11 @@ export interface Screen {
   links: string[];
   discoveredFrom: string | null;
   capturedAt: string;
+}
+
+/** True for a screen whose navigation failed: it is in the map (a dead link) but holds nothing. */
+export function isFailedScreen(screen: Pick<Screen, 'status'>): boolean {
+  return screen.status === 'navigation-failed';
 }
 
 export interface AppMap {

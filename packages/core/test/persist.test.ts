@@ -35,6 +35,8 @@ function screen(route: string, selectors: readonly string[], options: ScreenOpti
     url: `http://localhost:3000${route}`,
     route,
     title,
+    status: 'captured',
+    error: null,
     viewport: { name: viewport, width: 1280, height: 800 },
     screenshot: null,
     elements: selectors.map(element),
@@ -100,6 +102,25 @@ describe('persistence', () => {
       await writeAppMap(ctx, map);
 
       expect(await readLatestAppMap(ctx.lookoverDir)).toEqual(map);
+    });
+
+    test('keeps the status and error of a screen whose navigation failed', async () => {
+      const ctx = await createRun({ cwd, config });
+      const failed: Screen = {
+        ...screen('/gone', []),
+        title: '(navigation failed: net::ERR_CONNECTION_REFUSED at http://localhost:3000/gone)',
+        status: 'navigation-failed',
+        error: 'net::ERR_CONNECTION_REFUSED at http://localhost:3000/gone',
+      };
+      const map = appMap([screen('/', ['#a']), failed], ctx.runId);
+
+      await writeAppMap(ctx, map);
+
+      const saved = await readLatestAppMap(ctx.lookoverDir);
+      expect(saved?.screens.map(({ status, error }) => ({ status, error }))).toEqual([
+        { status: 'captured', error: null },
+        { status: 'navigation-failed', error: 'net::ERR_CONNECTION_REFUSED at http://localhost:3000/gone' },
+      ]);
     });
 
     test('serialises with two-space indentation and a trailing newline, identically in both files', async () => {
