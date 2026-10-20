@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lookover — liquid motion v10</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; --r-lg: 18px; --ease-out: cubic-bezier(.2,.8,.2,1); --spring: cubic-bezier(.22,1.25,.36,1); }
+  [data-mode="dark"] { --bg-0:#060a13; --bg-1:#0b1222; --bg-2:#111b31; --line:rgba(148,163,184,.14); --line-strong:rgba(148,163,184,.26); --ink:#e7ebf3; --ink-2:#9aa7bd; --ink-3:#6b7890; --accent:#5b8def; --accent-ink:#0b1222; --high:#f0616d; --medium:#efb75a; --low:#7dd3a8; --pass:#34c38f;
+    --glass-tint:rgba(11,18,34,.55); --glass-edge:rgba(255,255,255,.14); --glass-sheen:rgba(255,255,255,.08); --glass-spot:rgba(255,255,255,.12); --glass-shadow:0 24px 70px rgba(0,0,0,.5), 0 1px 0 rgba(255,255,255,.05) inset; --glow-a:rgba(91,141,239,.20); --glow-b:rgba(129,96,255,.14); --pill-edge: color-mix(in oklab, var(--accent) 58%, transparent); --pill-a: color-mix(in oklab, var(--accent) 36%, transparent); --pill-b: color-mix(in oklab, var(--accent) 22%, transparent); }
+  [data-mode="light"] { --bg-0:#eef1f7; --bg-1:#f6f8fc; --bg-2:#ffffff; --line:rgba(15,23,42,.10); --line-strong:rgba(15,23,42,.18); --ink:#0f172a; --ink-2:#475569; --ink-3:#7a879c; --accent:#2f6be0; --accent-ink:#ffffff; --high:#c8323f; --medium:#b4730b; --low:#1e8a5a; --pass:#1a8a56;
+    --glass-tint:rgba(255,255,255,.58); --glass-edge:rgba(255,255,255,.9); --glass-sheen:rgba(255,255,255,.55); --glass-spot:rgba(255,255,255,.8); --glass-shadow:0 24px 60px rgba(15,23,42,.16), 0 1px 0 rgba(255,255,255,.9) inset; --glow-a:rgba(47,107,224,.16); --glow-b:rgba(129,96,255,.12); --pill-edge: color-mix(in oklab, var(--accent) 45%, transparent); --pill-a: color-mix(in oklab, var(--accent) 22%, white); --pill-b: color-mix(in oklab, var(--accent) 14%, white); }
+  * { box-sizing: border-box; } html, body { margin: 0; }
+  body { font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--ink); min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased;
+    background: radial-gradient(900px 520px at 12% -10%, var(--glow-a), transparent 60%), radial-gradient(700px 480px at 95% 0%, var(--glow-b), transparent 60%), var(--bg-0); }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; } ::view-transition-old(root) { z-index: 1; } ::view-transition-new(root) { z-index: 2; }
+
+  .glass { background: var(--glass-tint); -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); position: relative; isolation: isolate; contain: paint; }
+  .glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(180deg, var(--glass-sheen), transparent 42%); mask: linear-gradient(#000, rgba(0,0,0,.3)); }
+  .spot { position: absolute; left: 0; top: 0; width: 260px; height: 180px; border-radius: 50%; pointer-events: none; opacity: 0; background: radial-gradient(closest-side, var(--glass-spot), transparent); transform: translate3d(-130px,-90px,0); will-change: transform, opacity; transition: opacity .25s var(--ease-out); }
+  .glass:hover .spot, .glass.moving .spot { opacity: 1; }
+  .glass.lens { -webkit-backdrop-filter: blur(18px) saturate(170%) url(#lens); backdrop-filter: blur(18px) saturate(170%) url(#lens); }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .glass { background: var(--bg-2); } }
+  @media (prefers-reduced-transparency: reduce) { .glass { background: var(--bg-2); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 18px 24px 120px; }
+  .intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin: 10px 0 18px; }
+  .intro h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.015em; }
+  .intro p { margin: 4px 0 0; color: var(--ink-2); max-width: 58ch; }
+  .toggle { border: 1px solid var(--line-strong); background: transparent; color: var(--ink); border-radius: 999px; padding: 7px 13px; font: 500 12.5px var(--sans); cursor: pointer; white-space: nowrap; transition: transform .25s var(--spring); }
+  .toggle:active { transform: scale(.96); }
+
+  /* Liquid pill: a full-width layer clipped to [L, R] with round corners, so the end caps stay circular while the middle stretches. */
+  .liq { position: absolute; left: 0; pointer-events: none; will-change: transform, clip-path; }
+  .liq .fill { position: absolute; inset: 0; will-change: clip-path; overflow: hidden; }
+  .liq .hl { position: absolute; inset: 0; will-change: transform; background: radial-gradient(42% 130% at 50% -20%, rgba(255,255,255,.30), transparent 72%); }
+  .seg .liq { top: 5px; height: calc(100% - 10px); background: var(--pill-edge); }
+  .seg .liq .fill { background: linear-gradient(180deg, var(--pill-a), var(--pill-b)); }
+  .tabbar .liq { top: 6px; height: 52px; background: rgba(255,255,255,.28); }
+  .tabbar .liq .fill { background: linear-gradient(180deg, rgba(255,255,255,.17), rgba(255,255,255,.10)); }
+
+  .seg-wrap { position: sticky; top: 14px; z-index: 6; display: flex; justify-content: center; }
+  .seg { display: inline-flex; gap: 2px; padding: 5px; border-radius: 999px; position: relative; touch-action: none; user-select: none; overflow: hidden; }
+  .seg button { position: relative; z-index: 1; border: 0; background: transparent; color: var(--ink-2); font: 600 13px var(--sans); padding: 8px 16px; border-radius: 999px; cursor: pointer; transition: color .2s; will-change: transform; }
+  .seg button.on { color: var(--ink); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @supports (animation-timeline: scroll()) { .seg-wrap .seg { animation: shrink linear both; animation-timeline: scroll(); animation-range: 0 220px; } @keyframes shrink { to { transform: scale(.9); } } }
+
+  .stage { position: relative; display: grid; grid-template-columns: 1fr 380px; gap: 18px; align-items: start; margin-top: 26px; }
+  .shot { position: relative; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--line); background: #f4f6fa; }
+  .fake { padding: 28px 32px 32px; color: #1b2434; }
+  .fake .crumb { font-size: 12px; color: #6b7890; margin-bottom: 10px; } .fake h2 { font-size: 20px; margin: 0 0 18px; color: #121a2b; }
+  .f { margin-bottom: 14px; max-width: 420px; } .f label { display: block; font-size: 12px; color: #4b566b; margin-bottom: 5px; }
+  .f .in { border: 1px solid #c9d0dc; background: #fff; border-radius: 6px; padding: 8px 10px; font-size: 13px; position: relative; } .f .in.err { border-color: #d64552; }
+  .f .msg { font-family: var(--mono); font-size: 11px; color: #d64552; margin-top: 4px; }
+  .fake .btns { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+  .fake .b1, .fake .b2, .fake .b3 { border-radius: 6px; padding: 8px 14px; font-size: 13px; position: relative; }
+  .fake .b1 { background: #2f6be0; color: #fff; } .fake .b2 { background: #eef1f7; color: #1b2434; } .fake .b3 { background: #2d66d6; color: #fff; }
+  [data-el]::after { content: ""; position: absolute; inset: -4px; border-radius: 9px; border: 2px solid var(--accent); opacity: 0; transition: opacity .25s var(--ease-out); pointer-events: none; }
+  [data-el].hot::after { opacity: 1; }
+
+  .pin { position: absolute; background: none; border: 0; padding: 0; cursor: pointer; z-index: 2; }
+  .pin .dot { width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; position: relative; will-change: transform; }
+  .pin .dot::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 2px solid var(--accent); opacity: 0; transition: opacity .2s; }
+  .pin.sel .dot::after { opacity: 1; }
+  .pin i { width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font: 700 10px var(--mono); color: #fff; position: relative; z-index: 1; }
+  .pin.high i { background: var(--high); } .pin.medium i { background: var(--medium); color: #1b1300; } .pin.low i { background: var(--low); color: #06301d; }
+  .pin .lbl { position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(calc(-50% + var(--lx, 0px)), 6px); white-space: nowrap; font: 600 12px var(--sans); color: var(--ink); padding: 5px 10px; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .2s var(--ease-out), transform .35s var(--spring); }
+  .pin:hover .lbl, .pin:focus-visible .lbl { opacity: 1; transform: translate(calc(-50% + var(--lx, 0px)), 0); }
+  .pin.below .lbl { bottom: auto; top: calc(100% + 8px); transform: translate(calc(-50% + var(--lx, 0px)), -6px); }
+  .pin.below:hover .lbl, .pin.below:focus-visible .lbl { transform: translate(calc(-50% + var(--lx, 0px)), 0); }
+  .pin:focus-visible .dot { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .panel { border-radius: var(--r-lg); padding: 0; position: sticky; top: 84px; will-change: transform; touch-action: none; }
+  .grab { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 10px; cursor: grab; border-bottom: 1px solid var(--line); font: 500 11.5px var(--mono); color: var(--ink-3); user-select: none; }
+  .grab:active { cursor: grabbing; } .grab i { width: 36px; height: 4px; border-radius: 2px; background: var(--line-strong); display: block; }
+  .pbody { padding: 14px 16px 16px; position: relative; z-index: 1; }
+  .sev { display: inline-block; font: 500 11.5px var(--mono); border: 1px solid; border-radius: 5px; padding: 2px 7px; margin-bottom: 10px; }
+  .pbody h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; } .pbody .why { color: var(--ink-2); font-size: 13px; margin: 0 0 12px; }
+  .kv { display: grid; grid-template-columns: 96px 1fr; gap: 6px 12px; font-size: 12.5px; padding: 10px 0; border-top: 1px solid var(--line); } .kv span { color: var(--ink-3); } .kv code { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .btn { border-radius: 8px; padding: 8px 12px; font: 600 12.5px var(--sans); cursor: pointer; border: 1px solid var(--line-strong); background: transparent; color: var(--ink); transition: transform .3s var(--spring); }
+  .btn:active { transform: scale(.96); } .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  /* container transform: a copy of the panel, carrying the NEW finding, grows out of the pin */
+  .ghost { position: absolute; border-radius: var(--r-lg); pointer-events: none; transform-origin: 0 0; will-change: transform, clip-path, opacity; z-index: 4; overflow: hidden; background: color-mix(in oklab, var(--bg-2) 88%, transparent); }
+  .ghost .gbody { opacity: 0; will-change: opacity; }
+
+  .mobile { margin-top: 56px; display: grid; grid-template-columns: 340px 1fr; gap: 36px; align-items: center; }
+  .phone { width: 340px; height: 600px; border-radius: 48px; border: 1px solid var(--line-strong); background: #0a0f1c; position: relative; overflow: hidden; box-shadow: 0 40px 100px rgba(0,0,0,.45); }
+  .screen { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(260px 260px at 30% 25%, #ff7a59, transparent 70%), radial-gradient(300px 300px at 80% 55%, #5b8def, transparent 70%), radial-gradient(240px 240px at 25% 85%, #7dd3a8, transparent 70%), #0f1830; }
+  .screen .feed { padding: 64px 20px 0; color: rgba(255,255,255,.9); } .screen .card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 18px; padding: 14px; margin-bottom: 12px; }
+  .screen .card b { display: block; font-size: 14px; } .screen .card span { font-size: 12px; color: rgba(255,255,255,.7); }
+  .tabbar { position: absolute; left: 18px; right: 18px; bottom: 22px; height: 64px; border-radius: 999px; display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; padding: 6px; touch-action: none; user-select: none; }
+  .tab { position: relative; z-index: 1; height: 52px; display: grid; place-items: center; gap: 2px; color: rgba(255,255,255,.72); font: 600 10.5px var(--sans); cursor: pointer; border-radius: 999px; transition: color .2s; will-change: transform; }
+  .tab.on { color: #fff; } .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .how h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; } .how p, .how li { color: var(--ink-2); font-size: 13.5px; } .how ul { padding-left: 18px; margin: 8px 0 0; } .how li { margin: 4px 0; } .how code { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+
+  .perf { position: fixed; right: 16px; bottom: 16px; font: 500 11.5px var(--mono); color: var(--ink-2); padding: 6px 10px; border-radius: 999px; background: var(--bg-1); border: 1px solid var(--line); z-index: 9; } .perf b { color: var(--pass); font-weight: 500; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  @media (max-width: 480px) { .fake { zoom: .8; } .fake .btns { flex-wrap: nowrap; } }
+  @media (max-width: 980px) { .stage, .mobile { grid-template-columns: 1fr; } .panel { position: static; } .phone { margin: 0 auto; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lens" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.010 0.018" numOctaves="2" seed="7" result="n"/><feGaussianBlur in="n" stdDeviation="1.2" result="nb"/><feDisplacementMap in="SourceGraphic" in2="nb" scale="7" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
+
+<div class="wrap">
+  <div class="intro">
+    <div><h1>Liquid motion, v10</h1><p>Round caps that never squash, a highlight that trails the movement, a pill that lifts while it travels, and a finding panel that grows out of the pin you clicked instead of fading over the old one.</p></div>
+    <button class="toggle" onclick="toggleMode(event)">Light mode</button>
+  </div>
+
+  <div class="seg-wrap">
+    <div class="seg glass" id="seg" role="tablist"><span class="spot"></span><span class="liq" id="ind"><span class="fill"><span class="hl"></span></span></span>
+      <button class="on" role="tab" aria-selected="true">Screens</button><button role="tab">Findings</button><button role="tab">Consistency</button><button role="tab">Drift</button>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="shot" id="shot">
+      <div class="fake">
+        <div class="crumb">Байгууллага / Засах</div><h2>Байгууллагын мэдээлэл</h2>
+        <div class="f"><label>Нэр</label><div class="in">Даланзадгад сумын ЗДТГ</div></div>
+        <div class="f"><label>Утасны дугаар</label><div class="in err" data-el="phone">991122334</div><div class="msg">errors.phone.invalid</div></div>
+        <div class="f"><label>И-мэйл</label><div class="in">info@dalanzadgad.gov.mn</div></div>
+        <div class="f"><label>Бүртгэлийн огноо</label><div class="in" data-el="date">10/19/2026</div></div>
+        <div class="btns"><span class="b1" data-el="save">Хадгалах</span><span class="b2">Болих</span><span class="b3" data-el="save2">Хадгалах ба хаах</span></div>
+      </div>
+      <button class="pin high sel" data-id="f1" data-target="save"><span class="dot glass"><i>1</i></span><span class="lbl glass">No visible focus state</span></button>
+      <button class="pin high" data-id="f2" data-target="phone"><span class="dot glass"><i>2</i></span><span class="lbl glass">Raw translation key</span></button>
+      <button class="pin medium" data-id="f3" data-target="date"><span class="dot glass"><i>3</i></span><span class="lbl glass">Date format differs</span></button>
+      <button class="pin low" data-id="f4" data-target="save2"><span class="dot glass"><i>4</i></span><span class="lbl glass">Two primary blues</span></button>
+    </div>
+    <aside class="panel glass" id="panel"><span class="spot" id="pspot"></span>
+      <div class="grab" id="grab"><span>finding · drag me</span><i></i><span>3 of 3 reproduced</span></div>
+      <div class="pbody" id="pbody"></div>
+    </aside>
+  </div>
+
+  <section class="mobile">
+    <div class="phone"><div class="screen"><div class="feed">
+      <div class="card"><b>Organisations · Edit</b><span>2 high · 3 medium · 1 low</span></div>
+      <div class="card"><b>Roads · Map</b><span>1 high · 2 medium</span></div>
+      <div class="card"><b>Water · Assets</b><span>clean</span></div>
+      <div class="card"><b>Sign in</b><span>1 low</span></div></div></div>
+      <div class="tabbar glass" id="tabbar"><span class="spot"></span><span class="liq" id="lpill"><span class="fill"><span class="hl"></span></span></span>
+        <div class="tab on"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M8 21h8"/></svg>Screens</div>
+        <div class="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg>Findings</div>
+        <div class="tab"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/></svg>Rules</div>
+        <div class="tab"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/></svg>Drift</div>
+      </div>
+    </div>
+    <div class="how">
+      <h3>What changed since v6</h3>
+      <ul>
+        <li><b>Round caps.</b> The pill is a full-width layer clipped to its two spring edges with <code>clip-path: inset(… round 999px)</code>. The ends stay circular at any width; only the middle stretches, like a drop, not like a scaled rectangle.</li>
+        <li><b>Trailing highlight.</b> A specular highlight sits on top of the pill and lags behind the direction of travel by a few pixels, then catches up.</li>
+        <li><b>Lift while travelling.</b> The pill rises 4% with a soft drop shadow the moment it starts moving and lands when both edges settle.</li>
+        <li><b>Container transform.</b> Clicking a pin grows a copy of the panel out of that pin, already showing the new finding. When it reaches the panel it is swapped in without a visible seam. No empty panel in between.</li>
+        <li><b>Layout-true targets.</b> Edges come from <code>offsetLeft</code>, never from transformed rects, so the pill lands exactly even while a neighbour is being bent toward it.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+<div class="perf" id="perf">fps <b>—</b></div>
+
+<script>
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- tiny spring solver (semi-implicit Euler, two substeps per frame) ---------- */
+  function spring(value, { stiffness = 300, damping = 26, mass = 1 } = {}) {
+    const s = { x: value, v: 0, target: value, stiffness, damping, mass };
+    s.step = dt => { const a = (s.stiffness * (s.target - s.x) - s.damping * s.v) / s.mass; s.v += a * dt; s.x += s.v * dt; return Math.abs(s.v) > 0.02 || Math.abs(s.target - s.x) > 0.02; };
+    s.set = (x, v = 0) => { s.x = x; s.v = v; s.target = x; };
+    return s;
+  }
+  function loop(fn) {
+    let last = performance.now(), running = false;
+    const tick = now => { const dt = Math.min(0.032, (now - last) / 1000); last = now; let alive = false; for (let i = 0; i < 2; i++) alive = fn(dt / 2) || alive; if (alive) requestAnimationFrame(tick); else running = false; };
+    return () => { if (!running) { running = true; last = performance.now(); requestAnimationFrame(tick); } };
+  }
+
+  /* ---------- liquid pill ---------- */
+  function liquidPill(bar, ind, items, { lift = 1.06, travelLift = 1.04 } = {}) {
+    const fill = ind.querySelector('.fill'), hl = ind.querySelector('.hl');
+    const LEAD = { stiffness: 420, damping: 30 }, TRAIL = { stiffness: 230, damping: 24 };
+    const L = spring(0, TRAIL), R = spring(100, TRAIL), SY = spring(1, { stiffness: 380, damping: 22 }), LIFT = spring(1, { stiffness: 380, damping: 22 });
+    let active = 0, pressing = false, dragging = false, travelling = false, dir = 1, W = 0, boxes = [], shadowOn = false;
+    const measure = () => { W = bar.clientWidth; ind.style.width = W + 'px'; boxes = items.map(it => { const l = it.offsetLeft, w = it.offsetWidth; return { l, r: l + w, c: l + w / 2, w }; }); };
+    const scaleOf = () => bar.offsetWidth / bar.getBoundingClientRect().width;   // the bar shrinks on scroll; pointer maths must undo that
+
+    const render = () => {
+      const x = Math.min(L.x, R.x), r = Math.max(L.x, R.x), w = Math.max(8, r - x), s = LIFT.x, c = x + w / 2;
+      ind.style.clipPath = `inset(0 ${(W - r).toFixed(2)}px 0 ${x.toFixed(2)}px round 999px)`;
+      fill.style.clipPath = `inset(1px ${(W - r + 1).toFixed(2)}px 1px ${(x + 1).toFixed(2)}px round 999px)`;
+      ind.style.transformOrigin = `${c.toFixed(2)}px 50%`;
+      ind.style.transform = `scale(${s.toFixed(4)}, ${(SY.x * s).toFixed(4)})`;
+      const lag = Math.max(-10, Math.min(10, -((L.v + R.v) / 2) * 0.012));           // highlight trails the motion
+      hl.style.transform = `translate3d(${(c - W / 2 + lag).toFixed(2)}px,0,0)`;
+      const wantShadow = s > 1.004; if (wantShadow !== shadowOn) { shadowOn = wantShadow; ind.style.filter = wantShadow ? 'drop-shadow(0 6px 10px rgba(0,0,0,.28))' : ''; }
+      items.forEach((it, i) => { const d = (boxes[i].c - c) / 80, near = Math.max(0, 1 - Math.abs(d)); it.style.transform = `translate3d(${(-d * 2 * near).toFixed(2)}px,${(-near).toFixed(2)}px,0) scale(${(1 + 0.04 * near).toFixed(3)})`; });
+    };
+    const run = loop(dt => {
+      const a = L.step(dt), b = R.step(dt), c = SY.step(dt), d = LIFT.step(dt);
+      if (travelling && !pressing && Math.abs(L.target - L.x) < 1.5 && Math.abs(R.target - R.x) < 1.5) { travelling = false; LIFT.target = 1; }
+      render(); return a || b || c || d || pressing;
+    });
+    const aim = (l, r, { travel = false } = {}) => {
+      dir = Math.sign((l + r) / 2 - (L.x + R.x) / 2) || dir;
+      Object.assign(dir > 0 ? R : L, LEAD); Object.assign(dir > 0 ? L : R, TRAIL);      // the edge facing the destination leads
+      L.target = l; R.target = r;
+      if (travel && !reduce && Math.abs(l - L.x) + Math.abs(r - R.x) > 6) { travelling = true; if (!pressing) LIFT.target = travelLift; }
+      run();
+    };
+    const select = i => { items.forEach((b, k) => { b.classList.toggle('on', k === i); b.setAttribute('aria-selected', k === i); }); active = i; aim(boxes[i].l, boxes[i].r, { travel: true }); };
+    const nearest = cx => boxes.reduce((best, b, i) => Math.abs(b.c - cx) < Math.abs(boxes[best].c - cx) ? i : best, 0);
+
+    items.forEach((b, i) => b.addEventListener('click', e => { if (dragging) { e.preventDefault(); return; } select(i); }));
+    items.forEach((b, i) => b.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      select(Math.max(0, Math.min(items.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))); items[active].focus();
+    }));
+
+    bar.addEventListener('pointerdown', e => {
+      if (reduce) return; pressing = true; dragging = false; const start = e.clientX, id = e.pointerId; LIFT.target = lift; SY.target = 0.96; run();
+      const move = ev => {
+        if (!dragging) { if (Math.abs(ev.clientX - start) < 5) return; dragging = true; bar.classList.add('moving'); try { bar.setPointerCapture(id); } catch (_) {} }
+        const b = bar.getBoundingClientRect(), k = scaleOf(), px = (ev.clientX - b.left) * k, w = boxes[active].w; aim(px - w / 2, px + w / 2);
+      };
+      const up = () => {
+        bar.removeEventListener('pointermove', move); bar.removeEventListener('pointerup', up); bar.removeEventListener('pointercancel', up);
+        pressing = false; LIFT.target = 1; SY.target = 1; bar.classList.remove('moving');
+        if (dragging) { const projected = (L.x + R.x) / 2 + ((L.v + R.v) / 2) * 0.08; select(nearest(projected)); setTimeout(() => dragging = false, 0); }
+        run();
+      };
+      bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    });
+    // hover magnetism: the resting pill leans a few px toward the cursor
+    bar.addEventListener('pointermove', e => { if (pressing || travelling || reduce) return; const b = bar.getBoundingClientRect(), cx = (e.clientX - b.left) * scaleOf(), a = boxes[active]; const lean = Math.max(-6, Math.min(6, (cx - a.c) / 12)); L.target = a.l + lean; R.target = a.r + lean; run(); }, { passive: true });
+    bar.addEventListener('pointerleave', () => { if (pressing) return; const a = boxes[active]; L.target = a.l; R.target = a.r; run(); });
+
+    const init = () => { measure(); const a = boxes[active]; L.set(a.l); R.set(a.r); render(); };
+    init(); requestAnimationFrame(init); if (document.fonts) document.fonts.ready.then(init); addEventListener('resize', init);
+  }
+  liquidPill(document.getElementById('seg'), document.getElementById('ind'), [...document.querySelectorAll('#seg button')]);
+  liquidPill(document.getElementById('tabbar'), document.getElementById('lpill'), [...document.querySelectorAll('#tabbar .tab')], { lift: 1.08, travelLift: 1.05 });
+
+  /* ---------- findings: pin -> panel container transform ---------- */
+  const findings = {
+    f1: { sev: 'High · interaction', color: 'var(--high)', title: 'The Save button has no visible focus state', why: 'Keyboard users cannot see where they are. This affects every primary button on the site.', kv: [['Rule','WCAG 2.2 · 2.4.7 Focus visible'],['Element','button "Хадгалах" · .btn-primary'],['Component','<PrimaryButton> · 14 screens']] },
+    f2: { sev: 'High · behaviour', color: 'var(--high)', title: 'The error shows a raw translation key', why: 'The user sees errors.phone.invalid, not the Mongolian sentence.', kv: [['Rule','Message catalog · every string resolves'],['Element','.field-error under "phone"'],['Catalog','locales/mn.json:88']] },
+    f3: { sev: 'Medium · consistency', color: 'var(--medium)', title: 'Dates are formatted two different ways', why: 'This screen shows 10/19/2026; six other screens show 2026-10-19.', kv: [['Rule','Consistency · one date format'],['Here','10/19/2026'],['Elsewhere','2026-10-19 · 6 screens']] },
+    f4: { sev: 'Low · consistency', color: 'var(--low)', title: 'Two near-identical primary blues', why: '#2f6be0 and #2d66d6 are meant to be the same button.', kv: [['Rule','Consistency · one colour per role'],['Colours','#2f6be0 (23) · #2d66d6 (2)'],['Distance','ΔE 2.1']] },
+  };
+  const pbody = document.getElementById('pbody'), panel = document.getElementById('panel'), stage = document.getElementById('stage'), shot = document.getElementById('shot'), grab = document.getElementById('grab');
+  const findingHTML = id => { const f = findings[id]; return `<span class="sev" style="color:${f.color};border-color:color-mix(in oklab, ${f.color} 55%, transparent)">${f.sev}</span><h3>${f.title}</h3><p class="why">${f.why}</p><div class="kv">${f.kv.map(([k,v]) => `<span>${k}</span><code>${v.replace(/</g,'&lt;')}</code>`).join('')}</div><div class="actions"><button class="btn primary">Copy fix prompt</button><button class="btn">Replay</button><button class="btn">Mark intended</button></div>`; };
+  const renderFinding = id => { pbody.innerHTML = findingHTML(id); };
+  function placePins() {
+    const s = shot.getBoundingClientRect(), pins = [...document.querySelectorAll('.pin')];
+    const ox = s.left + shot.clientLeft, oy = s.top + shot.clientTop;          // pins live inside the screenshot's border
+    pins.forEach(p => { const t = document.querySelector(`[data-el="${p.dataset.target}"]`); if (!t) return; const r = t.getBoundingClientRect(); p.style.left = (r.right - ox - 12).toFixed(1) + 'px'; p.style.top = (r.top - oy - 12).toFixed(1) + 'px'; p.classList.remove('below'); p.style.setProperty('--lx', '0px'); });
+    const box = el => el.getBoundingClientRect(), hits = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
+    pins.forEach(p => { const lbl = box(p.querySelector('.lbl')); if (pins.some(q => q !== p && hits(lbl, box(q.querySelector('.dot'))))) p.classList.add('below'); });
+    pins.forEach(p => { const l = box(p.querySelector('.lbl')), pad = 8; const shift = l.right > s.right - pad ? s.right - pad - l.right : l.left < s.left + pad ? s.left + pad - l.left : 0; p.style.setProperty('--lx', shift.toFixed(1) + 'px'); });
+  }
+
+  function growFromPin(dot, id) {
+    stage.querySelectorAll('.ghost').forEach(g => g.remove());
+    const s = stage.getBoundingClientRect(), a = dot.getBoundingClientRect(), b = panel.getBoundingClientRect();
+    const g = document.createElement('div'); g.className = 'glass ghost';
+    g.style.cssText = `width:${b.width}px;height:${b.height}px;left:${b.left - s.left}px;top:${b.top - s.top}px`;
+    g.innerHTML = `<div class="gbody">${grab.outerHTML.replace(' id="grab"', '')}<div class="pbody">${findingHTML(id)}</div></div>`;
+    stage.appendChild(g);
+    const dx = a.left - b.left, dy = a.top - b.top, sx = a.width / b.width, sy = a.height / b.height;
+    const out = pbody.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: 130, easing: 'ease-out', fill: 'forwards' });
+    const grow = g.animate([
+      { transform: `translate3d(${dx}px,${dy}px,0) scale(${sx},${sy})`, clipPath: 'inset(0 round 999px)', easing: 'cubic-bezier(.2,.8,.2,1)' },
+      { transform: `translate3d(${dx * .14}px,${dy * .14}px,0) scale(${sx + (1 - sx) * .88},${sy + (1 - sy) * .84})`, clipPath: 'inset(0 round 34px)', offset: .5, easing: 'cubic-bezier(.22,1.2,.36,1)' },
+      { transform: 'none', clipPath: 'inset(0 round 18px)' }], { duration: 560, fill: 'forwards' });
+    g.querySelector('.gbody').animate([{ opacity: 0 }, { opacity: 0, offset: .28 }, { opacity: 1, offset: .7 }, { opacity: 1 }], { duration: 560, fill: 'forwards' });
+    panel.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.012)', offset: .5 }, { transform: 'scale(1)' }], { duration: 320, delay: 300, easing: 'ease-in-out', composite: 'add' });
+    grow.finished.then(() => { if (!g.isConnected) return; renderFinding(id); out.cancel(); g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' }).finished.then(() => g.remove()); }).catch(() => {});
+  }
+  let current = 'f1'; const dotAnims = new Map();
+  function selectFinding(id, pin) {
+    document.querySelectorAll('.pin').forEach(p => p.classList.toggle('sel', p.dataset.id === id));
+    document.querySelectorAll('.fake .hot').forEach(h => h.classList.remove('hot'));
+    const t = document.querySelector(`[data-el="${pin.dataset.target}"]`); if (t) t.classList.add('hot');
+    const dot = pin.querySelector('.dot');
+    if (!reduce) {
+      dotAnims.forEach((anim, d) => { if (d === dot) return; const back = d.animate([{ transform: 'scale(1)' }], { duration: 260, easing: 'ease-out', fill: 'forwards' }); back.finished.then(() => anim.cancel()).catch(() => {}); dotAnims.set(d, back); });
+      dotAnims.get(dot)?.cancel();
+      dotAnims.set(dot, dot.animate([{ transform: 'scale(1)' }, { transform: 'scale(.86)', offset: .3 }, { transform: 'scale(1.18)', offset: .62 }, { transform: 'scale(1.12)' }], { duration: 460, easing: 'linear', fill: 'forwards' }));
+    }
+    if (id !== current) { if (reduce) renderFinding(id); else growFromPin(dot, id); }
+    current = id;
+  }
+  document.querySelectorAll('.pin').forEach(p => p.addEventListener('click', () => selectFinding(p.dataset.id, p)));
+  renderFinding('f1'); placePins(); addEventListener('resize', placePins); if (document.fonts) document.fonts.ready.then(placePins);
+
+  /* ---------- jelly drag with a real spring return ---------- */
+  (function jelly() {
+    const spot = document.getElementById('pspot');
+    const X = spring(0, { stiffness: 260, damping: 20 }), Y = spring(0, { stiffness: 260, damping: 20 });
+    let held = false, lx = 0, ly = 0, vx = 0, vy = 0, lt = 0;
+    const render = () => { const v = held ? vx : X.v / 60, u = held ? vy : Y.v / 60; const lean = Math.max(-9, Math.min(9, v * .4)), sq = Math.max(.965, Math.min(1.035, 1 + Math.abs(v) * .002));
+      panel.style.transform = `translate3d(${X.x}px,${Y.x}px,0) skewX(${-lean}deg) scale(${sq},${2 - sq})`; spot.style.transform = `translate3d(${130 - v * 6}px,${20 - u * 6}px,0)`; };
+    const run = loop(dt => { const a = X.step(dt), b = Y.step(dt); if (!held) { vx *= .85; vy *= .85; } render(); return a || b || held; });
+    grab.addEventListener('pointerdown', e => {
+      if (reduce) return; held = true; panel.classList.add('moving'); try { grab.setPointerCapture(e.pointerId); } catch (_) {}
+      const ox = e.clientX - X.x, oy = e.clientY - Y.x; lx = e.clientX; ly = e.clientY; lt = performance.now(); run();
+      const move = ev => { const now = performance.now(), dt = Math.max(1, now - lt); vx = (ev.clientX - lx) * (16 / dt); vy = (ev.clientY - ly) * (16 / dt); lx = ev.clientX; ly = ev.clientY; lt = now; X.set(ev.clientX - ox); Y.set(ev.clientY - oy); };
+      const up = () => { grab.removeEventListener('pointermove', move); grab.removeEventListener('pointerup', up); grab.removeEventListener('pointercancel', up); held = false; panel.classList.remove('moving');
+        X.v = vx * 60; Y.v = vy * 60; X.target = 0; Y.target = 0; run(); };
+      grab.addEventListener('pointermove', move); grab.addEventListener('pointerup', up); grab.addEventListener('pointercancel', up);
+    });
+  })();
+
+  /* pointer highlight: one transform per frame */
+  document.querySelectorAll('.glass').forEach(g => { const s = g.querySelector(':scope > .spot'); if (!s || g.id === 'panel') return; let p = false, tx = 0, ty = 0;
+    g.addEventListener('pointermove', e => { const r = g.getBoundingClientRect(); tx = e.clientX - r.left - 130; ty = e.clientY - r.top - 90; if (!p) { p = true; requestAnimationFrame(() => { s.style.transform = `translate3d(${tx}px,${ty}px,0)`; p = false; }); } }, { passive: true }); });
+
+  if (CSS.supports('backdrop-filter', 'url(#lens)') && !matchMedia('(prefers-reduced-transparency: reduce)').matches) panel.classList.add('lens');
+
+  function toggleMode(e) {
+    const root = document.documentElement, next = root.getAttribute('data-mode') === 'dark' ? 'light' : 'dark';
+    const apply = () => { root.setAttribute('data-mode', next); document.querySelector('.toggle').textContent = next === 'dark' ? 'Light mode' : 'Dark mode'; };
+    if (reduce || !document.startViewTransition) { apply(); return; }
+    const x = e.clientX, y = e.clientY, r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    document.startViewTransition(apply).ready.then(() => root.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] }, { duration: 620, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' }));
+  }
+  (function fps() { const el = document.querySelector('#perf b'); let last = performance.now(), n = 0; (function tick(now) { n++; if (now - last >= 500) { el.textContent = Math.round(n * 1000 / (now - last)); n = 0; last = now; } requestAnimationFrame(tick); })(performance.now()); })();
+</script>
+</body>
+</html>
