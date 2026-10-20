@@ -64,9 +64,9 @@ Mapping http://localhost:3123 (run 20261021-044428-31vz)
 | `--max-screens <n>`     | Captures at most `n` screens this run, instead of `maxScreens` from the config (default 40).       |
 | `--allow-host <host>`   | Lets the browser load this host without asking, for this run only (CDNs, fonts). Repeatable.       |
 | `--confirm-host <host>` | Confirms a backend as a development or disposable instance and saves it to the config. Repeatable. |
+| `--yes`                 | Never prompts. A backend that is not confirmed stops the run instead.                              |
 
 Each host flag takes one host: repeat it for more (`--confirm-host a.dev.test --confirm-host b.dev.test`), since a comma-separated list is refused.
-| `--yes`                 | Never prompts. A backend that is not confirmed stops the run instead.                              |
 
 Exit codes: `0` done, `1` the run failed, `2` the config or a flag is invalid, `3` refused (the disposable-data acknowledgement is missing, or a backend is not confirmed).
 

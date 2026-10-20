@@ -49,3 +49,10 @@ Collected 2026-10-21 from the execution ledger of `2026-10-20-lookover-01-founda
 - Providers reachable by IP literal; fetch redirects from an allowed host to a non-provider foreign host are recorded, not blocked.
 - `--no-proxy-server` has no opt-out yet; shared workers, WebRTC and Reporting/NEL channels are unrouted.
 - With a supplied storage state, the authenticated probe reaches unconfirmed backends before confirmation (inherent to detect-before-confirm).
+
+## Residuals from the fix-wave re-review (parked with rulings)
+- `saveConfirmedHosts` throws a raw `ENOENT` if `lookover.config.json` is deleted during a run — Ruling: map `isMissingFile` to the existing "config changed" error; real but nothing depends on it.
+- `writeFileAtomic` replaces a symlinked config with a regular file and drops a custom mode/owner — Ruling: accepted for v0; document when a symlinked config is supported.
+- `packages/cli/src/commands/init-files.ts` keeps its own `isMissingFile` copy — use core's export.
+- `isRedactionSafe` also skips harmless `@` values (`/@user` routes), yielding path selectors — safe, less readable.
+- Invalid *and* unacknowledged non-interactive `init` answers now exit 2 instead of 3 — acceptable (`E_CONFIG_INVALID` wins).
