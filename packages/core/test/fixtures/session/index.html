@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Session fixture</title>
+  </head>
+  <body>
+    <main>
+      <button type="button">Save</button>
+      <div id="empty"></div>
+      <a id="external" href="https://example.com">Example</a>
+      <a id="out" href="/out">Leaves through a redirect</a>
+    </main>
+    <script>
+      window.__results = {};
+      const settle = (key, request) =>
+        request.then(
+          (response) => {
+            window.__results = { ...window.__results, [key]: response.ok ? 'ok' : `status ${response.status}` };
+          },
+          () => {
+            window.__results = { ...window.__results, [key]: 'failed' };
+          },
+        );
+      settle('ok', fetch(new URL('/ok.json', location.href)));
+      settle('stripe', fetch('https://api.stripe.com/v1/x'));
+    </script>
+  </body>
+</html>

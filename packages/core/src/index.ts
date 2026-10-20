@@ -1,3 +1,16 @@
+export type { AXNode } from './browser/cdp.js';
+export { boxFor, callOnNode, getAXTree, resolveBackendNode } from './browser/cdp.js';
+export type { NetworkPolicy, RequestKind, Verdict } from './browser/network-policy.js';
+export {
+  BLOCKED_PROVIDERS,
+  classifyRequest,
+  hostResolverRules,
+  isAllowedHost,
+  isBlockedProvider,
+  LOCAL_HOSTS,
+} from './browser/network-policy.js';
+export type { InstrumentedPage, SessionEvent, SessionOptions } from './browser/session.js';
+export { BrowserSession } from './browser/session.js';
 export { CONFIG_FILENAME, loadConfig, writeConfig } from './config/load.js';
 export type { LookoverConfig } from './config/schema.js';
 export { configSchema } from './config/schema.js';
