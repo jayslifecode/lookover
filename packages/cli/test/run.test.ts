@@ -1,0 +1,387 @@
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  type AppMap,
+  configSchema,
+  type ElementRef,
+  type FormInfo,
+  type LookoverConfig,
+  LookoverError,
+  type Screen,
+  writeConfig,
+} from '@jayslifecode/lookover-core';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import {
+  collectRepeated,
+  configForRun,
+  mergeHosts,
+  parseRunFlags,
+  saveConfirmedHosts,
+} from '../src/commands/run-options.js';
+import { CONFIRM_HOSTS_MESSAGE, createConfirmHosts, shouldPrompt } from '../src/commands/run-prompts.js';
+import {
+  blockedHostsWarning,
+  formatDuration,
+  progressLine,
+  summaryRows,
+} from '../src/commands/run-summary.js';
+import { runCli } from './run-cli.js';
+
+const BASE_CONFIG: LookoverConfig = configSchema.parse({
+  baseUrl: 'http://localhost:3000',
+  interaction: 'safe',
+});
+
+function element(name: string): ElementRef {
+  return {
+    selector: `#${name}`,
+    role: 'button',
+    name,
+    tag: 'button',
+    box: { x: 0, y: 0, width: 10, height: 10 },
+    disabled: false,
+    focusable: true,
+  };
+}
+
+function form(selector: string): FormInfo {
+  return { selector, action: null, method: 'get', fields: [], submit: null };
+}
+
+function screen(overrides: Partial<Screen> = {}): Screen {
+  return {
+    id: 'abc',
+    url: 'http://localhost:3000/',
+    route: '/',
+    title: 'Home',
+    viewport: { name: 'desktop', width: 1440, height: 900 },
+    screenshot: null,
+    elements: [],
+    forms: [],
+    tokens: [],
+    links: [],
+    discoveredFrom: null,
+    capturedAt: '2026-10-21T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function appMap(screens: Screen[]): AppMap {
+  return {
+    version: 1,
+    runId: 'run-1',
+    createdAt: '2026-10-21T00:00:00.000Z',
+    baseUrl: 'http://localhost:3000',
+    routes: [],
+    screens,
+  };
+}
+
+function lookoverErrorOf(fn: () => unknown): LookoverError {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof LookoverError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error('expected a LookoverError');
+}
+
+describe('collectRepeated', () => {
+  test('collects every use of a repeated flag, in order, without changing the previous list', () => {
+    const first = collectRepeated('a.test', undefined);
+    const second = collectRepeated('b.test', first);
+
+    expect(first).toEqual(['a.test']);
+    expect(second).toEqual(['a.test', 'b.test']);
+  });
+});
+
+describe('parseRunFlags', () => {
+  test('defaults to headless, the configured screen budget, no extra hosts and prompting', () => {
+    expect(parseRunFlags({})).toEqual({
+      isHeaded: false,
+      maxScreens: undefined,
+      allowHosts: [],
+      confirmHosts: [],
+      isYes: false,
+    });
+  });
+
+  test('lowercases, trims and deduplicates host flags', () => {
+    const options = parseRunFlags({
+      confirmHost: ['API.Dev.Example.com', 'api.dev.example.com.', ' other.test '],
+      allowHost: ['*.Fonts.Example.com', 'cdn.test'],
+    });
+
+    expect(options.confirmHosts).toEqual(['api.dev.example.com', 'other.test']);
+    expect(options.allowHosts).toEqual(['*.fonts.example.com', 'cdn.test']);
+  });
+
+  test.each([
+    ['--confirm-host', 'https://api.example.com'],
+    ['--confirm-host', 'api.example.com:8080'],
+    ['--confirm-host', 'api.example.com/graphql'],
+    ['--confirm-host', '*.example.com'],
+    ['--confirm-host', '  '],
+    ['--allow-host', 'https://fonts.example.com'],
+    ['--allow-host', 'cdn.*.example.com'],
+  ])('rejects %s %o, which is not a host name', (flag, value) => {
+    const flags = flag === '--allow-host' ? { allowHost: [value] } : { confirmHost: [value] };
+    const error = lookoverErrorOf(() => parseRunFlags(flags));
+
+    expect(error.code).toBe('E_CONFIG_INVALID');
+    expect(error.message).toContain(flag);
+  });
+
+  test('accepts an IPv6 host', () => {
+    expect(parseRunFlags({ confirmHost: ['[fd00::1]'] }).confirmHosts).toEqual(['fd00::1']);
+  });
+
+  test('parses --max-screens as a positive integer', () => {
+    expect(parseRunFlags({ maxScreens: '12' }).maxScreens).toBe(12);
+  });
+
+  test.each(['0', '-1', '1.5', 'twelve', '', '12abc'])('rejects --max-screens %o', (value) => {
+    const error = lookoverErrorOf(() => parseRunFlags({ maxScreens: value }));
+
+    expect(error.code).toBe('E_CONFIG_INVALID');
+    expect(error.message).toContain('--max-screens');
+  });
+
+  test('--headed and --yes are passed through', () => {
+    expect(parseRunFlags({ headed: true, yes: true })).toMatchObject({ isHeaded: true, isYes: true });
+  });
+});
+
+describe('configForRun', () => {
+  test('adds --allow-host and --confirm-host to the config for this run and overrides maxScreens', () => {
+    const config: LookoverConfig = {
+      ...BASE_CONFIG,
+      allowHosts: ['cdn.test'],
+      confirmedBackendHosts: ['API.dev.example.com'],
+    };
+    const options = parseRunFlags({
+      allowHost: ['fonts.test', 'cdn.test'],
+      confirmHost: ['api.dev.example.com', 'auth.dev.example.com'],
+      maxScreens: '5',
+    });
+
+    const result = configForRun(config, options);
+
+    expect(result.allowHosts).toEqual(['cdn.test', 'fonts.test']);
+    expect(result.confirmedBackendHosts).toEqual(['API.dev.example.com', 'auth.dev.example.com']);
+    expect(result.maxScreens).toBe(5);
+  });
+
+  test('leaves the loaded config untouched', () => {
+    const config: LookoverConfig = { ...BASE_CONFIG, allowHosts: ['cdn.test'] };
+    const snapshot = structuredClone(config);
+
+    configForRun(config, parseRunFlags({ allowHost: ['fonts.test'], maxScreens: '3' }));
+
+    expect(config).toEqual(snapshot);
+  });
+
+  test('without flags the run uses the config as it is', () => {
+    expect(configForRun(BASE_CONFIG, parseRunFlags({}))).toEqual(BASE_CONFIG);
+  });
+});
+
+describe('mergeHosts', () => {
+  test('keeps the first spelling of each host, in order', () => {
+    expect(mergeHosts(['API.test', 'b.test'], ['api.test', 'c.test'], ['c.test.', 'd.test'])).toEqual([
+      'API.test',
+      'b.test',
+      'c.test',
+      'd.test',
+    ]);
+  });
+});
+
+describe('saveConfirmedHosts', () => {
+  let dir: string;
+  const configPath = () => join(dir, 'lookover.config.json');
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'lookover-run-config-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('adds the new hosts to confirmedBackendHosts and keeps everything else', async () => {
+    const config: LookoverConfig = {
+      ...BASE_CONFIG,
+      allowHosts: ['cdn.test'],
+      confirmedBackendHosts: ['a.test'],
+    };
+    await writeConfig(dir, config);
+
+    const added = await saveConfirmedHosts(dir, config, ['a.test', 'b.test', 'B.test']);
+
+    expect(added).toEqual(['b.test']);
+    const saved = JSON.parse(await readFile(configPath(), 'utf8')) as unknown;
+    expect(saved).toEqual({ ...config, confirmedBackendHosts: ['a.test', 'b.test'] });
+    expect(configSchema.parse(saved)).toEqual({ ...config, confirmedBackendHosts: ['a.test', 'b.test'] });
+  });
+
+  test('does not rewrite the file when every host is already there', async () => {
+    const config: LookoverConfig = { ...BASE_CONFIG, confirmedBackendHosts: ['a.test'] };
+    await writeFile(configPath(), 'left alone', 'utf8');
+    const before = await stat(configPath());
+
+    const added = await saveConfirmedHosts(dir, config, ['A.test']);
+
+    expect(added).toEqual([]);
+    expect(await readFile(configPath(), 'utf8')).toBe('left alone');
+    expect((await stat(configPath())).mtimeMs).toBe(before.mtimeMs);
+  });
+});
+
+describe('host confirmation', () => {
+  test('the question is worded exactly', () => {
+    expect(CONFIRM_HOSTS_MESSAGE).toBe(
+      'These backends were called by the app. Confirm each one is a development or disposable instance',
+    );
+  });
+
+  test('prompts only with a terminal on both ends and without --yes', () => {
+    expect(shouldPrompt({ isYes: false, isStdinTTY: true, isStdoutTTY: true })).toBe(true);
+    expect(shouldPrompt({ isYes: true, isStdinTTY: true, isStdoutTTY: true })).toBe(false);
+    expect(shouldPrompt({ isYes: false, isStdinTTY: false, isStdoutTTY: true })).toBe(false);
+    expect(shouldPrompt({ isYes: false, isStdinTTY: true, isStdoutTTY: false })).toBe(false);
+  });
+
+  test('without a prompt no host is confirmed, so the engine refuses the run', async () => {
+    const confirmHosts = createConfirmHosts(false);
+
+    await expect(confirmHosts(['api.dev.example.com'])).resolves.toEqual([]);
+  });
+});
+
+describe('progressLine', () => {
+  test('names the route with its element and form counts', () => {
+    const edit = screen({
+      route: '/organisations/[id]',
+      elements: Array.from({ length: 18 }, (_, index) => element(`e${index}`)),
+      forms: [form('form')],
+    });
+
+    expect(progressLine(edit)).toBe('✓ /organisations/[id]  18 elements · 1 form');
+  });
+
+  test('uses the singular for one element and the plural for no forms', () => {
+    expect(progressLine(screen({ elements: [element('only')] }))).toBe('✓ /  1 element · 0 forms');
+  });
+
+  test('flags a screen whose navigation failed', () => {
+    const failed = screen({ route: '/reports', title: '(navigation failed: net::ERR_ABORTED)' });
+
+    expect(progressLine(failed)).toBe('! /reports  navigation failed');
+  });
+});
+
+describe('summaryRows', () => {
+  const summary = {
+    cwd: '/work/app',
+    map: appMap([
+      screen({ elements: [element('a'), element('b')], forms: [form('f1')] }),
+      screen({ elements: [element('c')], forms: [form('f2'), form('f3')] }),
+    ]),
+    confirmedBackendHosts: ['api.dev.example.com', 'auth.dev.example.com'],
+    blockedRequests: 3,
+    runDir: '/work/app/.lookover/runs/20261021-101500-ab12',
+    appMapPath: '/work/app/.lookover/app-map.json',
+    durationMs: 42_345,
+  };
+
+  test('totals the map and shows paths relative to the project', () => {
+    expect(summaryRows(summary)).toEqual([
+      ['Screens', '2'],
+      ['Elements', '3'],
+      ['Forms', '3'],
+      ['Backend hosts', 'api.dev.example.com, auth.dev.example.com'],
+      ['Blocked requests', '3'],
+      ['Run dir', '.lookover/runs/20261021-101500-ab12'],
+      ['App map', '.lookover/app-map.json'],
+      ['Duration', '42.3 s'],
+    ]);
+  });
+
+  test('says none when no backend host is confirmed', () => {
+    const rows = summaryRows({ ...summary, confirmedBackendHosts: [] });
+
+    expect(rows).toContainEqual(['Backend hosts', 'none']);
+  });
+});
+
+describe('formatDuration', () => {
+  test.each([
+    [1_234, '1.2 s'],
+    [59_940, '59.9 s'],
+    [59_960, '1 min 0 s'],
+    [125_400, '2 min 5 s'],
+  ])('%d ms is %o', (ms, expected) => {
+    expect(formatDuration(ms)).toBe(expected);
+  });
+});
+
+describe('blockedHostsWarning', () => {
+  test('names the blocked hosts and the command that confirms them', () => {
+    const warning = blockedHostsWarning(['a.dev.test', 'b.dev.test']);
+
+    expect(warning).toContain('a.dev.test, b.dev.test');
+    expect(warning).toContain('lookover run --confirm-host a.dev.test --confirm-host b.dev.test');
+  });
+});
+
+describe('lookover run', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'lookover-run-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('exits 2 with E_CONFIG_NOT_FOUND when there is no lookover.config.json', async () => {
+    const result = await runCli(dir, ['run']);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_CONFIG_NOT_FOUND');
+    expect(result.stderr).toContain('lookover init');
+  });
+
+  test('refuses a full-interaction config without the acknowledgement with exit 3', async () => {
+    await writeFile(
+      join(dir, 'lookover.config.json'),
+      JSON.stringify({ baseUrl: 'http://localhost:3000', interaction: 'full' }),
+    );
+
+    const result = await runCli(dir, ['run', '--yes']);
+
+    expect(result.code).toBe(3);
+    expect(result.stderr).toContain('E_ACK_REQUIRED');
+  });
+
+  test('exits 2 on an invalid --max-screens before reading the config', async () => {
+    const result = await runCli(dir, ['run', '--max-screens', '0']);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('--max-screens');
+  });
+
+  test('exits 2 on a --confirm-host that is a URL', async () => {
+    const result = await runCli(dir, ['run', '--confirm-host', 'https://api.example.com']);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('--confirm-host');
+  });
+});

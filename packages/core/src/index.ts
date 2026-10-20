@@ -48,6 +48,7 @@ export type {
   Viewport,
 } from './map/types.js';
 export type { ConfirmHosts } from './run/backend-probe.js';
+export { confirmHostCommand } from './run/backend-probe.js';
 export type { DiscoveryHooks, DiscoveryOptions, DiscoveryResult } from './run/engine.js';
 export { runDiscovery } from './run/engine.js';
 export type { RunEvent, RunEventBody } from './run/events.js';

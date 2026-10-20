@@ -1,30 +1,13 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { ACKNOWLEDGEMENT_LINES } from '../src/commands/init-prompts.js';
+import { runCli } from './run-cli.js';
 
-const CLI = fileURLToPath(new URL('../dist/index.js', import.meta.url));
 const BASE_URL = 'http://localhost:3000';
 const ACK_FLAGS = ['--non-interactive', '--base-url', BASE_URL, '--interaction', 'full'];
-
-interface CliResult {
-  readonly code: number;
-  readonly stdout: string;
-  readonly stderr: string;
-}
-
-function runCli(cwd: string, args: readonly string[]): Promise<CliResult> {
-  return new Promise((resolve) => {
-    execFile(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8' }, (error, stdout, stderr) => {
-      const code = error === null ? 0 : typeof error.code === 'number' ? error.code : 1;
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
 
 async function readJson(path: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
