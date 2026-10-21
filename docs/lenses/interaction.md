@@ -332,6 +332,9 @@ The lens presses Tab from the top of the page and records where focus lands afte
   that sits off the page until it has focus and then slides in is read where it settles, in view, and is
   not reported.
 - **Not measured yet:** an element covered by another one.
+- **Recall limit:** a focusable element clipped to 1×1 px (an `sr-only` link or button that stays
+  clipped when it takes focus) has a width and a height, is visible, opaque and inside the page, so it
+  passes all four checks and is not reported, though nobody can see it. Clipping is not looked at.
 - **Bench:** no seed yet. Fixture `tab/order.html` (`#faint`, `#away`).
 
 ### `interaction.focus-trap` (high)
@@ -479,7 +482,9 @@ opacity). Each text node is trimmed and tested whole:
 - **`observers.raw-value`:** the text is exactly `undefined`, `null`, `NaN`, `[object Object]`,
   `Infinity` or `-Infinity`; or it contains `[object Object]` or the word `NaN`; or it ends with the
   word `undefined` (`Last edited by undefined`). `undefined` counts only at the end of a text, so prose
-  that uses the word is left alone.
+  that uses the word is left alone. The limit of that rule (`UNDEFINED_AT_END`, `/\bundefined$/` on
+  the trimmed text): prose that ends with the word and no punctuation (a table cell or a label reading
+  `Return value undefined`) is reported too; with a full stop after it, it is not.
 - **`observers.unresolved-placeholder`:** the text contains a placeholder in either of two forms:
   double braces around a name or dotted path (`{{name}}`, `{{ user.name }}`), or single braces around a
   name that starts with a letter or `_` and is not preceded by a letter, digit, `_` or `$` (`{count}`, but
