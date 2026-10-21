@@ -5,7 +5,9 @@ with deliberately seeded issues, and `bench/seeds.json` lists those issues so a 
 them with what Lookover reports. The app is built correct (labelled fields, a visible focus ring, one
 date format, one primary colour), so every defect in it is one of the ten seeded issues listed under
 [Seeds](#seeds), and three things that look like defects but are correct are listed beside them as
-controls.
+controls. Until the benchmark harness exists, the end-to-end suite (`pnpm test:e2e`,
+`packages/cli/test/e2e/bench.test.ts`) runs Lookover against the app and fails unless every seeded issue
+is found and no control is flagged.
 
 ## Running the app
 

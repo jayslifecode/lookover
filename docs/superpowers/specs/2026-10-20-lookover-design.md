@@ -1,6 +1,6 @@
 # Lookover — design
 
-*Working name (repo `lookover`, npm package `@jayslifecode/lookover`). Date: 2026-10-20. Status: approved 2026-10-20; plan 01 (foundation and App Map) implemented 2026-10-21 — amendments made during that work are marked "(amended 2026-10-21)".*
+*Working name (repo `lookover`, npm package `@jayslifecode/lookover`). Date: 2026-10-20. Status: approved 2026-10-20; plan 01 (foundation and App Map) implemented 2026-10-21; plan 02 (interaction lens and observers) implemented 2026-10-22 — amendments made during that work are marked "(amended 2026-10-21)" and "(amended 2026-10-22)".*
 
 Lookover is an open-source design-and-QA reviewer that drives a web app in a real browser the way a senior front-end reviewer would, and reports what it can prove. It is built for people who came to coding through AI tools and ship real sites without anyone experienced checking their work.
 
@@ -76,6 +76,8 @@ For each screen, the **explorer** (Playwright + CDP, driven by deterministic pla
 - **Interaction lens:** for every interactive element, force `:hover`, `:focus`, `:focus-visible`, `:active` and capture computed styles and a crop; check disabled and loading states where present; walk the page with Tab and record focus order and visibility; measure tap-target size and contrast; sweep configured viewports for overflow, truncation and horizontal scroll.
 - **Behaviour lens:** negate one constraint at a time through the real UI, then directly against the API; compare outcomes; run state macros (double submit, back, refresh mid-flow, second tab, session expiry); run the two-account probe (create object as A, attempt read and edit as B through the UI flow).
 - **Observers (always on, no model):** console errors and warnings; every request with status and whether the screen agreed; rendered text scanned for raw i18n keys, `undefined`, `NaN`, `[object Object]`, truncation; persisted state after reload compared with what the screen claimed.
+
+*(amended 2026-10-22: as built in plan 02, a missing hover state is "worth a look" rather than a finding, because a hover effect written in JavaScript does not show under a forced `:hover`. Disabled and loading states, persisted state after a reload compared with what the screen claimed, and whether the screen agreed with a request's answer all need an action to compare against, so they wait for the behaviour lens. Truncation is measured by the interaction lens's viewport sweep (`interaction.text-clipped`), not by the text observer.)*
 
 ### Stage 4 — Consistency analysis
 Across the whole App Map, cluster and count: colours and their roles, type sizes, spacing values, radii, date/number/currency formats found in rendered text, button and link wording for the same action, error-message phrasing, presence of empty, loading and error states per list and form. Outliers and near-duplicates become findings with every occurrence listed.
