@@ -162,7 +162,7 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
         screenId: 'screen-1',
         key: '/order.html|#faint',
         observed: 'takes keyboard focus on Tab press 4 but cannot be seen: it is fully transparent',
-        target: { selector: '#faint', role: 'link', name: 'Faint link', componentName: null },
+        target: { selector: '#faint', role: 'link', name: 'Faint link', componentName: null, signature: 'a' },
       });
       expect(faint?.target?.box).toEqual(element?.box);
       expect(faint?.trace).toEqual({
@@ -208,6 +208,7 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
         role: 'a',
         name: '',
         componentName: null,
+        signature: 'a',
         box: faint?.box,
       });
     });
@@ -256,7 +257,13 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
         severity: 'high',
         key: '/trap.html|#stuck',
         observed: `keeps keyboard focus when Tab is pressed ${TRAP_REPEATS} times in a row, so a keyboard user cannot move past it`,
-        target: { selector: '#stuck', role: 'textbox', name: 'Stuck', componentName: null },
+        target: {
+          selector: '#stuck',
+          role: 'textbox',
+          name: 'Stuck',
+          componentName: null,
+          signature: 'input',
+        },
       });
       expect(trap?.trace.steps).toEqual([
         { kind: 'navigate', url },

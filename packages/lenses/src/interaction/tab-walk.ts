@@ -8,8 +8,8 @@ import {
   stepFinding,
 } from '@jayslifecode/lookover-core';
 import { type Rule, ruleById } from '@jayslifecode/lookover-rules';
-import { COMPONENT_NAME_SOURCE } from './in-page.js';
-import { evaluateSource, measureOn } from './measure.js';
+import { targetIdentityOf } from './identity.js';
+import { evaluateSource } from './measure.js';
 import { tally } from './skips.js';
 import type { FocusStop } from './states.js';
 import { FINISH_ALL_TRANSITIONS_SOURCE } from './states-in-page.js';
@@ -320,16 +320,12 @@ async function findingFor(
  */
 async function targetOf(context: LensContext, stop: AddressedStop): Promise<ElementTarget> {
   const listed = context.screen.elements.find(({ selector }) => selector === stop.selector);
-  const componentName = await measureOn<string | null>(
-    context.ipage.cdp,
-    { selector: stop.selector },
-    COMPONENT_NAME_SOURCE,
-  );
+  const identity = await targetIdentityOf(context.ipage.cdp, { selector: stop.selector }, stop.tag);
   return {
     selector: stop.selector,
     role: listed?.role ?? stop.tag,
     name: listed?.name ?? '',
-    componentName: componentName ?? null,
+    ...identity,
     box: listed?.box ?? stop.box,
   };
 }

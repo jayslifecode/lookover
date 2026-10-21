@@ -148,12 +148,13 @@ export async function judgeStates(
   context: LensContext,
   element: ForcibleElement,
   entry: GalleryEntry,
+  signature: string | null,
 ): Promise<Judged> {
   const { rest, hover, focus } = entry.states;
   if (entry.skipped !== null || rest === undefined || hover === undefined || focus === undefined) {
     return NOTHING;
   }
-  const target = { ...pickTarget(element), componentName: entry.componentName };
+  const target = { ...pickTarget(element), componentName: entry.componentName, signature };
   const subject: Subject = { context, element, entry, target };
   const focusJudged = element.focusable ? await judgeFocus(subject, rest, focus) : NOTHING;
   const isHoverMissing = HOVER_ROLES.has(element.role) && !stateDiffers(rest, hover);
@@ -269,7 +270,12 @@ async function evidenceOf(
   return [...crops, { kind: 'styles', label, ref: styles }];
 }
 
-function pickTarget({ selector, role, name, box }: ForcibleElement): Omit<ElementTarget, 'componentName'> {
+function pickTarget({
+  selector,
+  role,
+  name,
+  box,
+}: ForcibleElement): Omit<ElementTarget, 'componentName' | 'signature'> {
   return { selector, role, name, box };
 }
 

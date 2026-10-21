@@ -75,7 +75,14 @@ export interface StepOptions {
 }
 
 function elementTarget(selector: string, role: string, name: string): ElementTarget {
-  return { selector, role, name, componentName: null, box: { x: 0, y: 0, width: 10, height: 10 } };
+  return {
+    selector,
+    role,
+    name,
+    componentName: null,
+    signature: null,
+    box: { x: 0, y: 0, width: 10, height: 10 },
+  };
 }
 
 export function stepCandidate(options: StepOptions): StepFinding {

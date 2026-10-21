@@ -20,8 +20,8 @@ import {
   requiredRatio,
   roundedContrastRatio,
 } from './contrast.js';
+import { targetIdentityOf } from './identity.js';
 import {
-  COMPONENT_NAME_SOURCE,
   EFFECTIVE_BACKGROUND_SOURCE,
   type EffectiveBackground,
   IN_ACTIVEDESCENDANT_WIDGET_SOURCE,
@@ -323,9 +323,8 @@ async function stepFindingFor(
 }
 
 async function targetOf(context: LensContext, element: ElementRef): Promise<ElementTarget> {
-  const { selector, role, name, box } = element;
-  const componentName = await measureOn<string | null>(context.ipage.cdp, element, COMPONENT_NAME_SOURCE);
-  return { selector, role, name, componentName: componentName ?? null, box };
+  const { selector, role, name, box, tag } = element;
+  return { selector, role, name, ...(await targetIdentityOf(context.ipage.cdp, element, tag)), box };
 }
 
 function traceOf(context: LensContext, what: string): StepTrace {

@@ -143,7 +143,13 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
         screenId: 'screen-1',
         key: '/contrast.html|#fail',
         observed: '"Grey on grey" is rgb(156, 163, 175) on rgb(229, 231, 235), 2.05:1 (needs 4.5:1)',
-        target: { selector: '#fail', role: 'button', name: 'Grey on grey', componentName: null },
+        target: {
+          selector: '#fail',
+          role: 'button',
+          name: 'Grey on grey',
+          componentName: null,
+          signature: 'button',
+        },
       });
       expect(finding.trace).toEqual({
         route: '/contrast.html',
@@ -303,7 +309,13 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
         severity: 'medium',
         key: '/targets.html|#icon',
         observed: '16×16 px, nearest other target 12 px away',
-        target: { selector: '#icon', role: 'button', name: 'Close', componentName: null },
+        target: {
+          selector: '#icon',
+          role: 'button',
+          name: 'Close',
+          componentName: null,
+          signature: 'button.at.small',
+        },
       });
       expect(finding.trace.steps).toEqual([
         { kind: 'navigate', url },
@@ -340,7 +352,13 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
         severity: 'high',
         key: '/keyboard.html|#no-tab',
         observed: 'cannot receive keyboard focus',
-        target: { selector: '#no-tab', role: 'button', name: 'Delete', componentName: null },
+        target: {
+          selector: '#no-tab',
+          role: 'button',
+          name: 'Delete',
+          componentName: null,
+          signature: 'div',
+        },
       });
       expect(finding.trace.steps).toEqual([
         { kind: 'navigate', url },

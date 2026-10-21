@@ -77,6 +77,7 @@ A step finding is about one element on one screen, and carries the steps that sh
     role: string;                 // its accessibility role, or its tag when the tree does not list it
     name: string;                 // its accessible name
     componentName: string | null; // the React component, in a development build
+    signature: string | null;     // its tag and sorted class list joined by ".", e.g. "button.btn.primary"
     box: { x, y, width, height }; // its border box in document coordinates, CSS pixels
   } | null;
   trace: {
@@ -87,6 +88,10 @@ A step finding is about one element on one screen, and carries the steps that sh
   };
 }
 ```
+
+`signature` is the element's class signature, the same one the state gallery crops one control of:
+controls that share it look alike, so it lets findings about one component be grouped. It is `null`
+when the element could not be read in the page when the finding was made.
 
 A step is one of `{ kind: 'navigate', url }`, `{ kind: 'set-viewport', viewport }`,
 `{ kind: 'force-state', selector, state: 'hover' | 'focus' | 'active' }`, `{ kind: 'focus', selector }`,

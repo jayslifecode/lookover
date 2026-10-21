@@ -317,6 +317,16 @@ describe('lookover run against the bench app', () => {
     expect(named.length).toBeGreaterThan(0);
   });
 
+  test('gives step findings the class signature of their element, for grouping', async () => {
+    const { findings } = await readFindings(project);
+
+    const signed = findings.filter(
+      (finding) => finding.shape === 'step' && finding.target?.signature != null,
+    );
+
+    expect(signed.length).toBeGreaterThan(0);
+  });
+
   test('writes findings.json that reads back through readLatestFindings, the same in the run directory', async () => {
     const latest = await readFile(join(project, '.lookover', 'findings.json'), 'utf8');
     const ofRun = await readFile(join(await onlyRunDir(project), 'findings.json'), 'utf8');

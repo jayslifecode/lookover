@@ -11,6 +11,7 @@ import {
   type Viewport,
 } from '@jayslifecode/lookover-core';
 import type { CDPSession } from 'playwright';
+import { IDENTITY_SOURCE, type Identity, signatureOf } from './identity.js';
 import type { StyleSnapshot } from './in-page.js';
 import { evaluateSource, measureOn } from './measure.js';
 import { tally } from './skips.js';
@@ -18,8 +19,6 @@ import {
   ANCESTOR_SNAPSHOTS_SOURCE,
   BLUR_SOURCE,
   FINISH_ALL_TRANSITIONS_SOURCE,
-  IDENTITY_SOURCE,
-  type Identity,
   PLACE_IN_VIEW_SOURCE,
   type Placement,
   SETTLED_SNAPSHOT_SOURCE,
@@ -204,7 +203,7 @@ async function walk(
     const captured = await captureElement(context, element, nodeIds, signatures);
     signatures = captured.signatures;
     const judged = isForcible(element)
-      ? await judgeStates(context, element, captured.entry)
+      ? await judgeStates(context, element, captured.entry, captured.signature)
       : { findings: [], worthALook: [], skipped: [] };
     walked = {
       entries: [...walked.entries, captured.entry],
@@ -216,12 +215,20 @@ async function walk(
   return walked;
 }
 
+/** A control as captured, its class signature (`signatureOf`) and the signatures cropped so far. */
+interface Captured {
+  entry: GalleryEntry;
+  /** `null` when the control was not read in the page. */
+  signature: string | null;
+  signatures: ReadonlySet<string>;
+}
+
 async function captureElement(
   context: LensContext,
   element: ElementRef,
   nodeIds: ReadonlyMap<number, number>,
   signatures: ReadonlySet<string>,
-): Promise<{ entry: GalleryEntry; signatures: ReadonlySet<string> }> {
+): Promise<Captured> {
   const { selector, role, name } = element;
   const blank: GalleryEntry = {
     selector,
@@ -233,24 +240,28 @@ async function captureElement(
     skipped: null,
     focusMarkOn: null,
   };
-  if (!isForcible(element)) return { entry: { ...blank, skipped: SKIP_NO_BACKEND_NODE }, signatures };
+  if (!isForcible(element)) {
+    return { entry: { ...blank, skipped: SKIP_NO_BACKEND_NODE }, signature: null, signatures };
+  }
   const nodeId = nodeIds.get(element.backendNodeId) ?? NOT_IN_DOCUMENT;
   const identity =
     nodeId === NOT_IN_DOCUMENT
       ? null
       : await measureOn<Identity>(context.ipage.cdp, element, IDENTITY_SOURCE);
-  if (identity === null) return { entry: { ...blank, skipped: SKIP_GONE }, signatures };
+  if (identity === null) return { entry: { ...blank, skipped: SKIP_GONE }, signature: null, signatures };
   const named = { ...blank, componentName: identity.componentName };
+  const signature = signatureOf(element.tag, identity.classes);
   if (element.disabled) {
     const rest = await captureState(context, element, false, false);
     const states = rest === null ? {} : { rest: rest.snapshot };
-    return { entry: { ...named, states, skipped: rest === null ? SKIP_GONE : SKIP_DISABLED }, signatures };
+    const skipped = rest === null ? SKIP_GONE : SKIP_DISABLED;
+    return { entry: { ...named, states, skipped }, signature, signatures };
   }
-  const signature = [element.tag, ...identity.classes].join('.');
   const isCropped = !signatures.has(signature) && signatures.size < MAX_GALLERY_ELEMENTS;
   const shots = await captureEveryState(context, element, nodeId, isCropped);
   return {
     entry: { ...named, ...shots },
+    signature,
     signatures: isCropped ? new Set([...signatures, signature]) : signatures,
   };
 }

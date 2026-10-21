@@ -29,6 +29,11 @@ export interface ElementTarget {
   name: string;
   /** The React component name, when the app runs in development mode and exposes it. */
   componentName: string | null;
+  /**
+   * The tag and the sorted class list, joined by `.` (`button.btn.primary`): controls that share it look
+   * alike, so it groups findings about one component. `null` when the element could not be read.
+   */
+  signature: string | null;
   box: Box;
 }
 

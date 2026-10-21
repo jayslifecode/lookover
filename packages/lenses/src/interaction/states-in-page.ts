@@ -1,5 +1,5 @@
 import type { Box } from '@jayslifecode/lookover-core';
-import { COMPONENT_NAME_SOURCE, STYLE_SNAPSHOT_SOURCE, type StyleSnapshot } from './in-page.js';
+import { STYLE_SNAPSHOT_SOURCE, type StyleSnapshot } from './in-page.js';
 
 /** How many ancestors, from the parent up, can show a control's focus (a wrapper's `:focus-within`). */
 export const MAX_FOCUS_WITHIN_DEPTH = 3;
@@ -18,10 +18,6 @@ function finishAllTransitions(): void {
   for (const animation of document.getAnimations()) {
     if (animation instanceof CSSTransition) animation.finish();
   }
-}
-
-function classList(this: Element): string[] {
-  return Array.from(this.classList).toSorted();
 }
 
 export interface Placement {
@@ -60,7 +56,7 @@ function blurActiveElement(): void {
 }
 
 /*
- * The three sources below are `null` for an element no longer in the document: Chromium still resolves
+ * The two sources below are `null` for an element no longer in the document: Chromium still resolves
  * a removed element that is alive, and its computed style is then all empty strings.
  */
 
@@ -70,16 +66,9 @@ function blurActiveElement(): void {
  * so a snapshot read straight away would show a hover colour that fades in as no change at all.
  */
 export const SETTLED_SNAPSHOT_SOURCE = `function () { if (!this.isConnected) return null; (${finishTransitions.toString()}).call(this); return (${STYLE_SNAPSHOT_SOURCE}).call(this); }`;
-/** `{ componentName, classes }`: the React component (`COMPONENT_NAME_SOURCE`) and the sorted class list. */
-export const IDENTITY_SOURCE = `function () { if (!this.isConnected) return null; return { componentName: (${COMPONENT_NAME_SOURCE}).call(this), classes: (${classList.toString()}).call(this) }; }`;
 /** `SETTLED_SNAPSHOT_SOURCE` for each of the `MAX_FOCUS_WITHIN_DEPTH` nearest ancestors, parent first. */
 export const ANCESTOR_SNAPSHOTS_SOURCE = `function () { return (${ancestorSnapshots.toString()}).call(this, ${MAX_FOCUS_WITHIN_DEPTH}, ${finishTransitions.toString()}, ${STYLE_SNAPSHOT_SOURCE}); }`;
 export const PLACE_IN_VIEW_SOURCE = placeInView.toString();
 export const BLUR_SOURCE = blurActiveElement.toString();
 /** Ends the transitions a cleared state started, so the page is back at rest for whatever measures next. */
 export const FINISH_ALL_TRANSITIONS_SOURCE = finishAllTransitions.toString();
-
-export interface Identity {
-  componentName: string | null;
-  classes: string[];
-}

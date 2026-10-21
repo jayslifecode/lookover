@@ -17,6 +17,7 @@ export const SAVE_BUTTON: ElementTarget = {
   role: 'button',
   name: 'Save',
   componentName: 'SettingsForm',
+  signature: 'button.btn.primary',
   box: BOX,
 };
 

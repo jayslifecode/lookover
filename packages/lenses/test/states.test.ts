@@ -260,7 +260,13 @@ describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
         screenId: 'screen-1',
         key: '/ring.html|#none',
         observed: 'shows no change when it receives keyboard focus',
-        target: { selector: '#none', role: 'button', name: 'No ring', componentName: null },
+        target: {
+          selector: '#none',
+          role: 'button',
+          name: 'No ring',
+          componentName: null,
+          signature: 'button.none',
+        },
       });
       expect(finding.trace).toEqual({
         route: '/ring.html',
