@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Focus rings with drop shadows</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        color: #111827;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        display: block;
+        margin: 24px 0;
+        padding: 8px 16px;
+        border: 1px solid #6b7280;
+        border-radius: 6px;
+        background-color: #f9fafb;
+        color: #111827;
+        font: inherit;
+        outline: none;
+      }
+      button:hover {
+        background-color: #e5e7eb;
+      }
+      /*
+       * Tailwind's focus:ring-2 focus:shadow-lg, as it composes them: the empty inset layers, the ring,
+       * then the two blurred layers of the drop shadow, which reach further than the ring.
+       */
+      #ring-and-shadow:focus-visible {
+        box-shadow:
+          0 0 #0000,
+          0 0 #0000,
+          0 0 0 2px #1d4ed8,
+          0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -4px rgb(0 0 0 / 0.1);
+      }
+      /* The same with a gray-200 ring: about 1.24:1 on white. */
+      #faint-ring-and-shadow:focus-visible {
+        box-shadow:
+          0 0 0 2px #e5e7eb,
+          0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -4px rgb(0 0 0 / 0.1);
+      }
+      /* Focus only lifts the button with a drop shadow: no crisp edge to judge. */
+      #shadow-only:focus-visible {
+        box-shadow:
+          0 10px 15px -3px rgb(0 0 0 / 0.1),
+          0 4px 6px -4px rgb(0 0 0 / 0.1);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <button type="button" id="ring-and-shadow" class="ring-and-shadow">Ring and shadow</button>
+      <button type="button" id="faint-ring-and-shadow" class="faint-ring-and-shadow">Faint ring and shadow</button>
+      <button type="button" id="shadow-only" class="shadow-only">Shadow only</button>
+    </main>
+  </body>
+</html>

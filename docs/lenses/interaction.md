@@ -135,23 +135,29 @@ whatever has it, so no control's rest state shows its focus ring.
 - **Measured:** the contrast of the focus mark the control draws itself, against the colour next to it.
 - **How:** the mark's colour is the `outline-color` when focus gives the control a visible outline that
   differs from its rest outline (style neither `none` nor `auto`, width above 0, colour not fully
-  transparent); otherwise the colour of the outermost `box-shadow` layer that focus adds and that can
-  be seen (not transparent, not `inset`, reaching past the box), so the white offset layer of a ring and
-  the empty layers Tailwind writes are passed over. The background is the effective background of the
-  control's parent, because an outline or ring sits outside the control's box (see "Backgrounds"
-  below). The mark's colour is blended over that background and the WCAG 2.x contrast ratio is taken,
-  rounded once to two decimals.
+  transparent); otherwise the colour of the outermost crisp `box-shadow` layer (no blur) that focus adds
+  and that can be seen (not transparent, not `inset`, reaching past the box), so the white offset layer
+  of a ring, the empty layers Tailwind writes and a drop shadow that reaches further than the ring
+  (`focus:ring-2 focus:shadow-lg`, about 22 px of 10 % black) are passed over. The background is the
+  effective background of the control's parent, because an outline or ring sits outside the control's
+  box (see "Backgrounds" below). The mark's colour is blended over that background and the WCAG 2.x
+  contrast ratio is taken, rounded once to two decimals.
 - **Threshold:** a finding under 3:1 (WCAG 2.2 1.4.11). A ratio that rounds to 3.00 passes.
 - **Not judged:** a mark that is a fill or text colour change, an inset ring, or a ring drawn on
   `::before` or `::after`: there is no single colour next to them to compare.
 - **Skips:** `focus-indicator-ua-ring` when focus gives the browser's own ring (`outline-style: auto`),
   which Chromium paints in two tones that depend on the platform, so it is exempt;
   `focus-indicator-on-ancestor` when the mark is on an ancestor (its presence counts for the rule above,
-  its contrast is only judged on the control itself); `focus-indicator-background:<why>` when the
+  its contrast is only judged on the control itself); `focus-indicator-blurred-only` when the only mark
+  focus adds around the control is blurred shadow (`focus:shadow-lg` alone), whose edge fades into the
+  background, so there is no one colour next to it; `focus-indicator-background:<why>` when the
   background cannot be trusted; `focus-indicator-colour-unreadable` when the mark's colour or the
-  background's cannot be read. The mark's colour is read straight from the computed style, and colours computed in `lab()` (for
-  example Tailwind 4.3's palette) are not read yet, so such rings are skipped with that reason.
-- **Bench:** no seed yet. Fixtures `states/ring.html` (`#faint`, 1.24:1) and `states/dark.html`.
+  background's cannot be read. The mark's colour is read straight from the computed style, and colours
+  computed in `lab()` (for example Tailwind 4.3's palette) are not read yet, so such rings are skipped
+  with that reason.
+- **Bench:** no seed yet. Fixtures `states/ring.html` (`#faint`, 1.24:1), `states/dark.html`,
+  `states/shadow.html` (a ring with a drop shadow) and `states/js-focus.html` (`#js-faint`, a mark set
+  by a focus listener).
 
 ### `interaction.hover-state-missing` (low, worth a look)
 

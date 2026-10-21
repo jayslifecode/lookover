@@ -49,6 +49,7 @@ export {
   captureStates,
   focusIndicatorColor,
   focusMarkOf,
+  isBlurredOnlyIndicator,
   MAX_FOCUS_WITHIN_DEPTH,
   MAX_GALLERY_ELEMENTS,
   MAX_STATE_ELEMENTS,

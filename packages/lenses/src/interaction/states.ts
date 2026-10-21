@@ -31,7 +31,7 @@ export type { FocusMarkVia } from './states-capture.js';
 export { CROP_PADDING_PX } from './states-capture.js';
 export { MAX_FOCUS_WITHIN_DEPTH } from './states-in-page.js';
 export type { FocusLook } from './states-rules.js';
-export { focusIndicatorColor, focusMarkOf, stateDiffers } from './states-rules.js';
+export { focusIndicatorColor, focusMarkOf, isBlurredOnlyIndicator, stateDiffers } from './states-rules.js';
 
 /** Per screen, at most this many controls get forced states; the rest are counted in `skipped`. */
 export const MAX_STATE_ELEMENTS = 60;

@@ -128,13 +128,25 @@ export function focusMarkOf(rest: FocusLook, focus: FocusLook): FocusMarkOn | nu
  * The colour of the mark focus adds around the element, to judge its contrast by: the `outline-color`
  * when focus gives the element a visible outline (not `none` or the browser's own `auto` ring, wider
  * than 0, not fully transparent) that differs from its rest outline; else the colour of the outermost
- * `box-shadow` layer focus adds that can be seen (not transparent, not `inset`, reaching past the box),
- * so the white offset of a ring and the empty layers Tailwind writes are passed over; else `null`: the
- * mark is a fill or text change, an inner ring or something on `::before`/`::after`, and its contrast
- * is not checked.
+ * crisp `box-shadow` layer (no blur) focus adds that can be seen (not transparent, not `inset`,
+ * reaching past the box), so the white offset of a ring, the empty layers Tailwind writes and a drop
+ * shadow that reaches further than the ring (`focus:ring-2 focus:shadow-lg`) are passed over; else
+ * `null`: the mark is a fill or text change, an inner ring, a blurred shadow only (see
+ * `isBlurredOnlyIndicator`) or something on `::before`/`::after`, and its contrast is not checked.
  */
 export function focusIndicatorColor(rest: StyleSnapshot, focus: StyleSnapshot): string | null {
   return outlineIndicator(rest.self, focus.self) ?? shadowIndicator(rest.self, focus.self);
+}
+
+/**
+ * Whether the only mark around the element that focus adds is blurred shadow (`focus:shadow-lg`): no
+ * outline and no crisp shadow layer. A blurred edge fades into the background, so there is no one
+ * colour next to it to judge.
+ */
+export function isBlurredOnlyIndicator(rest: StyleSnapshot, focus: StyleSnapshot): boolean {
+  if (outlineIndicator(rest.self, focus.self) !== null) return false;
+  const added = addedShadowLayers(rest.self, focus.self);
+  return added.length > 0 && added.every((layer) => layer.blur > 0);
 }
 
 /**
@@ -173,7 +185,8 @@ async function judgeFocus(subject: Subject, rest: StyleSnapshot, focus: StyleSna
   if (focusMarkOn !== 'self') return skippedFor('focus-indicator-on-ancestor');
   if (isUserAgentRing(rest.self, focus.self)) return skippedFor('focus-indicator-ua-ring');
   const indicator = focusIndicatorColor(rest, focus);
-  return indicator === null ? NOTHING : judgeIndicator(subject, indicator);
+  if (indicator !== null) return judgeIndicator(subject, indicator);
+  return isBlurredOnlyIndicator(rest, focus) ? skippedFor('focus-indicator-blurred-only') : NOTHING;
 }
 
 function skippedFor(reason: string): Judged {
@@ -309,23 +322,31 @@ interface ShadowLayer {
   color: string;
   /** How far past the box the layer reaches: blur, spread and the larger offset. */
   reach: number;
+  /** The blur radius: 0 for a crisp edge such as a ring. */
+  blur: number;
   isInset: boolean;
 }
 
+/** The colour of the outermost crisp layer focus adds; `null` when it adds none. */
 function shadowIndicator(rest: StyleValues, focus: StyleValues): string | null {
+  const crisp = addedShadowLayers(rest, focus).filter((layer) => layer.blur === 0);
+  const outermost = crisp.reduce<ShadowLayer | null>(
+    (widest, layer) => (widest === null || layer.reach > widest.reach ? layer : widest),
+    null,
+  );
+  return outermost?.color ?? null;
+}
+
+/** The `box-shadow` layers focus adds that can be seen around the box: not transparent, not inset. */
+function addedShadowLayers(rest: StyleValues, focus: StyleValues): ShadowLayer[] {
   const atRest = new Set(shadowLayers(rest['box-shadow']));
-  const added = shadowLayers(focus['box-shadow'])
+  return shadowLayers(focus['box-shadow'])
     .filter((layer) => !atRest.has(layer))
     .map(parseShadowLayer)
     .filter(
       (layer): layer is ShadowLayer =>
         layer !== null && !layer.isInset && layer.reach > 0 && !isTransparent(layer.color),
     );
-  const outermost = added.reduce<ShadowLayer | null>(
-    (widest, layer) => (widest === null || layer.reach > widest.reach ? layer : widest),
-    null,
-  );
-  return outermost?.color ?? null;
 }
 
 function shadowLayers(value: string): string[] {
@@ -337,7 +358,12 @@ function parseShadowLayer(text: string): ShadowLayer | null {
   if (match === null) return null;
   const [, color = '', lengths = '', inset] = match;
   const [x = 0, y = 0, blur = 0, spread = 0] = lengths.trim().split(/\s+/).map(Number.parseFloat);
-  return { color, reach: blur + spread + Math.max(Math.abs(x), Math.abs(y)), isInset: inset !== undefined };
+  return {
+    color,
+    reach: blur + spread + Math.max(Math.abs(x), Math.abs(y)),
+    blur,
+    isInset: inset !== undefined,
+  };
 }
 
 /** A colour that cannot be read is not known to be transparent; the contrast check then skips it. */

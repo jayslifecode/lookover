@@ -2,7 +2,14 @@ import { fileURLToPath } from 'node:url';
 import type { Finding, InstrumentedPage, LensContext, StepFinding } from '@jayslifecode/lookover-core';
 import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
-import { captureStates, type GalleryEntry, type StatesResult } from '../src/interaction/states.js';
+import { STATE_STYLE_PROPERTIES, type StyleSnapshot, type StyleValues } from '../src/interaction/in-page.js';
+import {
+  captureStates,
+  focusIndicatorColor,
+  type GalleryEntry,
+  isBlurredOnlyIndicator,
+  type StatesResult,
+} from '../src/interaction/states.js';
 import { createTestRun, lensContextFor, type TestRun } from './helpers/context.js';
 import { launchTestSession, type TestSession } from './helpers/session.js';
 
@@ -15,6 +22,43 @@ const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/states', import.meta.url))
 const BROWSER_TIMEOUT_MS = 60_000;
 const FOCUS_VISIBLE = 'interaction.focus-visible-missing';
 const INDICATOR_CONTRAST = 'interaction.focus-indicator-contrast';
+const BLUE = 'rgb(29, 78, 216)';
+/** Tailwind's `shadow-lg`, as Chromium computes it: two blurred layers of 10 % black. */
+const SHADOW_LG = ['rgba(0, 0, 0, 0.1) 0px 10px 15px -3px', 'rgba(0, 0, 0, 0.1) 0px 4px 6px -4px'];
+const EMPTY_LAYER = 'rgba(0, 0, 0, 0) 0px 0px 0px 0px';
+
+/** A snapshot with nothing set but the `box-shadow` of the element itself. */
+function withShadow(layers: readonly string[]): StyleSnapshot {
+  const none = {
+    ...(Object.fromEntries(STATE_STYLE_PROPERTIES.map((name) => [name, ''])) as StyleValues),
+    'outline-style': 'none',
+    'box-shadow': 'none',
+  };
+  const self = { ...none, 'box-shadow': layers.length === 0 ? 'none' : layers.join(', ') };
+  return { self, before: none, after: none };
+}
+
+describe('focusIndicatorColor with blurred shadows', () => {
+  const rest = withShadow([]);
+
+  test('takes the crisp ring over a drop shadow that reaches further (focus:ring-2 focus:shadow-lg)', () => {
+    const focus = withShadow([EMPTY_LAYER, EMPTY_LAYER, `${BLUE} 0px 0px 0px 2px`, ...SHADOW_LG]);
+
+    expect(focusIndicatorColor(rest, focus)).toBe(BLUE);
+    expect(isBlurredOnlyIndicator(rest, focus)).toBe(false);
+  });
+
+  test('has no colour to judge when focus adds only blurred layers, and says so', () => {
+    const focus = withShadow(SHADOW_LG);
+
+    expect(focusIndicatorColor(rest, focus)).toBeNull();
+    expect(isBlurredOnlyIndicator(rest, focus)).toBe(true);
+  });
+
+  test('is not blurred-only when focus adds no shadow at all', () => {
+    expect(isBlurredOnlyIndicator(rest, rest)).toBe(false);
+  });
+});
 
 describe('captureStates on focus marks', { timeout: BROWSER_TIMEOUT_MS }, () => {
   let fixture: FixtureServer;
@@ -103,6 +147,20 @@ describe('captureStates on focus marks', { timeout: BROWSER_TIMEOUT_MS }, () => 
         attribute: document.getElementById('js-attribute')?.hasAttribute('data-focus-visible'),
       }));
       expect(left).toEqual({ active: 'BODY', classes: ['js-class', 'js-faint'], attribute: false });
+    });
+  });
+
+  describe('a focus ring with a drop shadow (shadow.html)', () => {
+    test('judges the ring, not the shadow that reaches further, and skips a shadow-only mark', async () => {
+      const { result } = await capture('shadow.html');
+
+      expect(selectorsFor(result.findings, INDICATOR_CONTRAST)).toEqual(['#faint-ring-and-shadow']);
+      const [faint] = result.findings.filter((finding) => finding.rule.id === INDICATOR_CONTRAST);
+      expect(faint?.observed).toBe(
+        'has a focus outline rgb(229, 231, 235) with 1.24:1 contrast against rgb(255, 255, 255)',
+      );
+      expect(result.skipped).toEqual([{ reason: 'focus-indicator-blurred-only', count: 1 }]);
+      expect(selectorsFor(result.findings, FOCUS_VISIBLE)).toEqual([]);
     });
   });
 });
