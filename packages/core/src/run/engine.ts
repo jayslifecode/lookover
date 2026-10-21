@@ -13,6 +13,7 @@ import { discoverNextRoutes, staticRoutePatterns } from '../map/next-routes.js';
 import { writeAppMap } from '../map/persist.js';
 import type { AppMap, RouteInfo, Screen, Viewport } from '../map/types.js';
 import type { Observer } from '../observers/types.js';
+import { redactDeep } from '../util/redact.js';
 import { type ConfirmHosts, confirmBackends } from './backend-probe.js';
 import type { RunEvent } from './events.js';
 import { Inspection } from './inspection.js';
@@ -56,7 +57,7 @@ export interface ReviewResult {
    * before the run, or by adding them to `confirmedBackendHosts` in lookover.config.json.
    */
   blockedUnconfirmedHosts: string[];
-  /** What the observers and lenses found, as written to `findings.json`. */
+  /** What the observers and lenses found, as written to `findings.json`: redacted. */
   findings: FindingsFile;
 }
 
@@ -153,7 +154,8 @@ async function review(
     screens,
   };
   await writeAppMap(ctx, map);
-  const findings = inspection.file();
+  // Redacted once, so what the caller gets is what was written: a CLI can never print raw page text.
+  const findings = redactDeep(inspection.file());
   await writeFindings(ctx, findings);
   return {
     map,
