@@ -12,7 +12,7 @@ export function SiteHeader() {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-6 py-4">
-        <Link href="/" className="text-lg font-semibold text-slate-900">
+        <Link href="/" className="text-lg font-semibold text-slate-900 hover:underline">
           Lookover Bench
         </Link>
         <nav aria-label="Main">
