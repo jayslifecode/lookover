@@ -24,6 +24,9 @@ const BROWSER_TIMEOUT_MS = 60_000;
 const OVERFLOW = 'interaction.horizontal-overflow';
 const CLIPPED = 'interaction.text-clipped';
 const REDIRECTED = 'viewport-reload-redirected';
+const RELOAD_FAILED = 'viewport-reload-failed';
+/** Short, so a reload the fixture never answers fails in well under the test's own timeout. */
+const SHORT_RELOAD_TIMEOUT_MS = 500;
 const DESKTOP: Viewport = { name: 'desktop', width: 1440, height: 900 };
 const TABLET: Viewport = { name: 'tablet', width: 768, height: 1024 };
 const MOBILE: Viewport = { name: 'mobile', width: 390, height: 844 };
@@ -59,14 +62,32 @@ function redirectsAfter(served: number, file: string, to: string): FixtureRoute 
   };
 }
 
+/** A route that serves `file` for its first `served` requests and never answers after that. */
+function hangsAfter(served: number, file: string): { route: FixtureRoute; requests: () => number } {
+  let requests = 0;
+  return {
+    route: (_req, _res, serveStatic) => {
+      requests += 1;
+      if (requests <= served) serveStatic(file);
+    },
+    requests: () => requests,
+  };
+}
+
 describe('sweepViewports', { timeout: BROWSER_TIMEOUT_MS }, () => {
   let fixture: FixtureServer;
   let browser: TestSession;
   let run: TestRun;
   let ipage: InstrumentedPage;
+  // The first load is overflow.html; the sweep's first reload never gets an answer.
+  const hangsOnReload = hangsAfter(1, '/overflow.html');
+  // The first load and the reload at 390 px are overflow.html; the reload back at 1440 px never gets one.
+  const hangsOnRestore = hangsAfter(2, '/overflow.html');
 
   beforeAll(async () => {
     fixture = await serveFixture(FIXTURE_DIR, {
+      '/hangs-on-reload.html': hangsOnReload.route,
+      '/hangs-on-restore.html': hangsOnRestore.route,
       // The first load is fine.html; the sweep's first reload lands on overflow.html, which must not be measured.
       '/moves-on-reload.html': redirectsAfter(1, '/fine.html', '/overflow.html'),
       // The first load and the reload at 390 px are overflow.html; the reload back at 1440 px lands elsewhere.
@@ -304,6 +325,39 @@ describe('sweepViewports', { timeout: BROWSER_TIMEOUT_MS }, () => {
         skipped: [{ reason: REDIRECTED, count: 2 }],
       });
       expect(await ipage.page.title()).toBe(MARKED_TITLE);
+    });
+  });
+
+  describe('when a reload fails', () => {
+    test('keeps what it measured, counts the viewports left unmeasured and restores the size without a reload', async () => {
+      const context = await open('hangs-on-reload.html', { viewports: [DESKTOP, TABLET, MOBILE] });
+
+      const { findings, skipped } = await sweepViewports(context, {
+        reloadTimeoutMs: SHORT_RELOAD_TIMEOUT_MS,
+      });
+
+      expect(rulesAndKeys(findings)).toEqual([[CLIPPED, '/hangs-on-reload.html|desktop|clipped']]);
+      // The tablet reload never got an answer; neither it nor the mobile viewport was measured.
+      expect(skipped).toEqual([{ reason: RELOAD_FAILED, count: 2 }]);
+      expect(ipage.page.viewportSize()).toEqual({ width: DESKTOP.width, height: DESKTOP.height });
+      // The first load and the one reload that failed: the page was not reloaded again to restore it.
+      expect(hangsOnReload.requests()).toBe(2);
+    });
+
+    test('keeps every viewport it measured when only the reload back at the first viewport fails', async () => {
+      const context = await open('hangs-on-restore.html');
+
+      const { findings, skipped } = await sweepViewports(context, {
+        reloadTimeoutMs: SHORT_RELOAD_TIMEOUT_MS,
+      });
+
+      expect(rulesAndKeys(findings)).toEqual([
+        [CLIPPED, '/hangs-on-restore.html|desktop|clipped'],
+        [OVERFLOW, '/hangs-on-restore.html|mobile'],
+        [CLIPPED, '/hangs-on-restore.html|mobile|clipped'],
+      ]);
+      expect(skipped).toEqual([{ reason: RELOAD_FAILED, count: 1 }]);
+      expect(ipage.page.viewportSize()).toEqual({ width: DESKTOP.width, height: DESKTOP.height });
     });
   });
 });

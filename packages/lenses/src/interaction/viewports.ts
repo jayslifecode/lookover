@@ -9,6 +9,7 @@ import {
   occurrenceFinding,
   type SelectorCandidate,
   stableSelector,
+  stopLoading,
   type Viewport,
 } from '@jayslifecode/lookover-core';
 import { ruleById } from '@jayslifecode/lookover-rules';
@@ -24,12 +25,22 @@ const CLIPPED_RULE = ruleById('interaction.text-clipped');
 const OVERFLOW_TOLERANCE_PX = 1;
 const FONTS_READY_TIMEOUT_MS = 2_000;
 /** As long as the crawler gives a navigation by default. */
-const RELOAD_TIMEOUT_MS = 15_000;
+export const RELOAD_TIMEOUT_MS = 15_000;
 const SKIP_TIME_BUDGET = 'time-budget';
 /** A reload that landed on another URL: what it shows is not the screen. */
 const SKIP_REDIRECTED = 'viewport-reload-redirected';
+/**
+ * A reload that threw (it timed out, or the document failed to load): there is nothing to measure. Its
+ * message is dropped; the request observer records the failed document itself.
+ */
+const SKIP_RELOAD_FAILED = 'viewport-reload-failed';
 /** Waits, in the page, until its fonts have loaded: text set in a fallback font is measured too narrow. */
 const FONTS_READY_SOURCE = '() => document.fonts.ready.then(() => undefined)';
+
+export interface SweepOptions {
+  /** How long each reload may take; `RELOAD_TIMEOUT_MS` by default. */
+  reloadTimeoutMs?: number;
+}
 
 export interface SweepResult {
   findings: Finding[];
@@ -45,6 +56,8 @@ const NOTHING: SweepResult = { findings: [], screenshots: [], skipped: [] };
 
 /** What putting the first viewport back takes once the sweep is over. */
 type Restore = 'nothing' | 'resize' | 'reload';
+/** How a reload went: on the screen's URL, landed elsewhere, or threw. */
+type Reloaded = 'on-screen' | 'redirected' | 'failed';
 
 interface Swept {
   result: SweepResult;
@@ -72,17 +85,20 @@ interface Swept {
  * after a reload (a redirect: the session expired, the screen moved) or by the end of a measurement (a
  * client-side route change), what it shows is dropped, and that viewport and every one after it count as
  * `viewport-reload-redirected`; only the first viewport's size is put back, and the page is not reloaded
- * again. The reload back at the first viewport is checked the same way.
+ * again. A reload that throws (it takes longer than `options.reloadTimeoutMs`, 15 s by default, or the
+ * document fails to load) ends the sweep the same way, counted as `viewport-reload-failed`, and what was
+ * measured before it is kept. The reload back at the first viewport is checked the same way.
  */
-export async function sweepViewports(context: LensContext): Promise<SweepResult> {
+export async function sweepViewports(context: LensContext, options: SweepOptions = {}): Promise<SweepResult> {
   const [first] = context.viewports;
   if (first === undefined) return NOTHING;
-  const { result, restore } = await sweepEach(context);
-  const restored = await restoreFirst(context, first, restore);
+  const timeoutMs = options.reloadTimeoutMs ?? RELOAD_TIMEOUT_MS;
+  const { result, restore } = await sweepEach(context, timeoutMs);
+  const restored = await restoreFirst(context, first, restore, timeoutMs);
   return { ...result, skipped: tally([...result.skipped, ...restored]) };
 }
 
-async function sweepEach(context: LensContext): Promise<Swept> {
+async function sweepEach(context: LensContext, timeoutMs: number): Promise<Swept> {
   const { viewports } = context;
   let result = NOTHING;
   for (const [index, viewport] of viewports.entries()) {
@@ -90,30 +106,49 @@ async function sweepEach(context: LensContext): Promise<Swept> {
     if (performance.now() >= context.deadline) {
       return { result: withSkip(result, SKIP_TIME_BUDGET, left), restore: index > 1 ? 'reload' : 'nothing' };
     }
-    const isOnScreen = index === 0 || (await reloadAt(context, viewport));
-    const measured = isOnScreen ? await measureAt(context, viewport) : null;
+    const reloaded = index === 0 ? 'on-screen' : await reloadAt(context, viewport, timeoutMs);
+    if (reloaded === 'failed')
+      return { result: withSkip(result, SKIP_RELOAD_FAILED, left), restore: 'resize' };
+    const measured = reloaded === 'on-screen' ? await measureAt(context, viewport) : null;
     if (measured === null) return { result: withSkip(result, SKIP_REDIRECTED, left), restore: 'resize' };
     result = merge(result, measured);
   }
   return { result, restore: viewports.length > 1 ? 'reload' : 'nothing' };
 }
 
-/** Puts the first viewport back; the skip of a reload back that landed elsewhere. */
-async function restoreFirst(context: LensContext, first: Viewport, restore: Restore): Promise<LensSkip[]> {
+/** Puts the first viewport back; the skip of a reload back that landed elsewhere or threw. */
+async function restoreFirst(
+  context: LensContext,
+  first: Viewport,
+  restore: Restore,
+  timeoutMs: number,
+): Promise<LensSkip[]> {
   if (restore === 'nothing') return [];
   if (restore === 'resize') {
     await context.ipage.page.setViewportSize(sizeOf(first));
     return [];
   }
-  return (await reloadAt(context, first)) ? [] : [{ reason: SKIP_REDIRECTED, count: 1 }];
+  const reloaded = await reloadAt(context, first, timeoutMs);
+  if (reloaded === 'failed') return [{ reason: SKIP_RELOAD_FAILED, count: 1 }];
+  return reloaded === 'redirected' ? [{ reason: SKIP_REDIRECTED, count: 1 }] : [];
 }
 
-/** Resizes the page and reloads it; `false` when the reload landed on a URL other than the screen's. */
-async function reloadAt(context: LensContext, viewport: Viewport): Promise<boolean> {
-  const { page } = context.ipage;
+/**
+ * Resizes the page and reloads it: `redirected` when the reload landed on a URL other than the
+ * screen's, `failed` when it threw (the size stays the one asked for). A failed reload's navigation is
+ * stopped, so the page can be resized again (see `stopLoading`).
+ */
+async function reloadAt(context: LensContext, viewport: Viewport, timeoutMs: number): Promise<Reloaded> {
+  const { page, cdp } = context.ipage;
   await page.setViewportSize(sizeOf(viewport));
-  await page.reload({ waitUntil: 'load', timeout: RELOAD_TIMEOUT_MS });
-  return isSameScreenUrl(page.url(), context.screen.url);
+  try {
+    await page.reload({ waitUntil: 'load', timeout: timeoutMs });
+  } catch {
+    // Why it failed is the page's business; the request observer records the failed document.
+    await stopLoading(cdp);
+    return 'failed';
+  }
+  return isSameScreenUrl(page.url(), context.screen.url) ? 'on-screen' : 'redirected';
 }
 
 /** The same URL once both are normalised: a trailing slash and the hash do not count. */

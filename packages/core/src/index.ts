@@ -10,6 +10,7 @@ export {
   pushNodes,
   resolveBackendNode,
   resolveSelector,
+  stopLoading,
 } from './browser/cdp.js';
 export type { NetworkPolicy, RequestKind, ResolverTestHooks, Verdict } from './browser/network-policy.js';
 export {

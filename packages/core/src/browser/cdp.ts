@@ -150,6 +150,15 @@ export async function focusBackendNode(cdp: CDPSession, backendNodeId: number): 
 }
 
 /**
+ * Stops the page's pending navigation (CDP `Page.stopLoading`), as the browser's stop button does. A
+ * navigation that never finishes (a reload whose answer never comes) otherwise keeps the page waiting
+ * for it: Playwright's `setViewportSize` and `evaluate` hang until it commits.
+ */
+export async function stopLoading(cdp: CDPSession): Promise<void> {
+  await cdp.send('Page.stopLoading');
+}
+
+/**
  * Calls `fnSource` (a function declaration; `this` is the element) with `args` and returns its
  * result by value. Rejects when the function throws in the page.
  */

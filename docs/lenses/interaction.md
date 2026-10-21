@@ -367,7 +367,13 @@ The sweep measures the screen at each viewport in `viewports` in the config (by 
   one after it are counted as `viewport-reload-redirected`. The sweep then stops: only the first
   viewport's size is put back, and the page is not reloaded again. URLs are compared without their
   hash or a trailing slash, with the query parameters in any order.
-- **Skips:** `viewport-reload-redirected`, and `time-budget` for the viewports the deadline left out.
+- **A reload that fails.** A reload that throws (no answer within 15 s, or the document fails to load)
+  ends the sweep the same way: the pending navigation is stopped, that viewport and every one after it
+  are counted as `viewport-reload-failed`, the first viewport's size is put back without a reload, and
+  what was measured before is kept. A reload back at the first viewport that fails counts once. The
+  error itself is not kept: the request observer records the failed document.
+- **Skips:** `viewport-reload-redirected`, `viewport-reload-failed`, and `time-budget` for the viewports
+  the deadline left out.
 
 ### `interaction.horizontal-overflow` (high)
 

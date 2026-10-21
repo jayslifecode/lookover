@@ -62,5 +62,5 @@ export type { TabWalkResult } from './interaction/tab-walk.js';
 export { MAX_TAB_PRESSES, TRAP_REPEATS, tabWalk } from './interaction/tab-walk.js';
 export type { TargetSizeResult } from './interaction/target-size.js';
 export { MIN_TARGET_PX, passesTargetSize } from './interaction/target-size.js';
-export type { SweepResult } from './interaction/viewports.js';
-export { sweepViewports } from './interaction/viewports.js';
+export type { SweepOptions, SweepResult } from './interaction/viewports.js';
+export { RELOAD_TIMEOUT_MS, sweepViewports } from './interaction/viewports.js';
