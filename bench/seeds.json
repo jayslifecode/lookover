@@ -41,6 +41,14 @@
       "selector": "#workspaceName",
       "rule": "interaction.positive-tabindex",
       "expectedSeverity": "low"
+    },
+    {
+      "id": "interaction-006",
+      "lens": "interaction",
+      "route": "/organisations",
+      "selector": "[data-testid=\"organisations-table\"]",
+      "rule": "interaction.horizontal-overflow",
+      "expectedSeverity": "high"
     }
   ]
 }

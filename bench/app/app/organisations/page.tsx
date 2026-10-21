@@ -45,8 +45,8 @@ export default async function OrganisationsPage({ searchParams }: OrganisationsP
       <p role="status" className="text-sm text-slate-700">
         {savedOrganisation === undefined ? null : `Saved ${savedOrganisation.name}.`}
       </p>
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="rounded-lg border border-slate-200 bg-white">
+        <table data-testid="organisations-table" className="w-full min-w-[720px] text-left text-sm">
           <thead className="bg-slate-100 text-slate-700">
             <tr>
               <th scope="col" className="px-4 py-2 font-medium">
