@@ -57,5 +57,7 @@ export {
 } from './interaction/states.js';
 export type { StaticResult } from './interaction/static.js';
 export { MAX_CONTRAST_ELEMENTS, MUST_BE_FOCUSABLE_ROLES, measureStatic } from './interaction/static.js';
+export type { TabWalkResult } from './interaction/tab-walk.js';
+export { MAX_TAB_PRESSES, TRAP_REPEATS, tabWalk } from './interaction/tab-walk.js';
 export type { TargetSizeResult } from './interaction/target-size.js';
 export { MIN_TARGET_PX, passesTargetSize } from './interaction/target-size.js';

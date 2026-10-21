@@ -1,0 +1,307 @@
+import {
+  type ElementTarget,
+  type Finding,
+  type LensContext,
+  type LensSkip,
+  type StepTrace,
+  stableSelector,
+  stepFinding,
+} from '@jayslifecode/lookover-core';
+import { type Rule, ruleById } from '@jayslifecode/lookover-rules';
+import { ACTIVE_ELEMENT_SOURCE, type ActiveElement, COMPONENT_NAME_SOURCE } from './in-page.js';
+import { evaluateSource, measureOn } from './measure.js';
+import { tally } from './skips.js';
+import type { FocusStop } from './states.js';
+import { BLUR_SOURCE, FINISH_ALL_TRANSITIONS_SOURCE } from './states-in-page.js';
+
+/** Per screen, Tab is pressed at most this many times, whatever the screen holds. */
+export const MAX_TAB_PRESSES = 300;
+/** Focus on the same element after this many Tab presses in a row is a keyboard trap. */
+export const TRAP_REPEATS = 3;
+
+const HIDDEN_RULE = ruleById('interaction.focus-hidden');
+const TRAP_RULE = ruleById('interaction.focus-trap');
+
+/** A page may hold controls the accessibility tree did not list, so more than the count are allowed. */
+const PRESSES_PER_CONTROL = 2;
+const PRESS_HEADROOM = 5;
+/** While Tab moves through the controls inside an iframe, the iframe stays the page's active element. */
+const FRAME_TAG = 'iframe';
+
+const SKIP_UNADDRESSABLE = 'focus-stop-unaddressable';
+const SKIP_PRESSES_CAP = 'tab-presses-cap';
+const SKIP_TIME_BUDGET = 'time-budget';
+
+const HIDDEN_WHAT = 'bounding box and visibility of document.activeElement';
+const TRAP_WHAT = 'document.activeElement after each of the last Tab presses';
+/** Why a person cannot see the focused element, as `ACTIVE_ELEMENT_SOURCE` names it. */
+const HIDDEN_REASONS: Readonly<Record<string, string>> = {
+  'zero-size': 'it has no width or height',
+  visibility: 'it is hidden with the visibility property',
+  opacity: 'it is fully transparent',
+  offscreen: 'it is outside the page',
+};
+
+/*
+ * Runs in the page, so it stays self-contained (see `in-page.ts`): what it needs is passed in.
+ *
+ * Blurring is not enough to start Tab at the top: Chromium goes on from the element that last had
+ * focus, or was last clicked, so the controls before it would never be reached. Focusing the body
+ * (it has to be given a `tabindex` for that, put back at once) moves that starting point to the top.
+ */
+function restartTabOrder(blur: () => void): void {
+  blur();
+  const { body } = document;
+  const tabindex = body.getAttribute('tabindex');
+  body.tabIndex = -1;
+  body.focus({ preventScroll: true });
+  body.blur();
+  if (tabindex === null) body.removeAttribute('tabindex');
+  else body.setAttribute('tabindex', tabindex);
+  window.scrollTo(0, 0);
+}
+
+/** Back to the top of the page with nothing focused, so the first Tab press lands on the first control. */
+const RESTART_TAB_ORDER_SOURCE = `() => (${restartTabOrder.toString()})(${BLUR_SOURCE})`;
+/**
+ * `ACTIVE_ELEMENT_SOURCE` once the transitions the focus started have run to their end, so a skip link
+ * that slides in on `:focus` is read in the place it settles, not where it started.
+ */
+const SETTLED_ACTIVE_ELEMENT_SOURCE = `() => { (${FINISH_ALL_TRANSITIONS_SOURCE})(); return (${ACTIVE_ELEMENT_SOURCE})(); }`;
+
+export interface TabWalkResult {
+  focusOrder: FocusStop[];
+  findings: Finding[];
+  skipped: LensSkip[];
+}
+
+/** A stop that can be named in a finding: its selector survives redaction. */
+type AddressedStop = FocusStop & { selector: string };
+
+/** Why the walk stopped. */
+type WalkEnd =
+  /** Focus left the document, or came back round to the first stop. */
+  | { kind: 'finished' }
+  /** The same element kept focus for `TRAP_REPEATS` presses in a row. */
+  | { kind: 'stuck' }
+  /** The presses ran out before either. */
+  | { kind: 'cap' }
+  | { kind: 'deadline'; pressesLeft: number };
+
+interface Walked {
+  stops: FocusStop[];
+  end: WalkEnd;
+}
+
+/**
+ * Presses Tab from the top of the page and records where focus lands, one `FocusStop` for each press
+ * (`index` is the number of presses it took). At most `min(2 * focusableCount + 5, MAX_TAB_PRESSES)`
+ * presses are made, and `context.deadline` is checked before each. The walk ends when focus leaves the
+ * document (the active element is the body), when it comes back round to the first stop, when the same
+ * element keeps focus for `TRAP_REPEATS` presses (`isStuck`), when the presses run out
+ * (`tab-presses-cap`) or at the deadline (`time-budget`, counting the presses not made).
+ *
+ * - `interaction.focus-hidden`: a stop that cannot be seen (see `ACTIVE_ELEMENT_SOURCE`), measured once
+ *   the focus has landed and its transitions have finished, so a skip link that shows itself on
+ *   `:focus` is not reported. One finding for each element, at its first stop.
+ * - `interaction.focus-trap`: the walk was stuck on an element while the screen has more than one
+ *   focusable control.
+ *
+ * A stop with no selector of its own is kept in the order but cannot be reported
+ * (`focus-stop-unaddressable`).
+ */
+export async function tabWalk(context: LensContext, focusableCount: number): Promise<TabWalkResult> {
+  const { stops, end } = await walkStops(context, pressBudget(focusableCount));
+  return {
+    focusOrder: stops,
+    findings: await judge(context, stops, end, focusableCount),
+    skipped: tally([...unaddressableSkips(stops), ...endSkips(end)]),
+  };
+}
+
+function pressBudget(focusableCount: number): number {
+  return Math.min(PRESSES_PER_CONTROL * focusableCount + PRESS_HEADROOM, MAX_TAB_PRESSES);
+}
+
+async function walkStops(context: LensContext, budget: number): Promise<Walked> {
+  const { page } = context.ipage;
+  await evaluateSource(page, RESTART_TAB_ORDER_SOURCE);
+  let stops: FocusStop[] = [];
+  for (let press = 1; press <= budget; press += 1) {
+    if (performance.now() >= context.deadline) {
+      return { stops, end: { kind: 'deadline', pressesLeft: budget - press + 1 } };
+    }
+    await page.keyboard.press('Tab');
+    const active = await evaluateSource<ActiveElement>(page, SETTLED_ACTIVE_ELEMENT_SOURCE);
+    if (active.isBody) return { stops, end: { kind: 'finished' } };
+    const stop = stopOf(press, active);
+    if (isWrap(stops, stop)) return { stops, end: { kind: 'finished' } };
+    stops = [...stops, stop];
+    if (isStuck(stops)) return { stops, end: { kind: 'stuck' } };
+  }
+  return { stops, end: { kind: 'cap' } };
+}
+
+function stopOf(index: number, { selector, tag, box, hidden }: ActiveElement): FocusStop {
+  return { index, selector: selector === null ? null : stableSelector(selector), tag, box, hidden };
+}
+
+/** Focus is back on the first stop after being somewhere else: the walk has been all the way round. */
+function isWrap(stops: readonly FocusStop[], stop: FocusStop): boolean {
+  const [first] = stops;
+  const previous = lastOf(stops);
+  return (
+    first !== undefined &&
+    stop.selector !== null &&
+    stop.selector === first.selector &&
+    previous?.selector !== stop.selector
+  );
+}
+
+/** The last `TRAP_REPEATS` stops are on one element. Not an iframe: see `FRAME_TAG`. */
+function isStuck(stops: readonly FocusStop[]): boolean {
+  const run = stops.slice(-TRAP_REPEATS);
+  const [head] = run;
+  if (head === undefined || run.length < TRAP_REPEATS) return false;
+  if (head.selector === null || head.tag === FRAME_TAG) return false;
+  return run.every(({ selector }) => selector === head.selector);
+}
+
+function lastOf(stops: readonly FocusStop[]): FocusStop | null {
+  return stops.at(-1) ?? null;
+}
+
+function isAddressed(stop: FocusStop): stop is AddressedStop {
+  return stop.selector !== null;
+}
+
+/**
+ * The findings for the stops, built one after another: finding an element by its selector requests the
+ * document again, which drops the node ids a finding built at the same time was given.
+ */
+async function judge(
+  context: LensContext,
+  stops: readonly FocusStop[],
+  end: WalkEnd,
+  focusableCount: number,
+): Promise<Finding[]> {
+  let findings: Finding[] = [];
+  for (const stop of firstHiddenStops(stops)) {
+    findings = [...findings, await hiddenFinding(context, stop)];
+  }
+  const trapped = trappedStop(stops, end, focusableCount);
+  return trapped === null ? findings : [...findings, await trapFinding(context, trapped)];
+}
+
+/** The element that keeps focus, when the walk was stuck and there was somewhere else to go. */
+function trappedStop(
+  stops: readonly FocusStop[],
+  end: WalkEnd,
+  focusableCount: number,
+): AddressedStop | null {
+  const last = lastOf(stops);
+  const isTrapped = end.kind === 'stuck' && focusableCount > 1;
+  return isTrapped && last !== null && isAddressed(last) ? last : null;
+}
+
+/** The first stop at each element that cannot be seen. */
+function firstHiddenStops(stops: readonly FocusStop[]): AddressedStop[] {
+  const seen = new Set<string>();
+  return stops.filter(isAddressed).filter((stop) => {
+    if (stop.hidden === null || seen.has(stop.selector)) return false;
+    seen.add(stop.selector);
+    return true;
+  });
+}
+
+function unaddressableSkips(stops: readonly FocusStop[]): LensSkip[] {
+  const count = stops.filter((stop) => stop.selector === null).length;
+  return count > 0 ? [{ reason: SKIP_UNADDRESSABLE, count }] : [];
+}
+
+function endSkips(end: WalkEnd): LensSkip[] {
+  if (end.kind === 'cap') return [{ reason: SKIP_PRESSES_CAP, count: 1 }];
+  if (end.kind === 'deadline') return [{ reason: SKIP_TIME_BUDGET, count: end.pressesLeft }];
+  return [];
+}
+
+async function hiddenFinding(context: LensContext, stop: AddressedStop): Promise<Finding> {
+  const reason = stop.hidden ?? '';
+  return findingFor(context, HIDDEN_RULE, stop, {
+    what: HIDDEN_WHAT,
+    observed: `takes keyboard focus on Tab press ${stop.index} but cannot be seen: ${HIDDEN_REASONS[reason] ?? reason}`,
+    measured: { selector: stop.selector, press: stop.index, hidden: reason, box: stop.box },
+  });
+}
+
+function trapFinding(context: LensContext, stop: AddressedStop): Promise<Finding> {
+  return findingFor(context, TRAP_RULE, stop, {
+    what: TRAP_WHAT,
+    observed: `keeps keyboard focus when Tab is pressed ${TRAP_REPEATS} times in a row, so a keyboard user cannot move past it`,
+    measured: { selector: stop.selector, press: stop.index, repeats: TRAP_REPEATS },
+  });
+}
+
+interface FindingText {
+  /** What the trace's last step measures; it also labels the measurements evidence. */
+  what: string;
+  observed: string;
+  /** Stored as the finding's measurements. */
+  measured: Record<string, unknown>;
+}
+
+/**
+ * A step finding for `rule` on the element of `stop`, with the trace `navigate`, `set-viewport`, Tab
+ * pressed as many times as it took to get there, and `measure`; the measurements are its evidence.
+ */
+async function findingFor(
+  context: LensContext,
+  rule: Rule,
+  stop: AddressedStop,
+  { what, observed, measured }: FindingText,
+): Promise<Finding> {
+  const ref = await context.ctx.evidence.putJson('measurements', measured);
+  return stepFinding({
+    rule,
+    screen: context.screen,
+    target: await targetOf(context, stop),
+    trace: traceOf(context, stop.index, what),
+    observed,
+    evidence: [{ kind: 'measurements', label: what, ref }],
+  });
+}
+
+/**
+ * The stop's element as the screen's elements list it (its role, name and box); a stop the
+ * accessibility tree did not list is named by its tag and its own box.
+ */
+async function targetOf(context: LensContext, stop: AddressedStop): Promise<ElementTarget> {
+  const listed = context.screen.elements.find(({ selector }) => selector === stop.selector);
+  const componentName = await measureOn<string | null>(
+    context.ipage.cdp,
+    { selector: stop.selector },
+    COMPONENT_NAME_SOURCE,
+  );
+  return {
+    selector: stop.selector,
+    role: listed?.role ?? stop.tag,
+    name: listed?.name ?? '',
+    componentName: componentName ?? null,
+    box: listed?.box ?? stop.box,
+  };
+}
+
+function traceOf(context: LensContext, presses: number, what: string): StepTrace {
+  const { route, url, viewport } = context.screen;
+  return {
+    route,
+    url,
+    viewport,
+    steps: [
+      { kind: 'navigate', url },
+      { kind: 'set-viewport', viewport },
+      { kind: 'press', key: 'Tab', times: presses },
+      { kind: 'measure', what },
+    ],
+  };
+}

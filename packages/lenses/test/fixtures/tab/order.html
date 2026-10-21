@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tab order fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+      }
+      /* A skip link: off the page until it has focus, then slid in with a transition. */
+      .skip {
+        position: absolute;
+        top: 0;
+        left: -9999px;
+        padding: 8px;
+        background: #fff;
+        transition: left 2s;
+      }
+      .skip:focus {
+        left: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip" id="skip" href="#main">Skip to content</a>
+    <main id="main">
+      <button type="button" id="first">First</button>
+      <button type="button" id="second">Second</button>
+      <a id="faint" href="#faint" style="opacity: 0">Faint link</a>
+      <button type="button" id="fourth">Fourth</button>
+      <a id="away" href="#away" style="position: absolute; left: -9999px">Away link</a>
+    </main>
+  </body>
+</html>

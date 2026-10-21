@@ -57,10 +57,14 @@ export interface GalleryEntry {
 
 /** One stop of the Tab walk, in the order focus reached it. */
 export interface FocusStop {
+  /** How many Tab presses from the top of the page it took to land here. */
   index: number;
+  /** `null` when the page's selectors do not find the element again. */
   selector: string | null;
   tag: string;
+  /** The border box in document coordinates. */
   box: Box;
+  /** Why a person could not see the focused element (see `ACTIVE_ELEMENT_SOURCE`); `null` when they could. */
   hidden: string | null;
 }
 
