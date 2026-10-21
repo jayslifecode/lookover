@@ -49,6 +49,13 @@
       "selector": "[data-testid=\"organisations-table\"]",
       "rule": "interaction.horizontal-overflow",
       "expectedSeverity": "high"
+    },
+    {
+      "id": "observers-001",
+      "lens": "observers",
+      "route": "/reports",
+      "rule": "observers.console-error",
+      "expectedSeverity": "medium"
     }
   ]
 }

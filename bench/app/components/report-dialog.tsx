@@ -1,11 +1,14 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { RegistrationSummary } from '@/lib/summary';
 import { BUTTON_PRIMARY, BUTTON_SECONDARY } from './styles';
 
 export function ReportDialog({ summary }: { summary: RegistrationSummary }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    console.error('Report locale missing: falling back to en');
+  }, []);
   return (
     <>
       <button type="button" className={BUTTON_PRIMARY} onClick={() => dialogRef.current?.showModal()}>
