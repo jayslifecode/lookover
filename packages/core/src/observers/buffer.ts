@@ -27,7 +27,10 @@ export function isDocumentRequest(request: Request): boolean {
  * buffer: what arrived before it belongs to a page that is gone (a lens reload, a redirect that landed
  * elsewhere), and what the new page reports arrives only after the commit. A same-document navigation
  * (`pushState`, `replaceState`, a hash change) also raises `framenavigated` but sends no request, so
- * its entries stay.
+ * its entries stay. The commit is the `framenavigated` that lands on the URL last requested (the hash
+ * aside): the page being left can still navigate within itself while the next document loads (Next.js's
+ * router replaces its history entry once the page has hydrated), and taking that for the commit would
+ * hand what it logs next to the next page.
  *
  * The one thing that arrives before the commit and belongs to the new page is the answer to the
  * document request itself (a page that answers 500 is the page). `recordDocument` holds such an
@@ -39,8 +42,8 @@ export class NavigationBuffer<T> {
   private dropped = 0;
   /** Entries about the document request now loading, kept across the commit's clear. */
   private heldForCommit: T[] = [];
-  /** True from a main-frame document request until the navigation commits. */
-  private isLoadingDocument = false;
+  /** The URL (without its hash) of the main-frame document requested and not yet committed; `null` when none is. */
+  private loadingUrl: string | null = null;
 
   constructor(private readonly capacity: number) {}
 
@@ -68,7 +71,7 @@ export class NavigationBuffer<T> {
    * arrive) goes straight into the buffer.
    */
   recordDocument(entry: T): void {
-    if (!this.isLoadingDocument) {
+    if (this.loadingUrl === null) {
       this.record(entry);
       return;
     }
@@ -85,16 +88,22 @@ export class NavigationBuffer<T> {
 
   private noteRequest(request: Request): void {
     if (!isDocumentRequest(request)) return;
-    this.isLoadingDocument = true;
+    this.loadingUrl = withoutHash(request.url());
     this.heldForCommit = [];
   }
 
   private commit(frame: Frame): void {
-    if (frame.parentFrame() !== null || !this.isLoadingDocument) return;
-    this.isLoadingDocument = false;
+    if (frame.parentFrame() !== null || this.loadingUrl !== withoutHash(frame.url())) return;
+    this.loadingUrl = null;
     const carried = this.heldForCommit;
     this.heldForCommit = [];
     this.drain();
     for (const entry of carried) this.record(entry);
   }
+}
+
+/** A request never carries the hash; the address the frame lands on keeps it. */
+function withoutHash(url: string): string {
+  const hashAt = url.indexOf('#');
+  return hashAt === -1 ? url : url.slice(0, hashAt);
 }
