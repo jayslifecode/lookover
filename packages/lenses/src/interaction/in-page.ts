@@ -30,6 +30,7 @@ export const STATE_STYLE_PROPERTIES = [
   'color',
   'text-decoration-line',
   'text-decoration-color',
+  'text-decoration-thickness',
   'transform',
   'opacity',
   'filter',

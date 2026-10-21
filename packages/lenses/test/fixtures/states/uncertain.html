@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Focus rings that cannot be judged</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        margin: 8px;
+        padding: 8px 16px;
+        outline: none;
+      }
+      button:hover {
+        background-color: #e5e7eb;
+      }
+      /* A faint ring over a gradient: the colour next to it cannot be known. */
+      .banner {
+        padding: 8px;
+        background-image: linear-gradient(90deg, #fff, #e5e7eb);
+      }
+      #on-image:focus-visible {
+        outline: 2px solid #e5e7eb;
+      }
+      /* A ring in lab(), which the contrast maths does not read. */
+      #lab:focus-visible {
+        outline: 2px solid lab(90% 0 0);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="banner">
+      <button type="button" id="on-image">Ring on a gradient</button>
+    </div>
+    <button type="button" id="lab">Ring in lab()</button>
+  </body>
+</html>

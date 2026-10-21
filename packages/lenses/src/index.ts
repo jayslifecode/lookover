@@ -33,3 +33,18 @@ export {
   TEXT_SAMPLE_SOURCE,
 } from './interaction/in-page.js';
 export { evaluateSource, measureOn } from './interaction/measure.js';
+export type {
+  FocusStop,
+  GalleryEntry,
+  GalleryState,
+  StateGallery,
+  StatesResult,
+} from './interaction/states.js';
+export {
+  CROP_PADDING_PX,
+  captureStates,
+  focusIndicatorColor,
+  MAX_GALLERY_ELEMENTS,
+  MAX_STATE_ELEMENTS,
+  stateDiffers,
+} from './interaction/states.js';

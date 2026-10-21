@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>A control that leaves while hovered</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        margin: 8px;
+        padding: 8px 16px;
+        background-color: #f9fafb;
+      }
+      button:hover {
+        background-color: #dbeafe;
+      }
+      @keyframes pulse {
+        to {
+          opacity: 0.5;
+        }
+      }
+      /* Hovering starts an animation, and the page removes the button as soon as it starts. */
+      #vanish:hover {
+        animation: pulse 10s;
+      }
+    </style>
+  </head>
+  <body>
+    <button type="button" id="vanish" class="vanish">Leaves on hover</button>
+    <button type="button" id="stays" class="stays">Stays</button>
+    <script>
+      document.querySelector('#vanish').addEventListener('animationstart', (event) => event.target.remove());
+    </script>
+  </body>
+</html>
