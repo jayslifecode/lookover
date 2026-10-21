@@ -1,9 +1,18 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { assertAcknowledged, CONFIG_FILENAME, loadConfig, writeConfig } from '../src/config/load.js';
+import {
+  assertAcknowledged,
+  CONFIG_FILENAME,
+  detectIndent,
+  loadConfig,
+  writeConfig,
+} from '../src/config/load.js';
 import { configSchema } from '../src/config/schema.js';
+
+const PERMISSION_BITS = 0o777;
+const PRIVATE_FILE_MODE = 0o600;
 
 describe('config', () => {
   let dir: string;
@@ -116,6 +125,47 @@ describe('config', () => {
     const p = await writeConfig(dir, cfg);
     const text = await readFile(p, 'utf8');
     expect(text).toBe(`${JSON.stringify(cfg, null, 2)}\n`);
+  });
+
+  test.skipIf(process.platform === 'win32')(
+    'writeConfig keeps a four-space file four-spaced and 0600',
+    async () => {
+      const cfg = configSchema.parse({ baseUrl: 'http://localhost:3000', interaction: 'safe' });
+      const path = join(dir, CONFIG_FILENAME);
+      await writeFile(path, '{\n    "baseUrl": "http://localhost:3000"\n}\n', 'utf8');
+      await chmod(path, PRIVATE_FILE_MODE);
+
+      await writeConfig(dir, cfg);
+
+      expect(await readFile(path, 'utf8')).toBe(`${JSON.stringify(cfg, null, 4)}\n`);
+      expect((await stat(path)).mode & PERMISSION_BITS).toBe(PRIVATE_FILE_MODE);
+    },
+  );
+
+  test('writeConfig keeps a tab-indented file tab-indented', async () => {
+    const cfg = configSchema.parse({ baseUrl: 'http://localhost:3000', interaction: 'safe' });
+    const path = join(dir, CONFIG_FILENAME);
+    await writeFile(path, '{\n\t"baseUrl": "http://localhost:3000"\n}\n', 'utf8');
+
+    await writeConfig(dir, cfg);
+
+    expect(await readFile(path, 'utf8')).toBe(`${JSON.stringify(cfg, null, '\t')}\n`);
+  });
+});
+
+describe('detectIndent', () => {
+  test('reads four spaces, a tab, and defaults to two spaces', () => {
+    expect(detectIndent('{\n    "a": 1\n}')).toBe('    ');
+    expect(detectIndent('{\n\t"a": 1\n}')).toBe('\t');
+    expect(detectIndent('{}')).toBe('  ');
+  });
+
+  test('is decided by the first indented line, not by a deeper one', () => {
+    expect(detectIndent('{\n   "a": {\n         "b": 1\n   }\n}')).toBe('   ');
+  });
+
+  test('skips a blank line that only holds whitespace', () => {
+    expect(detectIndent('{\n    \n\t"a": 1\n}')).toBe('\t');
   });
 });
 

@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "pnpm build && vitest run",
     "test:e2e": "pnpm build && vitest run --config vitest.e2e.config.ts"
   },

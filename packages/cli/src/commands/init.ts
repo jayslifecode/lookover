@@ -41,17 +41,42 @@ export function registerInit(program: Command): void {
     .option('--base-url <url>', 'the URL the app runs at, e.g. http://localhost:3000')
     .option('--root <dir>', 'the app directory (where package.json lives), relative to here', '.')
     .addOption(
-      new Option(
+      choiceOption(
         '--interaction <mode>',
         'full clicks and submits anything; safe never submits forms',
-      ).choices(INTERACTIONS),
+        INTERACTIONS,
+      ),
     )
     .option(
       '--acknowledge-disposable-data',
       'confirm that all data the app can reach is disposable (full only)',
     )
-    .addOption(new Option('--framework <name>', 'override framework auto-detection').choices(FRAMEWORKS))
+    .addOption(choiceOption('--framework <name>', 'override framework auto-detection', FRAMEWORKS))
     .action(runInit);
+}
+
+/**
+ * An option that takes one of `choices`. Commander lists them in `--help` (`choices`); a value that is
+ * not one is rejected by `parseChoice` as an `E_USAGE` error like every other flag problem, not by
+ * Commander's own message.
+ */
+function choiceOption<T extends string>(flags: string, description: string, choices: readonly T[]): Option {
+  const [flag = flags] = flags.split(' ');
+  return new Option(flags, description)
+    .choices(choices)
+    .argParser((value) => parseChoice(flag, value, choices));
+}
+
+function parseChoice<T extends string>(flag: string, value: string, choices: readonly T[]): T {
+  const choice = choices.find((candidate) => candidate === value);
+  if (choice === undefined) {
+    throw new LookoverError(
+      'E_USAGE',
+      `${flag} "${value}" is not one of ${choices.join(', ')}`,
+      `Pass one of: ${choices.map((candidate) => `${flag} ${candidate}`).join(', ')}`,
+    );
+  }
+  return choice;
 }
 
 export async function runInit(flags: InitFlags): Promise<void> {
@@ -64,7 +89,7 @@ export async function runInit(flags: InitFlags): Promise<void> {
   }
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new LookoverError(
-      'E_CONFIG_INVALID',
+      'E_USAGE',
       'init needs a terminal to ask its questions',
       'Run `lookover init --non-interactive --base-url <url>` in scripts and CI',
     );
@@ -91,15 +116,11 @@ async function initWithFlags(cwd: string, flags: InitFlags, framework: Framework
 
 function answersFromFlags(flags: InitFlags, framework: Framework): InitAnswers {
   if (flags.baseUrl === undefined) {
-    throw new LookoverError('E_CONFIG_INVALID', '--non-interactive requires --base-url <url>', BASE_URL_HINT);
+    throw new LookoverError('E_USAGE', '--non-interactive requires --base-url <url>', BASE_URL_HINT);
   }
   const baseUrl = flags.baseUrl.trim();
   if (!isHttpUrl(baseUrl)) {
-    throw new LookoverError(
-      'E_CONFIG_INVALID',
-      `--base-url "${flags.baseUrl}" is not an http(s) URL`,
-      BASE_URL_HINT,
-    );
+    throw new LookoverError('E_USAGE', `--base-url "${flags.baseUrl}" is not an http(s) URL`, BASE_URL_HINT);
   }
   return {
     baseUrl,

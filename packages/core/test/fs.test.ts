@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
@@ -6,6 +6,7 @@ import { hasErrorCode, isMissingFile, writeFileAtomic } from '../src/util/fs.js'
 
 const PERMISSION_BITS = 0o777;
 const PRIVATE_FILE_MODE = 0o600;
+const GROUP_READABLE_FILE_MODE = 0o640;
 
 async function errorOf(promise: Promise<unknown>): Promise<unknown> {
   return promise.then(
@@ -50,6 +51,27 @@ describe('writeFileAtomic', () => {
     await writeFileAtomic(path, '{}', { mode: PRIVATE_FILE_MODE });
 
     expect((await stat(path)).mode & PERMISSION_BITS).toBe(PRIVATE_FILE_MODE);
+  });
+
+  test.skipIf(process.platform === 'win32')('keeps the mode of the file it replaces', async () => {
+    const path = join(dir, 'private.json');
+    await writeFile(path, 'a');
+    await chmod(path, PRIVATE_FILE_MODE);
+
+    await writeFileAtomic(path, 'b');
+
+    expect(await readFile(path, 'utf8')).toBe('b');
+    expect((await stat(path)).mode & PERMISSION_BITS).toBe(PRIVATE_FILE_MODE);
+  });
+
+  test.skipIf(process.platform === 'win32')('uses options.mode over the existing mode', async () => {
+    const path = join(dir, 'private.json');
+    await writeFile(path, 'a');
+    await chmod(path, PRIVATE_FILE_MODE);
+
+    await writeFileAtomic(path, 'b', { mode: GROUP_READABLE_FILE_MODE });
+
+    expect((await stat(path)).mode & PERMISSION_BITS).toBe(GROUP_READABLE_FILE_MODE);
   });
 
   test('rejects with the rename error and removes the temporary file when the target is a directory', async () => {

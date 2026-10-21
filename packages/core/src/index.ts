@@ -14,7 +14,7 @@ export {
 } from './browser/network-policy.js';
 export type { InstrumentedPage, SessionEvent, SessionOptions } from './browser/session.js';
 export { BrowserSession } from './browser/session.js';
-export { assertAcknowledged, CONFIG_FILENAME, loadConfig, writeConfig } from './config/load.js';
+export { assertAcknowledged, CONFIG_FILENAME, detectIndent, loadConfig, writeConfig } from './config/load.js';
 export type { LookoverConfig } from './config/schema.js';
 export { configSchema } from './config/schema.js';
 export type { ErrorCode } from './errors.js';

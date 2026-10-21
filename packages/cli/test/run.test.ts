@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -28,6 +28,9 @@ import {
   summaryRows,
 } from '../src/commands/run-summary.js';
 import { runCli } from './run-cli.js';
+
+const PERMISSION_BITS = 0o777;
+const PRIVATE_FILE_MODE = 0o600;
 
 const BASE_CONFIG: LookoverConfig = configSchema.parse({
   baseUrl: 'http://localhost:3000',
@@ -138,7 +141,7 @@ describe('parseRunFlags', () => {
     const flags = flag === '--allow-host' ? { allowHost: [value] } : { confirmHost: [value] };
     const error = lookoverErrorOf(() => parseRunFlags(flags));
 
-    expect(error.code).toBe('E_CONFIG_INVALID');
+    expect(error.code).toBe('E_USAGE');
     expect(error.message).toContain(flag);
   });
 
@@ -160,7 +163,7 @@ describe('parseRunFlags', () => {
   test.each(['0', '-1', '1.5', 'twelve', '', '12abc'])('rejects --max-screens %o', (value) => {
     const error = lookoverErrorOf(() => parseRunFlags({ maxScreens: value }));
 
-    expect(error.code).toBe('E_CONFIG_INVALID');
+    expect(error.code).toBe('E_USAGE');
     expect(error.message).toContain('--max-screens');
   });
 
@@ -287,6 +290,26 @@ describe('saveConfirmedHosts', () => {
       message: `Could not save the confirmed backend hosts: lookover.config.json ${problem}`,
     });
     expect(await readFile(configPath(), 'utf8')).toBe(content);
+  });
+
+  test("writes back with the file's own indentation", async () => {
+    const raw = { baseUrl: 'http://localhost:3000', interaction: 'safe' };
+    await writeFile(configPath(), `${JSON.stringify(raw, null, 4)}\n`, 'utf8');
+
+    await saveConfirmedHosts(dir, configSchema.parse(raw), ['b.test']);
+
+    const expected = { ...raw, confirmedBackendHosts: ['b.test'] };
+    expect(await readFile(configPath(), 'utf8')).toBe(`${JSON.stringify(expected, null, 4)}\n`);
+  });
+
+  test.skipIf(process.platform === 'win32')('keeps the mode of the config file', async () => {
+    const raw = { baseUrl: 'http://localhost:3000', interaction: 'safe' };
+    await writeFile(configPath(), JSON.stringify(raw), 'utf8');
+    await chmod(configPath(), PRIVATE_FILE_MODE);
+
+    await saveConfirmedHosts(dir, configSchema.parse(raw), ['b.test']);
+
+    expect((await stat(configPath())).mode & PERMISSION_BITS).toBe(PRIVATE_FILE_MODE);
   });
 
   test('does not rewrite the file when every host is already there', async () => {
@@ -420,24 +443,28 @@ describe('lookover run', () => {
     expect(result.stderr).toContain('E_ACK_REQUIRED');
   });
 
-  test('exits 2 on an invalid --max-screens before reading the config', async () => {
+  test('exits 2 with E_USAGE, not E_CONFIG_INVALID, on an invalid --max-screens before reading the config', async () => {
     const result = await runCli(dir, ['run', '--max-screens', '0']);
 
     expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
+    expect(result.stderr).not.toContain('E_CONFIG_INVALID');
     expect(result.stderr).toContain('--max-screens');
   });
 
-  test('exits 2 on a --confirm-host that is a URL', async () => {
+  test('exits 2 with E_USAGE on a --confirm-host that is a URL', async () => {
     const result = await runCli(dir, ['run', '--confirm-host', 'https://api.example.com']);
 
     expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
     expect(result.stderr).toContain('--confirm-host');
   });
 
-  test('exits 2 on a comma-joined --confirm-host, naming the value', async () => {
+  test('exits 2 with E_USAGE on a comma-joined --confirm-host, naming the value', async () => {
     const result = await runCli(dir, ['run', '--confirm-host', 'a.test,b.test']);
 
     expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
     expect(result.stderr).toContain('--confirm-host "a.test,b.test" is not a host name');
     expect(result.stderr).toContain('--confirm-host a.test --confirm-host b.test');
   });

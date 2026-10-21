@@ -163,6 +163,7 @@ describe('lookover init', () => {
     const result = await runCli(dir, ['init', '--non-interactive']);
 
     expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
     expect(result.stderr).toContain('--base-url');
     expect(existsSync(configPath())).toBe(false);
   });
@@ -171,6 +172,7 @@ describe('lookover init', () => {
     const result = await runCli(dir, ['init', '--non-interactive', '--base-url', 'ftp://example.com']);
 
     expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
     expect(result.stderr).toContain('--base-url');
     expect(existsSync(configPath())).toBe(false);
   });
@@ -186,6 +188,24 @@ describe('lookover init', () => {
     ]);
 
     expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
+    expect(result.stderr).toContain('--interaction');
+    expect(existsSync(configPath())).toBe(false);
+  });
+
+  test('rejects an unknown --framework value with exit 2', async () => {
+    const result = await runCli(dir, [
+      'init',
+      '--non-interactive',
+      '--base-url',
+      BASE_URL,
+      '--framework',
+      'angular',
+    ]);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
+    expect(result.stderr).toContain('--framework');
     expect(existsSync(configPath())).toBe(false);
   });
 
@@ -193,6 +213,7 @@ describe('lookover init', () => {
     const result = await runCli(dir, ['init', '--base-url', BASE_URL]);
 
     expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
     expect(result.stderr).toContain('--non-interactive');
     expect(existsSync(configPath())).toBe(false);
   });

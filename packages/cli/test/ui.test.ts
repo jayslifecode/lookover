@@ -1,6 +1,6 @@
 import { LookoverError } from '@jayslifecode/lookover-core';
 import { describe, expect, test } from 'vitest';
-import { errorLines } from '../src/ui.js';
+import { errorLines, exitCodeFor } from '../src/ui.js';
 
 describe('errorLines', () => {
   test('prints the code, the message and the hint of a LookoverError', () => {
@@ -37,5 +37,20 @@ describe('errorLines', () => {
       '✖ net::ERR_FAILED at mailto:[email]',
     ]);
     expect(errorLines('password=hunter2')).toEqual(['✖ password=[redacted]']);
+  });
+});
+
+describe('exitCodeFor', () => {
+  test('E_USAGE exits 2', () => {
+    expect(exitCodeFor(new LookoverError('E_USAGE', 'x'))).toBe(2);
+  });
+
+  test('a config error exits 2, a refusal 3, and anything else 1', () => {
+    expect(exitCodeFor(new LookoverError('E_CONFIG_INVALID', 'x'))).toBe(2);
+    expect(exitCodeFor(new LookoverError('E_CONFIG_NOT_FOUND', 'x'))).toBe(2);
+    expect(exitCodeFor(new LookoverError('E_ACK_REQUIRED', 'x'))).toBe(3);
+    expect(exitCodeFor(new LookoverError('E_HOSTS_UNCONFIRMED', 'x'))).toBe(3);
+    expect(exitCodeFor(new LookoverError('E_RUN_FAILED', 'x'))).toBe(1);
+    expect(exitCodeFor(new Error('x'))).toBe(1);
   });
 });

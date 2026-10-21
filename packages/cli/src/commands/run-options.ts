@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
   CONFIG_FILENAME,
+  detectIndent,
   type LookoverConfig,
   LookoverError,
   normaliseHost,
@@ -102,8 +103,9 @@ export function mergeHosts(...lists: readonly (readonly string[])[]): string[] {
  * Adds the `hosts` that `config` (as loaded, without this run's overrides) does not list yet to
  * `confirmedBackendHosts` in lookover.config.json, and resolves with those. Only that key of the file
  * changes: the file is read again as JSON and every other key is kept as written (defaults are not
- * filled in, unknown keys such as `$schema` stay), then written back atomically. When `config` already
- * lists every host, the file is not touched and the result is empty.
+ * filled in, unknown keys such as `$schema` stay), then written back atomically with the file's own
+ * indentation and permission bits. When `config` already lists every host, the file is not touched
+ * and the result is empty.
  */
 export async function saveConfirmedHosts(
   cwd: string,
@@ -116,12 +118,11 @@ export async function saveConfirmedHosts(
     return [];
   }
   const path = resolve(cwd, CONFIG_FILENAME);
-  const fields = parseConfigFields(await readFile(path, 'utf8'));
+  const raw = await readFile(path, 'utf8');
+  const fields = parseConfigFields(raw);
   const confirmed = mergeHosts(listedHosts(fields), added);
-  await writeFileAtomic(
-    path,
-    `${JSON.stringify({ ...fields, [CONFIRMED_HOSTS_KEY]: confirmed }, null, 2)}\n`,
-  );
+  const updated = { ...fields, [CONFIRMED_HOSTS_KEY]: confirmed };
+  await writeFileAtomic(path, `${JSON.stringify(updated, null, detectIndent(raw))}\n`);
   return added;
 }
 
@@ -166,7 +167,7 @@ function parseMaxScreens(value: string | undefined): number | undefined {
   }
   if (!POSITIVE_INTEGER.test(value.trim())) {
     throw new LookoverError(
-      'E_CONFIG_INVALID',
+      'E_USAGE',
       `--max-screens "${value}" is not a positive whole number`,
       'For example: --max-screens 20',
     );
@@ -181,14 +182,14 @@ function parseHosts(flag: HostFlag, values: readonly string[]): string[] {
 function parseHost(flag: HostFlag, value: string): string {
   if (value.includes(HOST_LIST_SEPARATOR)) {
     throw new LookoverError(
-      'E_CONFIG_INVALID',
+      'E_USAGE',
       `${flag.name} "${value}" is not a host name: the flag takes one host`,
       repeatedFlagHint(flag, value),
     );
   }
   const host = normaliseHost(value);
   if (host === '' || NOT_IN_A_HOST.test(host) || hasPort(host) || !hasValidWildcard(host, flag)) {
-    throw new LookoverError('E_CONFIG_INVALID', `${flag.name} "${value}" is not a host name`, flag.hint);
+    throw new LookoverError('E_USAGE', `${flag.name} "${value}" is not a host name`, flag.hint);
   }
   return host;
 }

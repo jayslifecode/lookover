@@ -9,6 +9,7 @@ export const EXIT_INVALID = 2;
 export const EXIT_REFUSED = 3;
 
 const CONFIG_ERROR_PREFIX = 'E_CONFIG_';
+const USAGE_ERROR_CODE = 'E_USAGE';
 const REFUSAL_CODES: readonly string[] = ['E_ACK_REQUIRED', 'E_HOSTS_UNCONFIRMED'];
 
 export function info(message: string): void {
@@ -35,7 +36,7 @@ export function exitCodeFor(error: unknown): number {
   if (!(error instanceof LookoverError)) {
     return EXIT_FAILURE;
   }
-  if (error.code.startsWith(CONFIG_ERROR_PREFIX)) {
+  if (error.code === USAGE_ERROR_CODE || error.code.startsWith(CONFIG_ERROR_PREFIX)) {
     return EXIT_INVALID;
   }
   return REFUSAL_CODES.includes(error.code) ? EXIT_REFUSED : EXIT_FAILURE;

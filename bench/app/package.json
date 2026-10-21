@@ -13,7 +13,7 @@
     "build": "next build",
     "start": "next start -p 3123",
     "reset": "node --experimental-strip-types ../scripts/reset.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

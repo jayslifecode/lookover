@@ -7,6 +7,10 @@ import { configSchema, type LookoverConfig } from './schema.js';
 
 export const CONFIG_FILENAME = 'lookover.config.json';
 
+const DEFAULT_INDENT = '  ';
+/** The start of the first line that has content after leading whitespace. */
+const INDENTED_LINE = /^[ \t]+(?=\S)/m;
+
 const INIT_HINT = 'Run `lookover init` in your project root';
 const INVALID_HINT = 'Fix the fields above or run `lookover init` again';
 const ACK_HINT =
@@ -75,9 +79,38 @@ export async function loadConfig(cwd: string): Promise<{ config: LookoverConfig;
   return { config: result.data, path };
 }
 
-/** Writes `config` to `<cwd>/lookover.config.json`, atomically, and returns the file's path. */
+/**
+ * The indentation a JSON file is written with, for `JSON.stringify(value, null, indent)`: the first
+ * line that starts with whitespace decides (a tab, or that many spaces). A file with no indented line,
+ * such as `{}` or minified JSON, gets two spaces.
+ */
+export function detectIndent(raw: string): string {
+  const leading = INDENTED_LINE.exec(raw)?.[0];
+  if (leading === undefined) {
+    return DEFAULT_INDENT;
+  }
+  return leading.includes('\t') ? '\t' : leading;
+}
+
+/** The indentation of the config file at `path`; two spaces when there is no file yet. */
+async function existingIndent(path: string): Promise<string> {
+  try {
+    return detectIndent(await readFile(path, 'utf8'));
+  } catch (error) {
+    if (isMissingFile(error)) {
+      return DEFAULT_INDENT;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Writes `config` to `<cwd>/lookover.config.json`, atomically, and returns the file's path. A file
+ * that is already there keeps its indentation and its permission bits.
+ */
 export async function writeConfig(cwd: string, config: LookoverConfig): Promise<string> {
   const path = configPath(cwd);
-  await writeFileAtomic(path, `${JSON.stringify(config, null, 2)}\n`);
+  const indent = await existingIndent(path);
+  await writeFileAtomic(path, `${JSON.stringify(config, null, indent)}\n`);
   return path;
 }

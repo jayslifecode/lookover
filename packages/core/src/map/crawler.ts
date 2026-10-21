@@ -1,14 +1,12 @@
 import type { Page } from 'playwright';
 import type { BrowserSession, InstrumentedPage } from '../browser/session.js';
 import { LookoverError } from '../errors.js';
-import type { RunEventBody } from '../run/events.js';
 import type { RunContext } from '../run/run-context.js';
 import { shortId } from '../util/hash.js';
 import { isSameApp, normaliseUrl, resolveSeed, routeKey } from '../util/url.js';
 import { extractElements, MAX_ELEMENTS_PER_SCREEN } from './elements.js';
 import { extractForms } from './forms.js';
-import { isDestructiveLink } from './links.js';
-import { matchRoute, routePatternFromPath } from './next-routes.js';
+import { Frontier, type QueuedScreen } from './frontier.js';
 import { collectTokens } from './tokens.js';
 import type { ElementRef, FormInfo, RouteInfo, Screen, TokenSample, Viewport } from './types.js';
 
@@ -37,18 +35,10 @@ export interface CrawlOptions {
 }
 
 type CrawlAuth = NonNullable<CrawlOptions['auth']>;
-type SkipReason = Extract<RunEventBody, { type: 'screen.skipped' }>['reason'];
 type ScreenContent = Pick<
   Screen,
   'title' | 'status' | 'error' | 'screenshot' | 'elements' | 'forms' | 'tokens' | 'links'
 >;
-
-interface QueuedScreen {
-  url: URL;
-  route: string;
-  /** The normalised URL of the screen the link was found on; `null` for a seed. */
-  from: string | null;
-}
 
 interface Timing {
   settleMs: number;
@@ -258,62 +248,6 @@ class Crawler {
       capturedAt: new Date().toISOString(),
     };
   }
-}
-
-/**
- * The breadth-first queue and the crawl's bounds. Every screen taken from the queue becomes one
- * captured screen, so the budget counts those plus the ones still queued.
- */
-class Frontier {
-  private readonly queue: QueuedScreen[] = [];
-  private readonly seen = new Set<string>();
-  private readonly perRoute = new Map<string, number>();
-  private taken = 0;
-
-  constructor(
-    private readonly base: URL,
-    private readonly opts: Pick<CrawlOptions, 'routes' | 'maxScreens' | 'maxPerRoute'>,
-  ) {}
-
-  /** Queues `url`, or returns why it is skipped; `null` also when it was seen before (nothing to report). */
-  offer(url: URL, from: string | null): SkipReason | null {
-    const isInApp = isSameApp(url, this.base);
-    // A route key never collides with a full href: one starts with `/`, the other with a scheme.
-    const key = isInApp ? routeKey(url) : url.href;
-    if (this.seen.has(key)) {
-      return null;
-    }
-    this.seen.add(key);
-    if (!isInApp) {
-      return 'not-same-app';
-    }
-    if (isDestructiveLink(url, this.base)) {
-      return 'destructive-link';
-    }
-    const route = routeOf(url, this.opts.routes);
-    const instances = this.perRoute.get(route) ?? 0;
-    if (instances >= this.opts.maxPerRoute) {
-      return 'route-cap';
-    }
-    if (this.taken + this.queue.length >= this.opts.maxScreens) {
-      return 'max-screens';
-    }
-    this.perRoute.set(route, instances + 1);
-    this.queue.push({ url, route, from });
-    return null;
-  }
-
-  next(): QueuedScreen | undefined {
-    const next = this.queue.shift();
-    if (next !== undefined) {
-      this.taken += 1;
-    }
-    return next;
-  }
-}
-
-function routeOf(url: URL, routes: readonly RouteInfo[]): string {
-  return matchRoute(url.pathname, routes)?.pattern ?? routePatternFromPath(url.pathname);
 }
 
 /** Loads `url` and lets it settle; returns why the navigation failed, or `null`. A `LookoverError` is rethrown. */
