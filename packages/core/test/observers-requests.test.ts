@@ -253,13 +253,24 @@ describe('RequestObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     });
   });
 
-  test('reports nothing for a page whose requests all succeeded, and writes no evidence', async () => {
+  test('reports no finding for a page whose requests all succeeded, but still records them as evidence', async () => {
     await open('/console-clean.html');
 
     const result = await observer.collect(screenAt('screen-1', '/console-clean.html'));
 
-    expect(result).toEqual(NOTHING_SEEN);
-    expect(await ctx.evidence.list()).toEqual([]);
+    expect(result.findings).toEqual([]);
+    expect(result.worthALook).toEqual([]);
+    expect(result.evidence).toHaveLength(1);
+    expect(result.evidence[0]).toMatchObject({
+      kind: 'requests',
+      label: 'Network requests on /console-clean.html',
+    });
+    const stored = await storedEvidence(result);
+    expect(stored).toMatchObject({ screenId: 'screen-1', dropped: 0 });
+    expect(stored.entries.map((entry) => [entry.url, entry.status])).toEqual([
+      [url('/console-clean.html'), 200],
+    ]);
+    expect(await ctx.evidence.list()).toHaveLength(1);
   });
 
   test('two screens hitting GET /api/items/1 and /api/items/2 with 500 share one finding (pattern key)', async () => {
@@ -317,7 +328,9 @@ describe('RequestObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
     const result = await observer.collect(screenAt('screen-2', '/console-clean.html'));
 
-    expect(result).toEqual(NOTHING_SEEN);
+    expect(result.findings).toEqual([]);
+    const stored = await storedEvidence(result);
+    expect(stored.entries.map((entry) => entry.url)).toEqual([url('/console-clean.html')]);
   });
 
   test('a reload replaces what the page requested before it', async () => {

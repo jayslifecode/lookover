@@ -70,6 +70,10 @@ interface RequestGroup {
  * on every screen is one finding: `key` is the method, host and route pattern of the URL, so
  * `/api/items/1` and `/api/items/2` share it, and the status or failure.
  *
+ * Every captured screen gets its complete request record as evidence (`requests-<screenId>.json`), the
+ * requests that are no finding included; the findings of the screen point to it. A screen always has at
+ * least its own document in it, so there is nothing to skip.
+ *
  * The document the screen shows counts too, though its answer arrives before the navigation commits
  * (see `NavigationBuffer.recordDocument`): a page that answers 500 itself is exactly what to report.
  */
@@ -93,9 +97,8 @@ export class RequestObserver implements Observer {
 
   async collect(screen: Screen): Promise<ObserverResult> {
     const { entries: seen, dropped } = this.buffer.drain();
+    if (seen.length === 0) return { findings: [], worthALook: [], evidence: [] };
     const entries = seen.map(entryOf);
-    const groups = groupCandidates(entries);
-    if (groups.length === 0) return { findings: [], worthALook: [], evidence: [] };
     const ref = await this.ctx.evidence.putJson(`requests-${screen.id}`, {
       screenId: screen.id,
       url: screen.url,
@@ -104,7 +107,7 @@ export class RequestObserver implements Observer {
     });
     const evidence: EvidenceItem = { kind: 'requests', label: `Network requests on ${screen.route}`, ref };
     return {
-      findings: groups.map((group) => findingOf(group, screen, evidence)),
+      findings: groupCandidates(entries).map((group) => findingOf(group, screen, evidence)),
       worthALook: [],
       evidence: [evidence],
     };
