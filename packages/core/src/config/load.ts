@@ -55,7 +55,7 @@ function parseJson(raw: string): unknown {
 
 /**
  * The gate on full interaction: throws `E_ACK_REQUIRED` for an `interaction: "full"` config without
- * the disposable-data acknowledgement. `loadConfig` and `runDiscovery` both apply it, so a config
+ * the disposable-data acknowledgement. `loadConfig` and `runReview` both apply it, so a config
  * built in code cannot skip it.
  */
 export function assertAcknowledged(config: Pick<LookoverConfig, 'interaction' | 'acknowledgement'>): void {

@@ -5,17 +5,22 @@ import type { BrowserSession } from '../browser/session.js';
 import { assertAcknowledged, CONFIG_FILENAME } from '../config/load.js';
 import type { LookoverConfig } from '../config/schema.js';
 import { LookoverError } from '../errors.js';
+import type { Lens } from '../findings/lens.js';
+import { writeFindings } from '../findings/persist.js';
+import type { FindingsFile } from '../findings/types.js';
 import { type CrawlOptions, crawl } from '../map/crawler.js';
 import { discoverNextRoutes, staticRoutePatterns } from '../map/next-routes.js';
 import { writeAppMap } from '../map/persist.js';
 import type { AppMap, RouteInfo, Screen, Viewport } from '../map/types.js';
+import type { Observer } from '../observers/types.js';
 import { type ConfirmHosts, confirmBackends } from './backend-probe.js';
 import type { RunEvent } from './events.js';
+import { Inspection } from './inspection.js';
 import type { RunContext } from './run-context.js';
 import { launchSession, usingSession } from './session-launch.js';
 import { recordFailure, SessionRecorder } from './session-recorder.js';
 
-export interface DiscoveryHooks {
+export interface ReviewHooks {
   /**
    * Asked once, after the probe, with every backend host the app called during the probe that is
    * neither allowed nor already confirmed in the config (sorted). Returns the ones the user confirms
@@ -27,16 +32,20 @@ export interface DiscoveryHooks {
   onEvent?: (event: RunEvent) => void;
 }
 
-export interface DiscoveryOptions {
+export interface ReviewOptions {
   /** The project directory: `config.root` and a storage state path are resolved against it. */
   cwd: string;
   headless?: boolean;
   /** Where a form login reads its credentials. Default `process.env`. */
   env?: NodeJS.ProcessEnv;
-  hooks?: DiscoveryHooks;
+  hooks?: ReviewHooks;
+  /** Run on every captured screen, in order, after the observers (see `Inspection`). Default none. */
+  lenses?: readonly Lens[];
+  /** Watch the crawl page and report on every captured screen (see `Inspection`). Default none. */
+  observers?: readonly Observer[];
 }
 
-export interface DiscoveryResult {
+export interface ReviewResult {
   map: AppMap;
   /** `config.confirmedBackendHosts` plus the hosts confirmed in this run, deduplicated, to persist. */
   confirmedBackendHosts: string[];
@@ -47,6 +56,8 @@ export interface DiscoveryResult {
    * before the run, or by adding them to `confirmedBackendHosts` in lookover.config.json.
    */
   blockedUnconfirmedHosts: string[];
+  /** What the observers and lenses found, as written to `findings.json`. */
+  findings: FindingsFile;
 }
 
 type Auth = LookoverConfig['auth'];
@@ -55,13 +66,15 @@ type Auth = LookoverConfig['auth'];
 interface CrawlPlan {
   routes: RouteInfo[];
   viewport: Viewport;
+  inspection: Inspection;
 }
 
 const STATE_DIR = 'state';
 const ROOT_SEED = '/';
 
 /**
- * Stage 1 end to end, recorded in the run log from `run.started` to `run.finished`:
+ * Stage 1 (the App Map) and Stage 3 (the inspection of each screen) end to end, recorded in the run log
+ * from `run.started` to `run.finished`:
  *
  * 0. The checks that need no browser: the disposable-data acknowledgement of a `full` config
  *    (`E_ACK_REQUIRED`, the same gate as `loadConfig`), a viewport, and a base URL on an allowed host.
@@ -74,20 +87,25 @@ const ROOT_SEED = '/';
  * 4. The login as `config.auth` says (`auth.completed`).
  * 5. The bounded crawl from `/` and every static route. A form login logs in again once if the session
  *    is lost; a storage state with a `loginUrl` cannot, so losing it fails the run (`E_AUTH_FAILED`).
- * 6. The App Map, written to the run directory and as the project's latest.
+ *    5b. Each captured screen is inspected as soon as it is captured, on the page still showing it: the
+ *    observers, then the lenses (see `Inspection`). Each new candidate is logged as `finding.candidate`,
+ *    each inspected screen as `screen.inspected`; an observer or lens error that is not a
+ *    `LookoverError` fails only that screen's inspection.
+ * 6. The App Map, then the findings (`findings.json`), each written to the run directory and as the
+ *    project's latest.
  *
  * Any failure is logged as `run.failed` (code `E_RUN_FAILED` for errors that are not a `LookoverError`)
  * and rethrown; see `recordFailure` for what is added to it. A run that otherwise succeeded but whose
  * log lost an event fails with `E_RUN_FAILED` ("Run log write failed"), since it has no complete
  * record. The session is always closed.
  */
-export async function runDiscovery(ctx: RunContext, opts: DiscoveryOptions): Promise<DiscoveryResult> {
+export async function runReview(ctx: RunContext, opts: ReviewOptions): Promise<ReviewResult> {
   const startedAt = performance.now();
   const recorder = new SessionRecorder(ctx.log);
   const onEvent = opts.hooks?.onEvent;
   const unsubscribe = onEvent === undefined ? () => undefined : ctx.log.subscribe(onEvent);
   try {
-    const result = await discover(ctx, opts, recorder);
+    const result = await review(ctx, opts, recorder);
     await ctx.log.append({
       type: 'run.finished',
       screens: result.map.screens.length,
@@ -101,11 +119,11 @@ export async function runDiscovery(ctx: RunContext, opts: DiscoveryOptions): Pro
   }
 }
 
-async function discover(
+async function review(
   ctx: RunContext,
-  opts: DiscoveryOptions,
+  opts: ReviewOptions,
   recorder: SessionRecorder,
-): Promise<DiscoveryResult> {
+): Promise<ReviewResult> {
   const { config } = ctx;
   await ctx.log.append({
     type: 'run.started',
@@ -117,7 +135,14 @@ async function discover(
   const viewport = firstViewport(config);
   assertBaseUrlAllowed(config);
   const routes = await discoverRoutes(ctx, opts.cwd);
-  const { screens, confirmedBackendHosts } = await explore(ctx, opts, recorder, { routes, viewport });
+  const inspection = new Inspection(ctx, {
+    lenses: opts.lenses ?? [],
+    observers: opts.observers ?? [],
+    viewports: config.viewports,
+    interaction: config.interaction,
+  });
+  const plan: CrawlPlan = { routes, viewport, inspection };
+  const { screens, confirmedBackendHosts } = await explore(ctx, opts, recorder, plan);
   await recorder.assertComplete();
   const map: AppMap = {
     version: 1,
@@ -128,7 +153,14 @@ async function discover(
     screens,
   };
   await writeAppMap(ctx, map);
-  return { map, confirmedBackendHosts, blockedUnconfirmedHosts: recorder.blockedUnconfirmedHosts() };
+  const findings = inspection.file();
+  await writeFindings(ctx, findings);
+  return {
+    map,
+    confirmedBackendHosts,
+    blockedUnconfirmedHosts: recorder.blockedUnconfirmedHosts(),
+    findings,
+  };
 }
 
 async function discoverRoutes(ctx: RunContext, cwd: string): Promise<RouteInfo[]> {
@@ -145,7 +177,7 @@ async function discoverRoutes(ctx: RunContext, cwd: string): Promise<RouteInfo[]
 /** Steps 2 to 5, in one session that is closed whatever happens. */
 async function explore(
   ctx: RunContext,
-  opts: DiscoveryOptions,
+  opts: ReviewOptions,
   recorder: SessionRecorder,
   plan: CrawlPlan,
 ): Promise<{ screens: Screen[]; confirmedBackendHosts: string[] }> {
@@ -224,6 +256,8 @@ function crawlOptions(
     maxScreens: config.maxScreens,
     maxPerRoute: config.maxPerRoute,
     viewport: plan.viewport,
+    onPage: (ipage) => plan.inspection.attach(ipage),
+    inspect: (screen, ipage) => plan.inspection.inspect(screen, ipage),
     ...lostSessionHook(auth, config.baseUrl, logIn),
   };
 }

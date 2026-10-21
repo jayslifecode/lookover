@@ -4,11 +4,11 @@ import {
   APP_MAP_FILE,
   CONFIG_FILENAME,
   createRun,
-  type DiscoveryResult,
   loadConfig,
+  type ReviewResult,
   type RunContext,
   type RunEvent,
-  runDiscovery,
+  runReview,
 } from '@jayslifecode/lookover-core';
 import type { Command } from 'commander';
 import * as ui from '../ui.js';
@@ -102,14 +102,14 @@ async function discover(
   cwd: string,
   options: RunOptions,
   progress: Progress,
-): Promise<DiscoveryResult> {
+): Promise<ReviewResult> {
   const isInteractive = shouldPrompt({
     isYes: options.isYes,
     isStdinTTY: process.stdin.isTTY === true,
     isStdoutTTY: process.stdout.isTTY === true,
   });
   try {
-    return await runDiscovery(ctx, {
+    return await runReview(ctx, {
       cwd,
       ...(options.isHeaded ? { headless: false } : {}),
       hooks: {

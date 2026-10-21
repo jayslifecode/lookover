@@ -18,13 +18,18 @@ import { ensureAuth } from '../src/browser/auth.js';
 import { BrowserSession } from '../src/browser/session.js';
 import { configSchema, type LookoverConfig } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
+import type { Lens } from '../src/findings/lens.js';
+import { FINDINGS_FILE, readLatestFindings } from '../src/findings/persist.js';
+import type { FindingsFile } from '../src/findings/types.js';
 import { crawl } from '../src/map/crawler.js';
 import { APP_MAP_FILE } from '../src/map/persist.js';
 import type { AppMap } from '../src/map/types.js';
-import { type DiscoveryHooks, runDiscovery } from '../src/run/engine.js';
+import type { Observer } from '../src/observers/types.js';
+import { type ReviewHooks, runReview } from '../src/run/engine.js';
 import type { RunEvent, RunEventBody } from '../src/run/events.js';
 import { createRun, type RunContext } from '../src/run/run-context.js';
 import { RunLog } from '../src/run/run-log.js';
+import { occurrence, occurrenceFinding, stepFinding } from './fixtures/findings.js';
 import {
   DEMO_CREDENTIALS,
   type FixtureRoute,
@@ -128,7 +133,7 @@ async function exists(path: string): Promise<boolean> {
 
 /** A `confirmHosts` hook confirming what `confirm` picks (every host by default); records each question. */
 function confirmingHook(confirm: (hosts: string[]) => string[] = (hosts) => hosts): {
-  hooks: DiscoveryHooks;
+  hooks: ReviewHooks;
   asked: string[][];
 } {
   const asked: string[][] = [];
@@ -143,7 +148,7 @@ function confirmingHook(confirm: (hosts: string[]) => string[] = (hosts) => host
   };
 }
 
-describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
+describe('runReview', { timeout: BROWSER_TIMEOUT_MS }, () => {
   let fixture: FixtureServer;
   let workDir: string;
   let launchSpy: MockInstance<typeof BrowserSession.launch>;
@@ -257,7 +262,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
     test('refuses to log in or crawl while a backend is unconfirmed and no hook can confirm it', async () => {
       const { cwd, ctx } = await newProject();
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV }));
+      const error = await failureOf(runReview(ctx, { cwd, env: DEMO_ENV }));
 
       expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
       expect(error.message.split('\n')).toContain(`  ${SUPABASE_HOST}`);
@@ -276,7 +281,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const { cwd, ctx } = await newProject();
       const asked: string[][] = [];
       let loginsBeforeQuestion: number | undefined;
-      const hooks: DiscoveryHooks = {
+      const hooks: ReviewHooks = {
         confirmHosts: async (hosts) => {
           asked.push(hosts);
           loginsBeforeQuestion = eventsOf(await logOf(ctx), 'auth.completed').length;
@@ -284,7 +289,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         },
       };
 
-      const result = await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks });
+      const result = await runReview(ctx, { cwd, env: DEMO_ENV, hooks });
 
       expect(asked).toEqual([[SUPABASE_HOST]]);
       expect(loginsBeforeQuestion).toBe(0);
@@ -295,6 +300,8 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         [url('/home.html'), 'Home'],
         [url('/settings.html'), 'Settings'],
       ]);
+      // No lenses and no observers by default, so nothing is found.
+      expect(result.findings).toMatchObject({ runId: ctx.runId, findings: [], worthALook: [] });
       for (const path of [join(ctx.dir, APP_MAP_FILE), join(ctx.lookoverDir, APP_MAP_FILE)]) {
         const saved = JSON.parse(await readFile(path, 'utf8')) as AppMap;
         expect(saved.screens.length).toBeGreaterThanOrEqual(3);
@@ -324,6 +331,57 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(eventsOf(events, 'auth.completed')[0]?.seq).toBeLessThan(firstScreen?.seq ?? 0);
     });
 
+    test('runReview writes findings.json to the run dir and as the latest, and returns it', async () => {
+      const { cwd, ctx } = await newProject({ maxScreens: 2 });
+      const attached: string[] = [];
+      const observer: Observer = {
+        name: 'fake',
+        attach: (ipage) => attached.push(ipage.page.url()),
+        collect: async (screen) => ({
+          findings: [],
+          worthALook: [
+            occurrenceFinding({
+              id: 'warning-1',
+              occurrences: [occurrence(screen.id, null, { route: screen.route, url: screen.url })],
+            }),
+          ],
+          evidence: [],
+        }),
+      };
+      const lens: Lens = {
+        name: 'interaction',
+        rules: [],
+        inspect: async ({ screen }) => ({
+          findings: [stepFinding({ id: `step-${screen.id}`, screenId: screen.id })],
+          worthALook: [],
+          gallery: null,
+          skipped: [],
+        }),
+      };
+
+      const result = await runReview(ctx, {
+        cwd,
+        env: DEMO_ENV,
+        hooks: confirmingHook().hooks,
+        lenses: [lens],
+        observers: [observer],
+      });
+
+      const screenIds = result.map.screens.map((screen) => screen.id);
+      expect(attached).toEqual(['about:blank']);
+      expect(result.findings).toMatchObject({ version: 1, runId: ctx.runId });
+      expect(result.findings.findings.map((finding) => finding.id)).toEqual(
+        screenIds.map((id) => `step-${id}`),
+      );
+      expect(result.findings.worthALook.map((finding) => finding.id)).toEqual(['warning-1']);
+      const saved = JSON.parse(await readFile(join(ctx.dir, FINDINGS_FILE), 'utf8')) as FindingsFile;
+      expect(saved).toEqual(result.findings);
+      expect(await readLatestFindings(ctx.lookoverDir)).toEqual(result.findings);
+      const events = await logOf(ctx);
+      expect(eventsOf(events, 'screen.inspected').map((event) => event.screenId)).toEqual(screenIds);
+      expect(events.at(-1)).toMatchObject({ type: 'run.finished', screens: screenIds.length });
+    });
+
     test('asks about the hosts only once onEvent has had every host the probe observed', async () => {
       const { cwd, ctx } = await newProject({ maxScreens: 1 });
       // Host events reach the log late, as on a slow disk: the question must still wait for them.
@@ -333,7 +391,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       );
       let seenHosts: ReadonlySet<string> = new Set();
       let unseenWhenAsked: string[] | undefined;
-      const hooks: DiscoveryHooks = {
+      const hooks: ReviewHooks = {
         onEvent: (event) => {
           if (event.type === 'host.observed') {
             seenHosts = new Set([...seenHosts, event.host]);
@@ -345,7 +403,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         },
       };
 
-      await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks });
+      await runReview(ctx, { cwd, env: DEMO_ENV, hooks });
 
       expect(unseenWhenAsked).toEqual([]);
     });
@@ -353,7 +411,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
     test('blocks a backend first called during the crawl and reports it, finishing the run', async () => {
       const { cwd, ctx } = await newProject();
 
-      const result = await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks });
+      const result = await runReview(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks });
 
       const lateCall = backendUrl(LATE_HOST, '/late-call');
       expect(result.blockedUnconfirmedHosts).toEqual([LATE_HOST]);
@@ -375,7 +433,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         realEnsureAuth(session, auth, { ...options, timeoutMs: SHORT_LOGIN_TIMEOUT_MS }),
       );
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks }));
+      const error = await failureOf(runReview(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks }));
 
       expect(error.code).toBe('E_AUTH_FAILED');
       expect(error.hint).toContain(
@@ -400,7 +458,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       });
       const { hooks, asked } = confirmingHook();
 
-      const result = await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks });
+      const result = await runReview(ctx, { cwd, env: DEMO_ENV, hooks });
 
       expect(asked).toEqual([[LOGIN_PAGE_HOST, SUPABASE_HOST]]);
       expect(result.confirmedBackendHosts).toEqual([LOGIN_PAGE_HOST, SUPABASE_HOST]);
@@ -414,7 +472,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const allowHosts = ['staging.example.test'];
       const { cwd, ctx } = await newProject({ allowHosts, maxScreens: 1 });
 
-      await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks });
+      await runReview(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks });
 
       const options = launchOptions();
       expect(options.viewport).toEqual(ctx.config.viewports[0]);
@@ -435,7 +493,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         }
       };
 
-      const result = await runDiscovery(ctx, {
+      const result = await runReview(ctx, {
         cwd,
         env: DEMO_ENV,
         hooks: { ...confirmingHook().hooks, onEvent },
@@ -458,7 +516,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const { cwd, ctx } = await newProject();
       const thrown = new Error('the prompt was closed');
 
-      const running = runDiscovery(ctx, {
+      const running = runReview(ctx, {
         cwd,
         env: DEMO_ENV,
         hooks: { confirmHosts: () => Promise.reject(thrown) },
@@ -483,9 +541,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         const { cwd, ctx } = await newProject();
         failHostEvents(ctx);
 
-        const error = await failureOf(
-          runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks }),
-        );
+        const error = await failureOf(runReview(ctx, { cwd, env: DEMO_ENV, hooks: confirmingHook().hooks }));
 
         expect(error.code).toBe('E_RUN_FAILED');
         expect(error.message).toBe('Run log write failed: disk full');
@@ -500,7 +556,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         const { cwd, ctx } = await newProject();
         failHostEvents(ctx);
 
-        const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV }));
+        const error = await failureOf(runReview(ctx, { cwd, env: DEMO_ENV }));
 
         expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
         expect(error.message).toMatch(/^The app called these backends/);
@@ -522,7 +578,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       );
       const { hooks, asked } = confirmingHook();
 
-      const result = await runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks });
+      const result = await runReview(ctx, { cwd, env: DEMO_ENV, hooks });
 
       const events = await logOf(ctx);
       expect(eventsOf(events, 'route.discovered').map((event) => event.route.pattern)).toEqual(NEXT_PATTERNS);
@@ -545,7 +601,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const { cwd, ctx } = await newProject({ auth: formAuth({ loginUrl: '/login' }) }, NEXT_ROUTE_DIRS);
       const { hooks, asked } = confirmingHook((hosts) => hosts.filter((host) => host === SUPABASE_HOST));
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV, hooks }));
+      const error = await failureOf(runReview(ctx, { cwd, env: DEMO_ENV, hooks }));
 
       expect(asked).toEqual([[PROJECTS_API_HOST, SUPABASE_HOST]]);
       expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
@@ -557,7 +613,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
     test('hints at one command repeating --confirm-host for each unconfirmed host', async () => {
       const { cwd, ctx } = await newProject({ auth: formAuth({ loginUrl: '/login' }) }, NEXT_ROUTE_DIRS);
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, env: DEMO_ENV }));
+      const error = await failureOf(runReview(ctx, { cwd, env: DEMO_ENV }));
 
       expect(error.code).toBe('E_HOSTS_UNCONFIRMED');
       expect(error.hint).toBe(confirmHint(PROJECTS_API_HOST, SUPABASE_HOST));
@@ -602,7 +658,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const statePath = await writeSessionState(cwd);
       expect(relative(process.cwd(), statePath)).not.toBe(STATE_FILE);
 
-      const result = await runDiscovery(ctx, { cwd, hooks: confirmingHook().hooks });
+      const result = await runReview(ctx, { cwd, hooks: confirmingHook().hooks });
 
       expect(launchOptions().storageStatePath).toBe(statePath);
       expect(eventsOf(await logOf(ctx), 'auth.completed')).toEqual([
@@ -617,7 +673,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       await writeSessionState(cwd);
       const hooks = { ...confirmingHook().hooks, onEvent: endSessionAfterFirstScreen() };
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, hooks }));
+      const error = await failureOf(runReview(ctx, { cwd, hooks }));
 
       expect(error.code).toBe('E_AUTH_FAILED');
       expect(error.message).toBe('The saved session expired during the run');
@@ -640,7 +696,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
       vi.mocked(crawl).mockClear();
       const hooks = { ...confirmingHook().hooks, onEvent: endSessionAfterFirstScreen() };
 
-      const result = await runDiscovery(ctx, { cwd, hooks });
+      const result = await runReview(ctx, { cwd, hooks });
 
       expect(vi.mocked(crawl)).toHaveBeenCalledTimes(1);
       expect(vi.mocked(crawl).mock.calls[0]?.[2]).not.toHaveProperty('auth');
@@ -656,7 +712,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
     test('fails with E_AUTH_FAILED naming the file when it does not exist', async () => {
       const { cwd, ctx } = await newProject({ auth: storageAuth() });
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, hooks: confirmingHook().hooks }));
+      const error = await failureOf(runReview(ctx, { cwd, hooks: confirmingHook().hooks }));
 
       expect(error.code).toBe('E_AUTH_FAILED');
       expect(error.hint).toContain(join(cwd, STATE_FILE));
@@ -673,7 +729,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         JSON.stringify({ cookies: [{ value: 'no name' }], origins: [] }),
       );
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, hooks: confirmingHook().hooks }));
+      const error = await failureOf(runReview(ctx, { cwd, hooks: confirmingHook().hooks }));
 
       expect(error.code).toBe('E_AUTH_FAILED');
       expect(`${error.message}\n${error.hint ?? ''}`).toContain(join(cwd, STATE_FILE));
@@ -696,7 +752,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
     ])('fails when %s', async (_label, overrides, code) => {
       const { cwd, ctx } = await newProject({ auth: { type: 'none' }, ...overrides });
 
-      const error = await failureOf(runDiscovery(ctx, { cwd, hooks: confirmingHook().hooks }));
+      const error = await failureOf(runReview(ctx, { cwd, hooks: confirmingHook().hooks }));
 
       expect(error.code).toBe(code);
       expect(launchSpy).not.toHaveBeenCalled();
@@ -710,7 +766,7 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
         baseUrl: 'http://app.example.test:3000',
       });
 
-      const error = await failureOf(runDiscovery(ctx, { cwd }));
+      const error = await failureOf(runReview(ctx, { cwd }));
 
       expect(error.hint).toContain('--allow-host app.example.test');
     });

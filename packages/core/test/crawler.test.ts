@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import { BrowserSession } from '../src/browser/session.js';
+import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
 import { type CrawlOptions, crawl } from '../src/map/crawler.js';
@@ -394,6 +394,60 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(screen?.elements).toHaveLength(MAX_ELEMENTS_PER_SCREEN);
     expect(eventsOf(events, 'screen.truncated')).toEqual([
       expect.objectContaining({ screenId: screen?.id, elements: count, kept: MAX_ELEMENTS_PER_SCREEN }),
+    ]);
+  });
+
+  test('calls onPage once before the first navigation and inspect once per captured screen, before offering links', async () => {
+    const ctx = await newRun();
+    const timeline: string[] = [];
+    ctx.log.subscribe((event) => {
+      if (event.type === 'screen.captured') {
+        timeline.push(`captured ${event.screen.url}`);
+      } else if (event.type === 'screen.skipped') {
+        timeline.push(`skipped ${event.url}`);
+      }
+    });
+    const opened: { url: string; ipage: InstrumentedPage }[] = [];
+    const inspected: { screen: string; page: string; ipage: InstrumentedPage }[] = [];
+
+    const screens = await crawl(
+      session,
+      ctx,
+      optionsFor({
+        seeds: ['/broken', '/'],
+        maxScreens: 3,
+        onPage: (ipage) => {
+          opened.push({ url: ipage.page.url(), ipage });
+        },
+        inspect: async (screen, ipage) => {
+          timeline.push(`inspect ${screen.url}`);
+          inspected.push({ screen: screen.url, page: ipage.page.url(), ipage });
+        },
+      }),
+    );
+
+    expect(opened.map((entry) => entry.url)).toEqual(['about:blank']);
+    expect(screens.map((screen) => [screen.url, screen.status])).toEqual([
+      [url('/broken'), 'navigation-failed'],
+      [url('/'), 'captured'],
+      [url('/orgs.html'), 'captured'],
+    ]);
+    // The failed screen is not inspected; each captured one is, on the page it was captured from.
+    expect(inspected.map(({ screen, page }) => [screen, page])).toEqual([
+      [url('/'), url('/')],
+      [url('/orgs.html'), url('/orgs.html')],
+    ]);
+    expect(inspected.every((entry) => entry.ipage === opened[0]?.ipage)).toBe(true);
+    // The index's links are offered after it is inspected: off-app, destructive, then over budget.
+    expect(timeline.slice(0, 8)).toEqual([
+      `captured ${url('/broken')}`,
+      `captured ${url('/')}`,
+      `inspect ${url('/')}`,
+      'skipped https://example.com/',
+      `skipped ${url('/logout')}`,
+      `skipped ${url('/sse.html')}`,
+      `captured ${url('/orgs.html')}`,
+      `inspect ${url('/orgs.html')}`,
     ]);
   });
 

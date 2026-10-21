@@ -33,6 +33,14 @@ export interface CrawlOptions {
     /** Logs in again inside the session's browser context. */
     recover: () => Promise<void>;
   };
+  /** Called once with the crawl page, right after it is opened and before any navigation. */
+  onPage?: (ipage: InstrumentedPage) => void;
+  /**
+   * Inspects a captured screen on the page it was captured from, after `screen.captured` and before its
+   * links are offered. Failed navigations and redirected duplicates are not inspected. What it throws
+   * ends the crawl.
+   */
+  inspect?: (screen: Screen, ipage: InstrumentedPage) => Promise<void>;
 }
 
 type CrawlAuth = NonNullable<CrawlOptions['auth']>;
@@ -83,8 +91,9 @@ const SCREEN_ID_LENGTH = 10;
  * a redirect captured first gets too. A redirect off the app fails the screen.
  *
  * Logs `screen.discovered` before each visit and `screen.captured` after it, then
- * `screen.truncated` when the screen had more controls than the extractor keeps. A navigation that
- * fails is still a screen in the map, with status `navigation-failed`, the reason as its `error`, a
+ * `screen.truncated` when the screen had more controls than the extractor keeps; a captured screen is
+ * then handed to `opts.inspect`, on the page still showing it, before its links are offered. A
+ * navigation that fails is still a screen in the map, with status `navigation-failed`, the reason as its `error`, a
  * title of `(navigation failed: <reason>)` and nothing in it, so later stages see dead links; the
  * crawl goes on. With `opts.auth`, landing on the login page
  * from elsewhere logs `auth.lost`, logs in again and retries once; landing there again throws
@@ -95,6 +104,7 @@ const SCREEN_ID_LENGTH = 10;
 export async function crawl(session: BrowserSession, ctx: RunContext, opts: CrawlOptions): Promise<Screen[]> {
   const ipage = await session.newPage();
   try {
+    opts.onPage?.(ipage);
     // The session's viewport may differ; each screen must be captured at the one it records.
     await ipage.page.setViewportSize({ width: opts.viewport.width, height: opts.viewport.height });
     return await new Crawler(ctx, ipage, opts).run();
@@ -191,6 +201,7 @@ class Crawler {
         kept: capture.elements.length,
       });
     }
+    await this.opts.inspect?.(screen, this.ipage);
     await this.offer(links, screen.url);
     return screen;
   }

@@ -24,6 +24,7 @@ export { EvidenceStore } from './evidence/store.js';
 export type { FixPromptInput } from './findings/fix-prompt.js';
 export { fixPromptFor } from './findings/fix-prompt.js';
 export { findingId, mergeFindings } from './findings/id.js';
+export type { Lens, LensContext, LensResult, LensSkip } from './findings/lens.js';
 export { FINDINGS_FILE, readLatestFindings, writeFindings } from './findings/persist.js';
 export type {
   ElementTarget,
@@ -72,11 +73,14 @@ export type {
   Viewport,
 } from './map/types.js';
 export { isFailedScreen } from './map/types.js';
+export type { Observer, ObserverResult } from './observers/types.js';
 export type { ConfirmHosts } from './run/backend-probe.js';
 export { confirmHostCommand } from './run/backend-probe.js';
-export type { DiscoveryHooks, DiscoveryOptions, DiscoveryResult } from './run/engine.js';
-export { runDiscovery } from './run/engine.js';
+export type { ReviewHooks, ReviewOptions, ReviewResult } from './run/engine.js';
+export { runReview } from './run/engine.js';
 export type { RunEvent, RunEventBody } from './run/events.js';
+export type { InspectionOptions } from './run/inspection.js';
+export { Inspection, PER_SCREEN_BUDGET_MS } from './run/inspection.js';
 export type { CreateRunOptions, RunContext } from './run/run-context.js';
 export { createRun } from './run/run-context.js';
 export type { RunLogOptions } from './run/run-log.js';
