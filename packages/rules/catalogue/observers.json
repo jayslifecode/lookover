@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "observers.page-error",
+      "source": "observers",
+      "severity": "high",
+      "title": "The page threw an error that nothing caught",
+      "expected": "The page runs without throwing an error that nothing handles.",
+      "whyItMatters": "An uncaught error usually means part of the page stopped working, often with no message to the user. It shows up as a button that does nothing or a blank section.",
+      "fixHint": "Fix the code that throws this error and handle the failure where it can happen, so the page shows a message instead of breaking.",
+      "reference": null
+    },
+    {
+      "id": "observers.console-error",
+      "source": "observers",
+      "severity": "medium",
+      "title": "The page logged an error to the console",
+      "expected": "The browser console stays free of errors while the page loads and is used.",
+      "whyItMatters": "An error in the console is usually something that went wrong behind the scenes, such as a failed request, a broken component or a missing file. Users may not see the error, but they see its effects.",
+      "fixHint": "Find the code that logs this error and fix its cause, and remove the log line only once the cause is gone.",
+      "reference": null
+    },
+    {
+      "id": "observers.console-warning",
+      "source": "observers",
+      "severity": "low",
+      "title": "The page logged a warning",
+      "expected": "The browser console stays free of warnings while the page loads and is used.",
+      "whyItMatters": "A warning is an early sign of trouble: something outdated, misused or about to break. It is cheap to fix now and costly to track down later.",
+      "fixHint": "Read the warning text, then change the code it points to so the warning no longer appears.",
+      "reference": null
+    },
+    {
+      "id": "observers.request-server-error",
+      "source": "observers",
+      "severity": "high",
+      "title": "A request the page made failed on the server",
+      "expected": "Every request the page makes is answered without a server error, that is, without a status of 500 or higher.",
+      "whyItMatters": "The server broke while handling the request, so the data or action the page asked for did not happen. Users see an empty list, a spinner that never ends or a save that silently fails.",
+      "fixHint": "Fix the server code behind this request so it stops failing, and make the page show a clear message when a request fails anyway.",
+      "reference": null
+    },
+    {
+      "id": "observers.request-client-error",
+      "source": "observers",
+      "severity": "medium",
+      "title": "A request the page made was rejected",
+      "expected": "Every request the page makes is accepted by the server, with no rejection such as not found (404), not allowed (403) or bad request (400).",
+      "whyItMatters": "The page asked for something the server would not give: a file that is missing, a login that has lapsed, or data in the wrong shape. The feature that depended on it is likely broken.",
+      "fixHint": "Fix the URL, credentials or data this request sends so the server accepts it, or remove the request if it is no longer needed.",
+      "reference": null
+    },
+    {
+      "id": "observers.request-network-error",
+      "source": "observers",
+      "severity": "high",
+      "title": "A request the page made never got an answer",
+      "expected": "Every request the page makes gets an answer from a server.",
+      "whyItMatters": "The request never reached a server or never came back: the address is wrong, the server is down, or the browser blocked it. Whatever depended on the answer cannot work.",
+      "fixHint": "Fix the address or the server this request goes to, and show a message in the page when no answer comes back.",
+      "reference": null
+    },
+    {
+      "id": "observers.raw-value",
+      "source": "observers",
+      "severity": "high",
+      "title": "A placeholder value leaked into the page",
+      "expected": "The page never shows internal placeholder values such as undefined, null, NaN or [object Object] as text.",
+      "whyItMatters": "These words appear when the app tried to show data it did not have, so visitors read something like Last edited by undefined. It looks careless and often hides a real bug.",
+      "fixHint": "Find where this text is built, make sure the value exists before it is shown, and show a sensible fallback or leave the label out when it does not.",
+      "reference": null
+    },
+    {
+      "id": "observers.raw-i18n-key",
+      "source": "observers",
+      "severity": "medium",
+      "title": "A translation key is shown instead of its text",
+      "expected": "The page shows readable text, not translation keys such as settings.timezone.hint.",
+      "whyItMatters": "A translation key on screen means the text is missing for this language, or the translation file did not load. Visitors see code instead of a sentence and cannot tell what the label means.",
+      "fixHint": "Add the missing entry for this key to the translation file for the current language, or fix how that file is loaded.",
+      "reference": null
+    },
+    {
+      "id": "observers.unresolved-placeholder",
+      "source": "observers",
+      "severity": "medium",
+      "title": "A template placeholder was not filled in",
+      "expected": "The page never shows template placeholders such as {{name}} or {count} that were meant to be replaced with real values.",
+      "whyItMatters": "The app was supposed to fill in a name, a number or a date and did not. Visitors see raw template code, which looks unfinished and leaves out what they needed to know.",
+      "fixHint": "Pass the missing value into the template that renders this text, or fix the placeholder name so it matches the value you supply.",
+      "reference": null
+    }
+  ]
+}

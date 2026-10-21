@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "interaction.focus-visible-missing",
+      "source": "interaction",
+      "severity": "high",
+      "title": "Keyboard focus is not visible",
+      "expected": "When you press Tab, the control that receives focus shows a clear outline or highlight.",
+      "whyItMatters": "People who get around with a keyboard instead of a mouse need to see where they are on the page. Without a visible mark they cannot tell which button or link the next key press will use.",
+      "fixHint": "Give this control a `:focus-visible` style such as a 2px outline, and remove any `outline: none` that has no replacement.",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "2.4.7 Focus Visible",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html"
+      }
+    },
+    {
+      "id": "interaction.focus-indicator-contrast",
+      "source": "interaction",
+      "severity": "medium",
+      "title": "The focus indicator is too faint",
+      "expected": "The focus mark is easy to tell apart from what is behind it, with a contrast ratio of at least 3 to 1.",
+      "whyItMatters": "A focus mark that blends into the background is nearly as bad as none. People with low vision, or anyone looking at a screen in bright light, cannot find it.",
+      "fixHint": "Change the colour of this control's focus outline so it has a contrast ratio of at least 3:1 against the background next to it.",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "1.4.11 Non-text Contrast",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html"
+      }
+    },
+    {
+      "id": "interaction.hover-state-missing",
+      "source": "interaction",
+      "severity": "low",
+      "title": "No hover feedback on a clickable control",
+      "expected": "A button or link looks different when the pointer is over it, for example a new background colour, an underline or a shadow.",
+      "whyItMatters": "Hover feedback tells people a control can be clicked before they click it. Without it the page feels dead and people hesitate.",
+      "fixHint": "Add a `:hover` style to this control that changes its background colour, text colour or underline.",
+      "reference": null
+    },
+    {
+      "id": "interaction.text-contrast-fail",
+      "source": "interaction",
+      "severity": "high",
+      "title": "Text is unreadable against its background",
+      "expected": "Text has a contrast ratio of at least 4.5 to 1 against its background, or 3 to 1 when the text is large.",
+      "whyItMatters": "Text this faint is hard to read for almost everyone, impossible for people with low vision, and gone on a phone in sunlight. Whatever it says is lost.",
+      "fixHint": "Darken the text colour or lighten its background until the contrast ratio is at least 4.5:1 (3:1 for large text).",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "1.4.3 Contrast (Minimum)",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html"
+      }
+    },
+    {
+      "id": "interaction.text-contrast-low",
+      "source": "interaction",
+      "severity": "medium",
+      "title": "Text contrast is below the minimum",
+      "expected": "Text has a contrast ratio of at least 4.5 to 1 against its background, or 3 to 1 when the text is large.",
+      "whyItMatters": "Text just under the minimum is readable on a good screen but tiring for many people, and hard to read with low vision or in bright light.",
+      "fixHint": "Darken the text colour or lighten its background until the contrast ratio is at least 4.5:1 (3:1 for large text).",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "1.4.3 Contrast (Minimum)",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html"
+      }
+    },
+    {
+      "id": "interaction.target-size",
+      "source": "interaction",
+      "severity": "medium",
+      "title": "Tap target is smaller than 24 by 24 pixels",
+      "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
+      "whyItMatters": "Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.",
+      "fixHint": "Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave at least 24 pixels of space around it.",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "2.5.8 Target Size (Minimum)",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html"
+      }
+    },
+    {
+      "id": "interaction.keyboard-unreachable",
+      "source": "interaction",
+      "severity": "high",
+      "title": "Control cannot be reached with the keyboard",
+      "expected": "Everything you can click can also be reached with the Tab key and used with Enter or Space.",
+      "whyItMatters": "People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.",
+      "fixHint": "Make this control a real `<button>` or `<a href>` element, or at least give it `tabindex=0` and key handlers for Enter and Space.",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "2.1.1 Keyboard",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html"
+      }
+    },
+    {
+      "id": "interaction.positive-tabindex",
+      "source": "interaction",
+      "severity": "low",
+      "title": "A positive tabindex forces a custom focus order",
+      "expected": "Tab moves through the page in the order things appear on screen, with no tabindex above 0 forcing a different order.",
+      "whyItMatters": "A positive tabindex pulls its control to the front of the Tab order, so the keyboard jumps around the page in a way nobody can predict.",
+      "fixHint": "Remove the positive `tabindex` from this element, and if the Tab order is wrong, reorder the elements in the HTML instead.",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "2.4.3 Focus Order",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/focus-order.html"
+      }
+    },
+    {
+      "id": "interaction.focus-hidden",
+      "source": "interaction",
+      "severity": "medium",
+      "title": "Keyboard focus lands on something that cannot be seen",
+      "expected": "Every control that Tab lands on can be seen on screen, and is not invisible, off screen or covered by something else.",
+      "whyItMatters": "The person pressing Tab sees nothing happen, so they do not know where they are, and pressing Enter may trigger something they cannot see.",
+      "fixHint": "Make this element visible when it receives focus, or take it out of the Tab order if it is not meant to be used.",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "2.4.11 Focus Not Obscured (Minimum)",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html"
+      }
+    },
+    {
+      "id": "interaction.focus-trap",
+      "source": "interaction",
+      "severity": "high",
+      "title": "Keyboard focus gets stuck",
+      "expected": "Tab always moves focus on and Shift+Tab always moves it back, so no one gets stuck on a single control.",
+      "whyItMatters": "Someone using only a keyboard who gets stuck cannot leave the control or reach anything else on the page. Their only way out is to reload or give up.",
+      "fixHint": "Remove the code that keeps this element focused, such as a key handler that blocks Tab or a blur handler that calls `focus()`, unless it is an open dialog that closes on Escape.",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "2.1.2 No Keyboard Trap",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/no-keyboard-trap.html"
+      }
+    },
+    {
+      "id": "interaction.horizontal-overflow",
+      "source": "interaction",
+      "severity": "high",
+      "title": "The page scrolls sideways at this screen size",
+      "expected": "The page fits the width of the screen, so you never have to scroll sideways to read it, apart from things like wide tables that scroll inside their own box.",
+      "whyItMatters": "On a phone, a page that scrolls sideways hides content off screen and is awkward to read and use. It is one of the most visible signs that a site was not checked on a small screen.",
+      "fixHint": "Make the elements reported as overflowing fit the screen width, for example with `max-width: 100%`, wrapping text, or `overflow-x: auto` on their own container instead of the page.",
+      "reference": {
+        "standard": "WCAG 2.2",
+        "criterion": "1.4.10 Reflow",
+        "url": "https://www.w3.org/WAI/WCAG22/Understanding/reflow.html"
+      }
+    },
+    {
+      "id": "interaction.text-clipped",
+      "source": "interaction",
+      "severity": "medium",
+      "title": "Text is cut off without an ellipsis",
+      "expected": "Text that does not fit its box wraps onto more lines or ends with an ellipsis, so it never just stops.",
+      "whyItMatters": "Text cut off mid-word hides part of the message, and the reader cannot tell that something is missing. They may act on a half-read label.",
+      "fixHint": "Let the text wrap, give its container more room, or add `text-overflow: ellipsis` so the cut-off is visible.",
+      "reference": null
+    }
+  ]
+}
