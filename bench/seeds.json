@@ -17,6 +17,14 @@
       "selector": "[data-testid=\"export-csv\"]",
       "rule": "interaction.text-contrast-fail",
       "expectedSeverity": "high"
+    },
+    {
+      "id": "interaction-003",
+      "lens": "interaction",
+      "route": "/organisations",
+      "selector": "a[aria-label=\"Edit Northwind Logistics\"]",
+      "rule": "interaction.target-size",
+      "expectedSeverity": "medium"
     }
   ]
 }

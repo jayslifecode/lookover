@@ -16,6 +16,10 @@ export const BUTTON_PRIMARY_NO_RING = `${BUTTON_PRIMARY} focus:outline-none`;
 export const BUTTON_SECONDARY =
   'inline-flex items-center rounded-md border border-slate-500 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100';
 
+/** An icon-only action in a table row: a 16 px square with no padding. */
+export const ICON_ACTION =
+  'inline-flex h-4 w-4 items-center justify-center p-0 text-slate-700 hover:text-primary';
+
 export const CONTROL =
   'block w-full rounded-md border border-slate-500 bg-white px-3 py-2 text-sm text-slate-900 aria-[invalid=true]:border-red-700';
 

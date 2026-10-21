@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { BUTTON_PRIMARY, HEADING, LINK } from '@/components/styles';
+import { CopyEmailButton } from '@/components/copy-email-button';
+import { BUTTON_PRIMARY, HEADING, ICON_ACTION, LINK } from '@/components/styles';
 import { listOrganisations } from '@/lib/store';
 import { parseId } from '@/lib/validation';
 
@@ -8,6 +9,24 @@ export const metadata: Metadata = { title: 'Organisations' };
 
 interface OrganisationsPageProps {
   searchParams: Promise<{ saved?: string | string[] }>;
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M2 14v-2.5L11.5 2 14 4.5 4.5 14z" />
+    </svg>
+  );
 }
 
 export default async function OrganisationsPage({ searchParams }: OrganisationsPageProps) {
@@ -42,6 +61,9 @@ export default async function OrganisationsPage({ searchParams }: OrganisationsP
               <th scope="col" className="px-4 py-2 font-medium">
                 Registered on
               </th>
+              <th scope="col" className="px-4 py-2 font-medium">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -55,6 +77,18 @@ export default async function OrganisationsPage({ searchParams }: OrganisationsP
                 <td className="px-4 py-2">{org.phone}</td>
                 <td className="px-4 py-2">{org.email}</td>
                 <td className="px-4 py-2">{org.registeredAt}</td>
+                <td className="px-4 py-2">
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={`/organisations/${org.id}`}
+                      aria-label={`Edit ${org.name}`}
+                      className={ICON_ACTION}
+                    >
+                      <PencilIcon />
+                    </Link>
+                    <CopyEmailButton name={org.name} email={org.email} />
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
