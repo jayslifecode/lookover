@@ -16,6 +16,8 @@ export interface Organisation {
   email: string;
   /** `YYYY-MM-DD`, the only date format the app uses. */
   registeredAt: string;
+  /** Who last edited the organisation. No organisation in the data has one yet. */
+  editor?: string;
 }
 
 /** An organisation to save: without `id` it is created with the next free id. */

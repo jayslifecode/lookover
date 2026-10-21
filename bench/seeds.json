@@ -64,6 +64,14 @@
       "selector": "#timeZone-hint",
       "rule": "observers.raw-i18n-key",
       "expectedSeverity": "medium"
+    },
+    {
+      "id": "observers-003",
+      "lens": "observers",
+      "route": "/organisations/[id]",
+      "selector": "#last-edited",
+      "rule": "observers.raw-value",
+      "expectedSeverity": "high"
     }
   ]
 }

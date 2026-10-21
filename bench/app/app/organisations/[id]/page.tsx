@@ -26,6 +26,9 @@ export default async function EditOrganisationPage({ params }: EditOrganisationP
         action={saveOrganisationAction.bind(null, organisationId)}
         initialState={{ values, errors: {} }}
       />
+      <p id="last-edited" className="text-sm text-slate-600">
+        {`Last edited by ${organisation.editor}`}
+      </p>
     </div>
   );
 }
