@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { hasErrorCode, isMissingFile, writeFileAtomic } from '../src/util/fs.js';
+import { hasErrorCode, isMissingFile, readIfPresent, writeFileAtomic } from '../src/util/fs.js';
 
 const PERMISSION_BITS = 0o777;
 const PRIVATE_FILE_MODE = 0o600;
@@ -89,6 +89,34 @@ describe('writeFileAtomic', () => {
 
     expect(isMissingFile(error)).toBe(true);
     expect(await readdir(dir)).toEqual([]);
+  });
+});
+
+describe('readIfPresent', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'lookover-fs-read-'));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('returns the text of a file', async () => {
+    await writeFile(join(dir, 'in.json'), '{"a":1}\n');
+
+    expect(await readIfPresent(join(dir, 'in.json'))).toBe('{"a":1}\n');
+  });
+
+  test('returns null for a file that does not exist', async () => {
+    expect(await readIfPresent(join(dir, 'missing.json'))).toBeNull();
+  });
+
+  test('rethrows any other error, such as reading a directory', async () => {
+    const error = await errorOf(readIfPresent(dir));
+
+    expect(hasErrorCode(error, 'EISDIR')).toBe(true);
   });
 });
 

@@ -1,8 +1,7 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { LookoverError } from '../errors.js';
 import type { RunContext } from '../run/run-context.js';
-import { isMissingFile, writeFileAtomic } from '../util/fs.js';
+import { readIfPresent, writeFileAtomic } from '../util/fs.js';
 import { redact, redactDeep } from '../util/redact.js';
 import type { AppMap, Screen } from './types.js';
 
@@ -104,15 +103,6 @@ function screenKey(screen: Screen): string {
 
 function difference(source: ReadonlySet<string>, other: ReadonlySet<string>): string[] {
   return [...source].filter((value) => !other.has(value)).toSorted();
-}
-
-async function readIfPresent(path: string): Promise<string | null> {
-  try {
-    return await readFile(path, 'utf8');
-  } catch (error) {
-    if (isMissingFile(error)) return null;
-    throw error;
-  }
 }
 
 function parseAppMap(raw: string, path: string): AppMap {

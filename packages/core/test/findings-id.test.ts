@@ -1,6 +1,8 @@
+import { ruleById } from '@jayslifecode/lookover-rules';
 import { describe, expect, test } from 'vitest';
+import { fixPromptFor } from '../src/findings/fix-prompt.js';
 import { findingId, mergeFindings } from '../src/findings/id.js';
-import type { Finding } from '../src/findings/types.js';
+import type { Finding, OccurrenceFinding } from '../src/findings/types.js';
 import {
   deepFreeze,
   evidenceItem,
@@ -98,6 +100,81 @@ describe('mergeFindings', () => {
       { count: 1 },
       { count: 1 },
     ]);
+  });
+
+  describe('the fix prompt of a merged occurrence finding', () => {
+    const rule = ruleById('observers.console-error');
+    const observed = 'logged "Failed to load resource" 1 time';
+
+    function onScreen(screenId: string, route: string, selector: string): OccurrenceFinding {
+      const seen = occurrence(screenId, selector, { route, url: `http://localhost:3123${route}` });
+      return occurrenceFinding({
+        id: 'f1',
+        rule: { id: rule.id, source: 'catalogue' },
+        observed,
+        occurrences: [seen],
+        fixPrompt: fixPromptFor({ rule, route, url: seen.url, target: null, observed, occurrences: [seen] }),
+      });
+    }
+
+    test('lists the occurrences of every screen, led by the first one', () => {
+      const first = onScreen('s1', '/a', '#a');
+      const second = onScreen('s2', '/b', '#b');
+      const input = deepFreeze([first, second]);
+
+      const [merged] = mergeFindings(input);
+
+      const expected = fixPromptFor({
+        rule,
+        route: '/a',
+        url: 'http://localhost:3123/a',
+        target: null,
+        observed,
+        occurrences: [...first.occurrences, ...second.occurrences],
+      });
+      expect(merged?.fixPrompt).toBe(expected);
+      expect(merged?.fixPrompt.split('\n').slice(0, 4)).toEqual([
+        'In /a (http://localhost:3123/a), logged "Failed to load resource" 1 time.',
+        'Occurrences (2):',
+        '/a #a — count=1',
+        '/b #b — count=1',
+      ]);
+      expect(merged?.observed).toBe(observed);
+      expect(first.fixPrompt).not.toContain('/b #b');
+    });
+
+    test('lists all three screens after two repeats', () => {
+      const [merged] = mergeFindings([
+        onScreen('s1', '/a', '#a'),
+        onScreen('s2', '/b', '#b'),
+        onScreen('s3', '/c', '#c'),
+      ]);
+
+      expect(merged?.fixPrompt).toContain('Occurrences (3):');
+      expect(merged?.fixPrompt).toContain('/c #c — count=1');
+    });
+
+    test('keeps the first prompt when a repeat adds no occurrence', () => {
+      const first = onScreen('s1', '/a', '#a');
+      const repeat = occurrenceFinding({
+        ...first,
+        evidence: [evidenceItem('e9')],
+        fixPrompt: 'a prompt that must not be used',
+      });
+
+      const [merged] = mergeFindings([first, repeat]);
+
+      expect(merged?.fixPrompt).toBe(first.fixPrompt);
+      expect(merged?.evidence.map((item) => item.ref.id)).toEqual(['e9']);
+    });
+
+    test('is not touched on a step finding', () => {
+      const first = stepFinding({ id: 'same', fixPrompt: 'first prompt' });
+
+      const [merged] = mergeFindings([first, stepFinding({ id: 'same', fixPrompt: 'second prompt' })]);
+
+      expect(merged?.fixPrompt).toBe('first prompt');
+    });
   });
 
   test('keeps every other field of the first occurrence finding', () => {

@@ -1,8 +1,7 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { LookoverError } from '../errors.js';
 import type { RunContext } from '../run/run-context.js';
-import { isMissingFile, writeFileAtomic } from '../util/fs.js';
+import { readIfPresent, writeFileAtomic } from '../util/fs.js';
 import { redactDeep } from '../util/redact.js';
 import type { FindingsFile } from './types.js';
 
@@ -34,15 +33,6 @@ export async function readLatestFindings(lookoverDir: string): Promise<FindingsF
   const raw = await readIfPresent(path);
   if (raw === null) return null;
   return parseFindings(raw, path);
-}
-
-async function readIfPresent(path: string): Promise<string | null> {
-  try {
-    return await readFile(path, 'utf8');
-  } catch (error) {
-    if (isMissingFile(error)) return null;
-    throw error;
-  }
 }
 
 function parseFindings(raw: string, path: string): FindingsFile {

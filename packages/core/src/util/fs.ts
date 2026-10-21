@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { chmod, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 
 const PERMISSION_BITS = 0o777;
 
@@ -63,4 +63,14 @@ export function hasErrorCode(error: unknown, code: string): boolean {
 /** True when a file system call failed because the path does not exist (`ENOENT`). */
 export function isMissingFile(error: unknown): boolean {
   return hasErrorCode(error, 'ENOENT');
+}
+
+/** The text of the file at `path`; `null` when the file does not exist. Any other failure is thrown. */
+export async function readIfPresent(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if (isMissingFile(error)) return null;
+    throw error;
+  }
 }
