@@ -25,6 +25,14 @@
       "selector": "a[aria-label=\"Edit Northwind Logistics\"]",
       "rule": "interaction.target-size",
       "expectedSeverity": "medium"
+    },
+    {
+      "id": "interaction-004",
+      "lens": "interaction",
+      "route": "/",
+      "selector": "[data-testid=\"stat-organisations\"]",
+      "rule": "interaction.keyboard-unreachable",
+      "expectedSeverity": "high"
     }
   ]
 }

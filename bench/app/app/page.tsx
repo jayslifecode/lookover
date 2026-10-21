@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { StatCard } from '@/components/stat-card';
 import { HEADING, LINK } from '@/components/styles';
 import { listOrganisations } from '@/lib/store';
 import { summarise } from '@/lib/summary';
@@ -18,16 +19,20 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <h1 className={HEADING}>Dashboard</h1>
-      <dl className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <dt className="text-sm text-slate-600">Organisations</dt>
-          <dd className="mt-1 text-3xl font-semibold">{summary.organisationCount}</dd>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <dt className="text-sm text-slate-600">Latest registration</dt>
-          <dd className="mt-1 text-3xl font-semibold">{summary.latestRegistration}</dd>
-        </div>
-      </dl>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatCard
+          testId="stat-organisations"
+          label="Organisations"
+          value={summary.organisationCount}
+          detail="Every organisation registered in this workspace."
+        />
+        <StatCard
+          testId="stat-latest-registration"
+          label="Latest registration"
+          value={summary.latestRegistration}
+          detail="The most recent registered-on date, as YYYY-MM-DD."
+        />
+      </div>
       <section aria-labelledby="shortcuts-heading" className="space-y-3">
         <h2 id="shortcuts-heading" className="text-lg font-semibold">
           Go to
