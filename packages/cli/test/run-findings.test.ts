@@ -125,6 +125,19 @@ describe('groupCandidates', () => {
     },
   );
 
+  test.each([
+    // A family emoji: four people joined by U+200D (zero width joiner).
+    ['an emoji joined with a zero width joiner', 'Share with \u{1F468}‍\u{1F469}‍\u{1F467}‍\u{1F466}'],
+    // "می‌خواهم" (I want): Persian writes U+200C (zero width non-joiner) inside the word.
+    ['a Persian word with a zero width non-joiner', 'Save می‌خواهم'],
+  ])('keeps %s in an element name unchanged', (_what, name) => {
+    const [group] = groupCandidates(
+      findingsFile([stepCandidate({ ruleId: 'interaction.target-size', name })]),
+    );
+
+    expect(group?.example).toBe(`/ button "${name}"`);
+  });
+
   test('leaves the worth-a-look entries out', () => {
     const groups = groupCandidates(
       findingsFile([], [stepCandidate({ ruleId: 'interaction.hover-state-missing', severity: 'low' })]),

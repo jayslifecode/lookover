@@ -14,9 +14,12 @@ export interface CandidateGroup {
 
 /**
  * What a page may put in an element's name that a terminal would act on rather than show: control
- * characters, format characters (bidi overrides such as U+202E) and line and paragraph separators.
+ * characters, line and paragraph separators, and the bidi controls that can show a name reversed (the
+ * embeddings and overrides U+202A–U+202E, the isolates U+2066–U+2069, the marks U+200E, U+200F and
+ * U+061C). The other format characters stay: the zero width joiner holds emoji sequences together, and
+ * Persian and Mongolian write joiners and non-joiners inside words.
  */
-const TERMINAL_UNSAFE_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
+const TERMINAL_UNSAFE_CHARACTERS = /[\p{Cc}\p{Zl}\p{Zp}‪-‮⁦-⁩‎‏؜]/gu;
 const COLUMN_GAP = '  ';
 const LINE_INDENT = '  ';
 
