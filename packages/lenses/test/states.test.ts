@@ -75,6 +75,25 @@ describe('stateDiffers', () => {
     };
     expect(stateDiffers(snapshot(), before)).toBe(true);
   });
+
+  test('is false when the outline stays none, whatever its width, colour and offset do', () => {
+    const undrawn: Partial<StyleValues> = {
+      'outline-width': '2px',
+      'outline-color': BLUE,
+      'outline-offset': '2px',
+    };
+
+    expect(stateDiffers(snapshot(), snapshot(undrawn))).toBe(false);
+    expect(stateDiffers(snapshot(), snapshot({}, undrawn))).toBe(false);
+  });
+
+  test('is true when the outline is drawn in either state', () => {
+    const drawn: Partial<StyleValues> = { 'outline-style': 'solid', 'outline-width': '2px' };
+
+    expect(stateDiffers(snapshot(), snapshot(drawn))).toBe(true);
+    expect(stateDiffers(snapshot(drawn), snapshot())).toBe(true);
+    expect(stateDiffers(snapshot(drawn), snapshot({ ...drawn, 'outline-color': BLUE }))).toBe(true);
+  });
 });
 
 describe('focusIndicatorColor', () => {
@@ -502,6 +521,19 @@ describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(entryFor(result, '#in-field').focusMarkOn).toBe('ancestor:2');
       expect(entryFor(result, '#too-deep').focusMarkOn).toBeNull();
       expect(result.skipped).toEqual([{ reason: 'focus-indicator-on-ancestor', count: 1 }]);
+    });
+
+    test('reports a control whose focus removes the shared ring, though the ring rule still sets its width and colour', async () => {
+      const context = await open('outline-none.html');
+
+      const result = await captureStates(context, context.screen.elements);
+
+      const removed = entryFor(result, '#no-ring');
+      expect(removed.states.focus?.self).toMatchObject({ 'outline-style': 'none', 'outline-color': BLUE });
+      expect(removed.states.rest?.self['outline-color']).not.toBe(BLUE);
+      expect(selectorsFor(result.findings, FOCUS_VISIBLE)).toEqual(['#no-ring']);
+      expect(removed.focusMarkOn).toBeNull();
+      expect(entryFor(result, '#ring').focusMarkOn).toBe('self');
     });
 
     test('skips a focus ring whose background or colour cannot be read, and says why', async () => {

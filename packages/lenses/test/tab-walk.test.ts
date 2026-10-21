@@ -455,6 +455,17 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
     });
   });
 
+  describe('the Next.js development overlay', () => {
+    test('leaves its stops out of the order and the findings, and counts them as skipped', async () => {
+      const { focusOrder, findings, skipped } = await walk('dev-overlay.html');
+
+      expect(selectorsOf(focusOrder)).toEqual(['#before', '#after']);
+      expect(findings).toEqual([]);
+      // The two buttons in the badge's shadow root, and the link inside the second portal.
+      expect(skipped).toEqual([{ reason: 'dev-overlay', count: 3 }]);
+    });
+  });
+
   describe('a stop that cannot be addressed', () => {
     test('is kept in the focus order without a selector, not reported, and counted as skipped', async () => {
       const { focusOrder, findings, skipped } = await walk('order.html', {

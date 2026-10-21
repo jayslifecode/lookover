@@ -34,6 +34,8 @@ const BROWSER_TIMEOUT_MS = 30_000;
 const MOBILE = { width: 390, height: 844 };
 /** The canvas stores a colour in 8 bits per channel, alpha included, so a composite can be 1 off. */
 const CHANNEL_TOLERANCE = 1;
+/** One step of the canvas's 8-bit alpha. */
+const ALPHA_STEP = 1 / 255;
 
 function expectNear(actual: string | null, expected: Omit<Rgba, 'a'>): void {
   const color = actual === null ? null : parseCssColor(actual);
@@ -178,10 +180,36 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(sample.text).toHaveLength(80);
     });
 
-    test('passes a computed oklch() colour through for the Node side to parse', async () => {
-      const sample = await measure<TextSample>('#oklch', TEXT_SAMPLE_SOURCE);
+    test.each([
+      ['#oklch', 'oklch(0.488 0.243 264.376)', { r: 20, g: 71, b: 230 }],
+      ['#lab', 'lab(50 0 0)', { r: 119, g: 119, b: 119 }],
+      ['#oklab', 'oklab(0.5 0.1 -0.1)', { r: 129, g: 69, b: 154 }],
+    ])(
+      'reads the colour of %s, computed as %s, as the rgb() Chromium paints',
+      async (selector, computed, painted) => {
+        const sample = await measure<TextSample>(selector, TEXT_SAMPLE_SOURCE);
+        const style = await ipage.page.evaluate(
+          (target) => getComputedStyle(document.querySelector(target) ?? document.body).color,
+          selector,
+        );
 
-      expect(sample.color).toBe('oklch(0.488 0.243 264.376)');
+        expect(style).toBe(computed);
+        expect(sample.color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
+        expectNear(sample.color, painted);
+      },
+    );
+
+    test('keeps an sRGB colour with alpha as Chromium writes it, and paints one in another space', async () => {
+      const srgb = await measure<TextSample>('#translucent', TEXT_SAMPLE_SOURCE);
+      const lab = await measure<TextSample>('#translucent-lab', TEXT_SAMPLE_SOURCE);
+      const parsed = parseCssColor(lab.color);
+
+      expect(srgb.color).toBe('rgba(0, 0, 0, 0.3)');
+      expect(lab.color).toMatch(/^rgba\(/);
+      if (parsed === null) throw new Error(`parseCssColor could not read ${lab.color}`);
+      // lab(50% 0 0) is rgb(119, 119, 119); stored premultiplied at half alpha, it reads back as 120.
+      expect(Math.abs(parsed.r - 120)).toBeLessThanOrEqual(CHANNEL_TOLERANCE);
+      expect(Math.abs(parsed.a - 0.5)).toBeLessThanOrEqual(ALPHA_STEP);
     });
 
     test('is null for an element without text', async () => {
@@ -416,6 +444,14 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
       ]);
       expect(overflow.clipped).toHaveLength(10);
       expect(overflow.clipped[9]?.text).toBe('Caption ten, much too long for its box');
+    });
+
+    test('leaves out text hidden for screen readers only: a 1 px box, clip or clip-path', async () => {
+      await open('visually-hidden.html');
+
+      const overflow = await evaluateSource<OverflowMeasure>(ipage.page, MEASURE_OVERFLOW_SOURCE);
+
+      expect(overflow.clipped.map(({ selector }) => selector.selector)).toEqual(['#caption']);
     });
 
     test('reports nothing on a page that fits', async () => {

@@ -165,7 +165,8 @@ async function judgeEach(
  * judge, and a disabled one is skipped (`disabled`): WCAG exempts the text of an inactive component.
  * One whose text is painted by a descendant in other colours (`text-colour-uncertain:<why>`, see
  * `TEXT_SAMPLE_SOURCE`), whose background cannot be trusted (`background-uncertain:<why>`, see
- * `EFFECTIVE_BACKGROUND_SOURCE`) or whose colour cannot be read (`colour-unparseable`) is skipped.
+ * `EFFECTIVE_BACKGROUND_SOURCE`) or whose colour cannot be read (`colour-unparseable`) is skipped. Both
+ * colours come from the page already painted into sRGB, so the last is a guard rather than a case.
  */
 async function judgeContrast(context: LensContext, element: ElementRef): Promise<StaticResult> {
   if (element.disabled) return skipped(SKIP_DISABLED);

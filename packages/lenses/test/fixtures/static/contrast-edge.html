@@ -24,8 +24,12 @@
     <button type="button" id="translucent" style="color: rgba(0, 0, 0, 0.3)">Faint ink</button>
     <!-- 2.995:1 before rounding, 3.00:1 after: a pass of the 3:1 line, a miss of the 4.5:1 one -->
     <button type="button" id="rounds-to-three" style="color: #959595">Just at three</button>
-    <!-- a colour space the parser does not read -->
+    <!-- a wide-gamut colour: judged as Chromium paints it into sRGB, pure red, 4.00:1 -->
     <button type="button" id="wide-gamut" style="color: color(display-p3 1 0 0)">Display P3 red</button>
+    <!-- Tailwind 4.3's palette computes to lab(); painted, this grey is rgb(171, 171, 171), 2.30:1 -->
+    <button type="button" id="lab-faint" style="color: lab(70% 0 0)">Grey in lab()</button>
+    <!-- a mid grey in oklab(), about 3.95:1: under 4.5, over 3 -->
+    <button type="button" id="oklab-low" style="color: oklab(0.6 0 0)">Grey in oklab()</button>
     <!-- opacity changes what is seen behind the text: no trusted ratio -->
     <button type="button" id="faded" style="opacity: 0.5; color: #111827">Half there</button>
   </body>

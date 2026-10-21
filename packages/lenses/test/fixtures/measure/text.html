@@ -17,6 +17,11 @@
       the eighty characters a sample keeps, across lines and with runs of spaces in it.
     </p>
     <button type="button" id="oklch" style="color: oklch(0.488 0.243 264.376)">Save</button>
+    <!-- Tailwind 4.3 writes its palette in lab(); getComputedStyle keeps whatever space a colour is in -->
+    <button type="button" id="lab" style="color: lab(50% 0 0)">Export</button>
+    <button type="button" id="oklab" style="color: oklab(0.5 0.1 -0.1)">Archive</button>
+    <button type="button" id="translucent" style="color: rgba(0, 0, 0, 0.3)">Faint</button>
+    <button type="button" id="translucent-lab" style="color: lab(50% 0 0 / 0.5)">Faint lab</button>
     <button type="button" id="icon" aria-label="Close">   </button>
     <!-- the text is a child's: white on the black behind it, though the anchor itself keeps the dark colour -->
     <a id="white-on-black" href="#white-on-black" style="display: inline-block; background: #000000"><span style="color: #ffffff">Label</span></a>

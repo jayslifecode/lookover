@@ -35,6 +35,8 @@ const FRAME_TAG = 'iframe';
 const CUSTOM_ELEMENT_TAG_PART = '-';
 
 const SKIP_UNADDRESSABLE = 'focus-stop-unaddressable';
+/** A stop in a framework's development overlay (`DEV_OVERLAY_TAGS`): the dev server's, not the app's. */
+const SKIP_DEV_OVERLAY = 'dev-overlay';
 const SKIP_PRESSES_CAP = 'tab-presses-cap';
 const SKIP_WALK_STOPPED = 'tab-walk-stopped';
 const SKIP_TIME_BUDGET = 'time-budget';
@@ -81,10 +83,15 @@ interface Landing {
   identity: string;
   /** A native control that Tab crosses in several presses (`ActiveElement.isMultiPart`). */
   isMultiPart: boolean;
+  /** In a framework's development overlay (`ActiveElement.isDevOverlay`). */
+  isDevOverlay: boolean;
 }
 
 interface Walked {
+  /** The app's stops: the ones in a development overlay are left out. */
   stops: FocusStop[];
+  /** How many stops were in a development overlay. */
+  devOverlay: number;
   end: WalkEnd;
 }
 
@@ -105,14 +112,17 @@ interface Walked {
  *   focusable control.
  *
  * A stop with no selector of its own is kept in the order but cannot be reported
- * (`focus-stop-unaddressable`).
+ * (`focus-stop-unaddressable`). A stop in a framework's development overlay (`DEV_OVERLAY_TAGS`) is
+ * pressed through like any other, then left out of the order and the findings and counted
+ * (`dev-overlay`): it is the dev server's, not the app's.
  */
 export async function tabWalk(context: LensContext, focusableCount: number): Promise<TabWalkResult> {
-  const { stops, end } = await walkStops(context, pressBudget(focusableCount));
+  const { stops, devOverlay, end } = await walkStops(context, pressBudget(focusableCount));
+  const overlaySkips: LensSkip[] = devOverlay > 0 ? [{ reason: SKIP_DEV_OVERLAY, count: devOverlay }] : [];
   return {
     focusOrder: stops,
     findings: await judge(context, stops, end, focusableCount),
-    skipped: tally([...unaddressableSkips(stops), ...endSkips(end)]),
+    skipped: tally([...unaddressableSkips(stops), ...overlaySkips, ...endSkips(end)]),
   };
 }
 
@@ -126,7 +136,11 @@ async function walkStops(context: LensContext, budget: number): Promise<Walked> 
   await evaluateSource(page, RESTART_TAB_ORDER_SOURCE);
   let landings: Landing[] = [];
   let counted = 0;
-  const ended = (end: WalkEnd): Walked => ({ stops: landings.map(({ stop }) => stop), end });
+  const ended = (end: WalkEnd): Walked => ({
+    stops: landings.filter(({ isDevOverlay }) => !isDevOverlay).map(({ stop }) => stop),
+    devOverlay: landings.filter(({ isDevOverlay }) => isDevOverlay).length,
+    end,
+  });
   const pressesLeft = (): number => Math.min(budget - counted, MAX_TAB_PRESSES - landings.length);
   while (pressesLeft() > 0) {
     if (performance.now() >= context.deadline) return ended({ kind: 'deadline', pressesLeft: pressesLeft() });
@@ -143,12 +157,13 @@ async function walkStops(context: LensContext, budget: number): Promise<Walked> 
 }
 
 function landingOf(index: number, active: ActiveElement): Landing {
-  const { selector, tag, box, hidden, inner, isMultiPart } = active;
+  const { selector, tag, box, hidden, inner, isMultiPart, isDevOverlay } = active;
   const stored = selector === null ? null : stableSelector(selector);
   return {
     stop: { index, selector: stored, tag, box, hidden },
     identity: `${stored}|${inner}`,
     isMultiPart,
+    isDevOverlay,
   };
 }
 
@@ -180,12 +195,15 @@ function movesInside({ stop, isMultiPart }: Landing): boolean {
   return isMultiPart || stop.tag === FRAME_TAG || stop.tag.includes(CUSTOM_ELEMENT_TAG_PART);
 }
 
-/** The last `TRAP_REPEATS` landings are the same element and the same control inside it. */
+/**
+ * The last `TRAP_REPEATS` landings are the same element and the same control inside it. A development
+ * overlay is never the app's trap: the walk goes on past it, within its presses.
+ */
 function isStuck(landings: readonly Landing[]): boolean {
   const run = landings.slice(-TRAP_REPEATS);
   const [head] = run;
   if (head === undefined || run.length < TRAP_REPEATS) return false;
-  if (head.stop.selector === null || movesInside(head)) return false;
+  if (head.stop.selector === null || head.isDevOverlay || movesInside(head)) return false;
   return run.every(({ identity }) => identity === head.identity);
 }
 

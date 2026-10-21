@@ -199,20 +199,30 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const finding = findingFor(findings, CONTRAST_LOW, '#rounds-to-three');
       const measurements = finding.evidence[0];
 
-      expect(selectorsFor(findings, CONTRAST_FAIL)).toEqual(['#translucent']);
+      expect(selectorsFor(findings, CONTRAST_FAIL)).not.toContain('#rounds-to-three');
       expect(finding.observed).toBe(
         '"Just at three" is rgb(149, 149, 149) on rgb(255, 255, 255), 3.00:1 (needs 4.5:1)',
       );
       expect(await readJson((measurements as { ref: EvidenceRef }).ref)).toMatchObject({ ratio: 3 });
     });
 
-    test('skips a colour it cannot read and a background that opacity makes untrustworthy, each with its reason', async () => {
+    test('judges text in lab(), oklab() and a wide-gamut space by the colour Chromium paints', async () => {
+      const { findings } = await measure('contrast-edge.html');
+
+      expect(selectorsFor(findings, CONTRAST_FAIL)).toEqual(['#translucent', '#lab-faint']);
+      expect(selectorsFor(findings, CONTRAST_LOW)).toEqual(['#rounds-to-three', '#wide-gamut', '#oklab-low']);
+      expect(findingFor(findings, CONTRAST_FAIL, '#lab-faint').observed).toBe(
+        '"Grey in lab()" is rgb(171, 171, 171) on rgb(255, 255, 255), 2.30:1 (needs 4.5:1)',
+      );
+      expect(findingFor(findings, CONTRAST_LOW, '#wide-gamut').observed).toBe(
+        '"Display P3 red" is rgb(255, 0, 0) on rgb(255, 255, 255), 4.00:1 (needs 4.5:1)',
+      );
+    });
+
+    test('skips a background that opacity makes untrustworthy, and says why', async () => {
       const { skipped } = await measure('contrast-edge.html');
 
-      expect(skipped).toEqual([
-        { reason: 'colour-unparseable', count: 1 },
-        { reason: 'background-uncertain:opacity', count: 1 },
-      ]);
+      expect(skipped).toEqual([{ reason: 'background-uncertain:opacity', count: 1 }]);
     });
   });
 

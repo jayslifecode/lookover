@@ -22,6 +22,9 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
 const OKLCH_FULL_CHROMA = 0.4;
 const NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/;
 const COLOR_FUNCTION = /^(rgba?|oklch|color)\(([^()]*)\)$/;
+/** `#rrggbb` or `#rrggbbaa`, each pair a hex byte. */
+const HEX_COLOR = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})?$/;
+const HEX_RADIX = 16;
 
 /*
  * OKLab → linear sRGB, from Björn Ottosson, "A perceptual color space for image processing" (2020),
@@ -60,16 +63,22 @@ const LARGE_TEXT_RATIO = 3;
 const TEXT_RATIO = 4.5;
 
 /**
- * Reads a colour the way `getComputedStyle` serialises it in Chromium: `rgb()` and `rgba()` (comma or
- * space syntax), `transparent`, `color(srgb r g b / a)` and `oklch(L C H / a)`, which is what Tailwind
- * v4's colour tokens compute to. `oklch()` is converted through OKLab to sRGB and clamped into its
- * gamut. Anything else (`hsl()`, other colour spaces, hex, names) is `null`: computed styles never
- * hold those, so the caller should not trust a value it cannot read.
+ * Reads a colour the way Chromium serialises it in sRGB: `rgb()` and `rgba()` (comma or space syntax),
+ * `transparent`, `color(srgb r g b / a)`, `oklch(L C H / a)` (what Tailwind v4.0's colour tokens
+ * compute to) and the `#rrggbb` and `#rrggbbaa` a canvas writes a colour back as. `oklch()` is
+ * converted through OKLab to sRGB and clamped into its gamut. Anything else (`lab()`, `hsl()`, other
+ * colour spaces, short hex, names) is `null`, and the caller should not trust a value it cannot read:
+ * the in-page sources hand over text and background colours already painted into sRGB (`rgb()`), so
+ * only a colour read straight from a computed style (a focus outline, a ring) can be one of those.
  */
 export function parseCssColor(value: string): Rgba | null {
   const text = value.trim().toLowerCase();
   if (text === 'transparent') {
     return { r: 0, g: 0, b: 0, a: 0 };
+  }
+  const hex = HEX_COLOR.exec(text);
+  if (hex !== null) {
+    return fromHex(hex.slice(1));
   }
   const match = COLOR_FUNCTION.exec(text);
   const args = match === null ? null : splitArguments(match[2] ?? '');
@@ -150,6 +159,12 @@ function fromRgb({ channels, alpha }: ColorArguments): Rgba | null {
   }
   const values = [r, g, b].map((token) => component(token, MAX_CHANNEL));
   return rgbaOf(values, alphaOf(legacyAlpha ?? alpha));
+}
+
+/** The red, green, blue and (when there is one) alpha bytes of `#rrggbb` or `#rrggbbaa`. */
+function fromHex([r = '', g = '', b = '', alpha]: readonly (string | undefined)[]): Rgba {
+  const byte = (pair: string): number => Number.parseInt(pair, HEX_RADIX);
+  return { r: byte(r), g: byte(g), b: byte(b), a: alpha === undefined ? 1 : byte(alpha) / MAX_CHANNEL };
 }
 
 /** `color(srgb r g b / a)`, channels from 0 to 1. */

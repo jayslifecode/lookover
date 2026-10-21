@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Next.js development overlay fixture</title>
+  </head>
+  <body>
+    <button type="button" id="before">Before</button>
+    <button type="button" id="after">After</button>
+    <!--
+      What `next dev` adds once the page has logged an error: the issues badge, two buttons in the shadow
+      root of a `nextjs-portal` element. The host has no box of its own, so focus on it reads as hidden.
+    -->
+    <nextjs-portal>
+      <template shadowrootmode="open">
+        <div style="position: fixed; bottom: 16px; left: 16px">
+          <button type="button">1 Issue</button>
+          <button type="button" aria-label="Collapse issues badge">×</button>
+        </div>
+      </template>
+    </nextjs-portal>
+    <!-- A control inside the overlay in the light DOM, off the page. -->
+    <nextjs-portal>
+      <a id="overlay-link" href="#docs" style="position: absolute; left: -9999px">Docs</a>
+    </nextjs-portal>
+  </body>
+</html>

@@ -78,11 +78,19 @@ describe('parseCssColor', () => {
     }
   });
 
+  test('reads the #rrggbb and #rrggbbaa a canvas writes a colour back as', () => {
+    expect(parseCssColor('#9ca3af')).toEqual({ r: 156, g: 163, b: 175, a: 1 });
+    expect(parseCssColor('#FFFFFF')).toEqual(WHITE);
+    expect(parseCssColor('#00000080')).toEqual({ r: 0, g: 0, b: 0, a: 128 / 255 });
+  });
+
   test.each([
     'hsl(0 0% 0%)',
     'color(display-p3 1 0 0)',
     'lab(50 20 30)',
-    '#ffffff',
+    '#fff',
+    '#fffff',
+    '#ggffff',
     'red',
     'rgb(1, 2)',
     'rgb(a, b, c)',

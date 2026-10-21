@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Visually hidden text fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font: 16px/1.5 sans-serif;
+      }
+      .narrow {
+        width: 200px;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+      /* Tailwind v4's sr-only: a 1 px box, clipped to nothing, for screen readers only. */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border-width: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <span id="sr-only" class="sr-only">Actions for the selected organisation</span>
+    <!-- Each of these is hidden by one thing only: a box of one pixel, `clip`, or `clip-path`. -->
+    <p id="one-pixel" class="narrow" style="width: 1px; height: 1px; margin: 0">A label squeezed into a pixel</p>
+    <p id="clipped" class="narrow" style="position: absolute; top: 200px; clip: rect(0, 0, 0, 0)">
+      Text hidden by clip in a box wide enough to read
+    </p>
+    <p id="clip-path" class="narrow" style="clip-path: inset(50%)">Text hidden by clip-path in a readable box</p>
+    <!-- Text a sighted reader sees cut off. -->
+    <p id="caption" class="narrow">A caption far too long to fit in two hundred pixels on one line</p>
+  </body>
+</html>

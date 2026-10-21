@@ -77,7 +77,7 @@ export interface TextSample {
   /** Computed, in CSS pixels. */
   fontSize: number;
   fontWeight: number;
-  /** The computed `color` as Chromium serialises it, for `parseCssColor`. */
+  /** The text colour in sRGB, `rgb(r, g, b)` or `rgba(r, g, b, a)`, for `parseCssColor`. */
   color: string;
   /**
    * `'descendant'` when the colours above may not be the ones the text is painted in (see
@@ -128,22 +128,57 @@ function styleSnapshot(this: Element, properties: readonly StateStyleProperty[])
  */
 export const STYLE_SNAPSHOT_SOURCE = `function () { return (${styleSnapshot.toString()}).call(this, ${JSON.stringify(STATE_STYLE_PROPERTIES)}); }`;
 
-function effectiveBackground(this: Element): EffectiveBackground {
-  const OPAQUE_ALPHA = 0.999;
+/** A colour in sRGB as one pixel holds it: channels from 0 to 255, alpha from 0 to 1. */
+interface Painted {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+/** How the in-page sources read a computed colour, whatever syntax Chromium computed it in. */
+interface ColourReader {
+  /** The colour as Chromium paints it into one pixel of an sRGB canvas, read back. */
+  paint(color: string): Painted;
+  /** The colour in sRGB, as `rgb(r, g, b)` or `rgba(r, g, b, a)`. */
+  asRgb(color: string): string;
+}
+
+/**
+ * Reads colours through a 1×1 sRGB canvas. Computed styles keep the colour space a colour was written
+ * in (Tailwind 4.3's palette computes to `lab()`, v4.0's to `oklch()`, `color-mix()` to `oklab()`),
+ * and so does the canvas's own `fillStyle`; only a painted pixel is sRGB whatever came in. `asRgb`
+ * keeps an sRGB colour with alpha as Chromium writes it back (`rgba(…)`, exact) and paints anything
+ * else, so a colour in another space with alpha is as exact as the pixel's 8 bits.
+ */
+function colourReader(): ColourReader {
   const MAX_CHANNEL = 255;
-  type Layer = { r: number; g: number; b: number; a: number };
+  const ALPHA_DECIMALS = 3;
+  const SRGB_WITH_ALPHA = 'rgba(';
   const context = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true });
   if (context === null) {
-    throw new Error('effectiveBackground: no 2D canvas to read colours with');
+    throw new Error('colourReader: no 2D canvas to read colours with');
   }
-  /** The colour as Chromium paints it into an sRGB pixel, whatever syntax it is computed in. */
-  const painted = (color: string): Layer => {
+  const paint = (color: string): Painted => {
     context.clearRect(0, 0, 1, 1);
     context.fillStyle = color;
     context.fillRect(0, 0, 1, 1);
     const [r = 0, g = 0, b = 0, a = 0] = context.getImageData(0, 0, 1, 1).data;
     return { r, g, b, a: a / MAX_CHANNEL };
   };
+  const asRgb = (color: string): string => {
+    context.fillStyle = color;
+    const written = String(context.fillStyle);
+    if (written.startsWith(SRGB_WITH_ALPHA)) return written;
+    const { r, g, b, a } = paint(color);
+    return a === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${Number(a.toFixed(ALPHA_DECIMALS))})`;
+  };
+  return { paint, asRgb };
+}
+
+function effectiveBackground(this: Element, colours: ColourReader): EffectiveBackground {
+  const OPAQUE_ALPHA = 0.999;
+  type Layer = Painted;
   /** `bottom` under `top`, source-over. */
   const under = (top: Layer, bottom: Layer): Layer => {
     const a = top.a + bottom.a * (1 - top.a);
@@ -170,7 +205,7 @@ function effectiveBackground(this: Element): EffectiveBackground {
     const isCovered = color.a >= OPAQUE_ALPHA;
     const reason = reasonAt(style, isCovered);
     if (reason !== null) return { color: null, uncertain: reason };
-    if (!isCovered) color = under(color, painted(style.backgroundColor));
+    if (!isCovered) color = under(color, colours.paint(style.backgroundColor));
   }
   if (color.a < OPAQUE_ALPHA) return { color: null, uncertain: 'never-opaque' };
   const channel = (value: number): number => Math.round(value);
@@ -180,8 +215,8 @@ function effectiveBackground(this: Element): EffectiveBackground {
 /**
  * The colour behind the element's text (`EffectiveBackground`): from the element up through its
  * ancestors to `<html>`, each `background-color` is composited under the ones above it (source-over)
- * until the stack is opaque (alpha ≥ 0.999). Colours are read as Chromium paints them, so `oklch()`
- * and every other computed syntax come back as `rgb()`.
+ * until the stack is opaque (alpha ≥ 0.999). Colours are read as Chromium paints them (see
+ * `colourReader`), so `lab()`, `oklch()` and every other computed syntax come back as `rgb()`.
  *
  * The colour is not trusted, and `uncertain` names the first reason met on the way up, when a layer
  * has a `background-image` (an image or a gradient) or a `backdrop-filter` before the stack is opaque,
@@ -189,7 +224,7 @@ function effectiveBackground(this: Element): EffectiveBackground {
  * change the colours of everything inside), or when no layer up to `<html>` makes it opaque
  * (`never-opaque`: the browser's canvas colour shows through, and that depends on the colour scheme).
  */
-export const EFFECTIVE_BACKGROUND_SOURCE: string = effectiveBackground.toString();
+export const EFFECTIVE_BACKGROUND_SOURCE = `function () { return (${effectiveBackground.toString()}).call(this, (${colourReader.toString()})()); }`;
 
 function componentName(this: Element): string | null {
   const FIBER_KEY_PREFIX = '__reactFiber$';
@@ -232,7 +267,7 @@ function componentName(this: Element): string | null {
  */
 export const COMPONENT_NAME_SOURCE: string = componentName.toString();
 
-function textSample(this: Element): TextSample | null {
+function textSample(this: Element, colours: ColourReader): TextSample | null {
   const MAX_TEXT_LENGTH = 80;
   const TRANSPARENT = 'rgba(0, 0, 0, 0)';
   const raw = this instanceof HTMLElement ? this.innerText : (this.textContent ?? '');
@@ -257,7 +292,7 @@ function textSample(this: Element): TextSample | null {
     text,
     fontSize: Number.parseFloat(style.fontSize),
     fontWeight: Number.parseFloat(style.fontWeight),
-    color: style.color,
+    color: colours.asRgb(style.color),
     uncertain: isDescendantPainted ? 'descendant' : null,
   };
 }
@@ -265,7 +300,8 @@ function textSample(this: Element): TextSample | null {
 /**
  * The element's text as shown (`innerText`, whitespace collapsed, the first 80 characters) with the
  * computed font size, weight and colour that text contrast is judged by (`TextSample`); `null` when
- * the element shows no text.
+ * the element shows no text. The colour is read the way `EFFECTIVE_BACKGROUND_SOURCE` reads a
+ * background (see `colourReader`), so it is `rgb()` or `rgba()` whatever space it was computed in.
  *
  * The colour and the font are the element's own, but the text may belong to its descendants.
  * `uncertain` is `'descendant'` when any descendant element that holds text (anywhere in its subtree)
@@ -273,7 +309,7 @@ function textSample(this: Element): TextSample | null {
  * `background-image`, or an `opacity` below 1: the text is then painted in colours this sample does not
  * describe, and the caller should not judge it by them.
  */
-export const TEXT_SAMPLE_SOURCE: string = textSample.toString();
+export const TEXT_SAMPLE_SOURCE = `function () { return (${textSample.toString()}).call(this, (${colourReader.toString()})()); }`;
 
 function isInlineInText(this: Element): boolean {
   if (!getComputedStyle(this).display.startsWith('inline')) return false;
@@ -330,10 +366,16 @@ function measureOverflow(buildSelector: SelectorBuilder): OverflowMeasure {
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, MAX_TEXT_LENGTH);
+  const VISUALLY_HIDDEN_MAX_PX = 1;
   const isClipping = (style: CSSStyleDeclaration): boolean =>
     (style.overflowX === 'hidden' || style.overflowX === 'clip') &&
     style.whiteSpace === 'nowrap' &&
     style.textOverflow !== 'ellipsis';
+  /** Text for screen readers only (an `sr-only` utility): nobody sees it, so nobody sees it cut off. */
+  const isVisuallyHidden = (style: CSSStyleDeclaration, rect: DOMRect): boolean =>
+    (rect.width <= VISUALLY_HIDDEN_MAX_PX && rect.height <= VISUALLY_HIDDEN_MAX_PX) ||
+    style.getPropertyValue('clip') !== 'auto' ||
+    style.getPropertyValue('clip-path') !== 'none';
 
   /** Boxes whose overflow the page does not scroll for: their content scrolls or is clipped in them. */
   const containers = new Set<Element>();
@@ -349,7 +391,8 @@ function measureOverflow(buildSelector: SelectorBuilder): OverflowMeasure {
     if (!isContained && rect.width > 0 && right > clientWidth + TOLERANCE_PX) {
       wide.push({ el, right, width: rect.width });
     }
-    const text = clipped.length < MAX_CLIPPED && isClipping(style) ? ownText(el) : '';
+    const isCandidate = clipped.length < MAX_CLIPPED && isClipping(style) && !isVisuallyHidden(style, rect);
+    const text = isCandidate ? ownText(el) : '';
     if (text !== '' && el.scrollWidth > el.clientWidth + TOLERANCE_PX) {
       clipped.push({
         selector: buildSelector(el),
@@ -379,6 +422,8 @@ function measureOverflow(buildSelector: SelectorBuilder): OverflowMeasure {
  *   inside a fixed box (those do not extend the document).
  * - `clipped`: the first 10 elements that cut their own text off without saying so: `overflow-x`
  *   `hidden` or `clip`, `white-space: nowrap`, no `text-overflow: ellipsis`, text of their own, and
- *   content wider than the box (`scrollWidth > clientWidth + 1`).
+ *   content wider than the box (`scrollWidth > clientWidth + 1`). Text hidden for screen readers only
+ *   is passed over: a border box of at most 1×1 px, or a `clip` other than `auto`, or a `clip-path`
+ *   other than `none` (the `sr-only` utilities).
  */
 export const MEASURE_OVERFLOW_SOURCE = `() => (${measureOverflow.toString()})(${BUILD_SELECTOR_SOURCE})`;

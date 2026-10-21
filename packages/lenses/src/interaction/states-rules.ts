@@ -14,6 +14,7 @@ import {
   EFFECTIVE_BACKGROUND_SOURCE,
   type EffectiveBackground,
   STATE_STYLE_PROPERTIES,
+  type StateStyleProperty,
   type StyleSnapshot,
   type StyleValues,
 } from './in-page.js';
@@ -37,6 +38,14 @@ const USER_AGENT_RING_STYLE = 'auto';
 const HOVER_ROLES: ReadonlySet<string> = new Set(['button', 'link']);
 const SNAPSHOT_PARTS = ['self', 'before', 'after'] as const;
 const OUTLINE_PROPERTIES = ['outline-style', 'outline-width', 'outline-color'] as const;
+/** What an outline looks like once it is drawn; with `outline-style: none` none of it is painted. */
+const OUTLINE_LOOK: ReadonlySet<StateStyleProperty> = new Set([
+  'outline-width',
+  'outline-color',
+  'outline-offset',
+]);
+/** The one outline style that draws nothing (`hidden` is not an outline style). */
+const NO_OUTLINE_STYLE = 'none';
 /**
  * One computed `box-shadow` layer: Chromium writes its colour first, then 2 to 4 lengths in px
  * (x, y, blur, spread), then `inset` for an inner shadow.
@@ -80,11 +89,22 @@ interface Subject {
 
 const NOTHING: Judged = { findings: [], worthALook: [], skipped: [] };
 
-/** Whether any tracked property differs between the two snapshots, on the element, `::before` or `::after`. */
+/**
+ * Whether any tracked property differs between the two snapshots, on the element, `::before` or
+ * `::after`. The outline's width, colour and offset only count when its style is not `none` in at least
+ * one of the two states: with `outline-style: none` in both, nothing is painted whatever they do
+ * (Tailwind's `focus:outline-none` under an app-wide `:focus-visible` outline rule changes them and
+ * shows nothing).
+ */
 export function stateDiffers(rest: StyleSnapshot, forced: StyleSnapshot): boolean {
-  return SNAPSHOT_PARTS.some((part) =>
-    STATE_STYLE_PROPERTIES.some((name) => rest[part][name] !== forced[part][name]),
-  );
+  return SNAPSHOT_PARTS.some((part) => {
+    const before = rest[part];
+    const after = forced[part];
+    const isOutlineDrawn = isOutlineStyled(before) || isOutlineStyled(after);
+    return STATE_STYLE_PROPERTIES.some(
+      (name) => (isOutlineDrawn || !OUTLINE_LOOK.has(name)) && before[name] !== after[name],
+    );
+  });
 }
 
 /**
@@ -263,9 +283,13 @@ function isOutlineChanged(rest: StyleValues, focus: StyleValues): boolean {
   return OUTLINE_PROPERTIES.some((name) => rest[name] !== focus[name]);
 }
 
+function isOutlineStyled(values: StyleValues): boolean {
+  return values['outline-style'] !== NO_OUTLINE_STYLE;
+}
+
 function isVisibleOutline(values: StyleValues): boolean {
   return (
-    values['outline-style'] !== 'none' &&
+    isOutlineStyled(values) &&
     values['outline-style'] !== USER_AGENT_RING_STYLE &&
     Number.parseFloat(values['outline-width']) > 0 &&
     !isTransparent(values['outline-color'])

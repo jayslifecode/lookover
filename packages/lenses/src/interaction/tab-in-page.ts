@@ -33,7 +33,16 @@ export interface ActiveElement {
    * or `<audio>` with `controls`.
    */
   isMultiPart: boolean;
+  /** The element is, or is inside, a framework's development overlay (`DEV_OVERLAY_TAGS`). */
+  isDevOverlay: boolean;
 }
+
+/**
+ * The elements a framework's development server adds to the page, which are not the app: Next.js's
+ * overlay (the issues badge `next dev` shows once the page has logged an error, and the error dialog)
+ * lives in the shadow root of a `nextjs-portal` element.
+ */
+export const DEV_OVERLAY_TAGS: readonly string[] = ['nextjs-portal'];
 
 /** The helpers `activeElement` is given, so that each of them is a function of its own. */
 interface ActiveElementHelpers {
@@ -90,7 +99,11 @@ function hiddenReason(el: Element, box: Box): FocusHiddenReason | null {
   return isOutside ? 'offscreen' : null;
 }
 
-function activeElement(buildSelector: SelectorBuilder, helpers: ActiveElementHelpers): ActiveElement {
+function activeElement(
+  buildSelector: SelectorBuilder,
+  devOverlay: string,
+  helpers: ActiveElementHelpers,
+): ActiveElement {
   const { boxOf, selectorOf, isMultiPart, innerSteps, hiddenReason } = helpers;
   const root = document.documentElement;
   const active = document.activeElement ?? document.body ?? root;
@@ -104,14 +117,16 @@ function activeElement(buildSelector: SelectorBuilder, helpers: ActiveElementHel
     hidden: isBody ? null : hiddenReason(active, box),
     inner: innerSteps(active).join(' >> '),
     isMultiPart: isMultiPart(active),
+    isDevOverlay: !isBody && active.closest(devOverlay) !== null,
   };
 }
 
 const ACTIVE_ELEMENT_HELPERS_SOURCE = `{ boxOf: ${boxOf.toString()}, selectorOf: ${selectorOf.toString()}, isMultiPart: ${isMultiPart.toString()}, innerSteps: ${innerSteps.toString()}, hiddenReason: ${hiddenReason.toString()} }`;
+const DEV_OVERLAY_SELECTOR = DEV_OVERLAY_TAGS.join(', ');
 
 /**
  * What has keyboard focus, as
- * `{ selector: { selector, path } | null, tag, box, isBody, hidden, inner, isMultiPart }`
+ * `{ selector: { selector, path } | null, tag, box, isBody, hidden, inner, isMultiPart, isDevOverlay }`
  * (`ActiveElement`). `selector` is the selector builder's pair (the Node side stores the one
  * `stableSelector` picks), `null` when focus is on the body or the pair does not find the element
  * again (a shadow tree). `hidden` says why a person could not see the focused element: its box has no
@@ -119,9 +134,10 @@ const ACTIVE_ELEMENT_HELPERS_SOURCE = `{ boxOf: ${boxOf.toString()}, selectorOf:
  * lies entirely outside the document (`offscreen`, e.g. `left: -9999px`); `null` when it can be seen.
  * Read it after focus has landed, so an element that shows itself on `:focus` (a skip link) reads as
  * visible. `inner` and `isMultiPart` say when Tab moves focus without changing the active element:
- * see `ActiveElement`.
+ * see `ActiveElement`. `isDevOverlay` is true when the element is, or is inside, one of
+ * `DEV_OVERLAY_TAGS` (focus in the overlay's shadow root makes its host the active element).
  */
-export const ACTIVE_ELEMENT_SOURCE = `() => (${activeElement.toString()})(${BUILD_SELECTOR_SOURCE}, ${ACTIVE_ELEMENT_HELPERS_SOURCE})`;
+export const ACTIVE_ELEMENT_SOURCE = `() => (${activeElement.toString()})(${BUILD_SELECTOR_SOURCE}, ${JSON.stringify(DEV_OVERLAY_SELECTOR)}, ${ACTIVE_ELEMENT_HELPERS_SOURCE})`;
 
 /**
  * Blurring is not enough to start Tab at the top: Chromium goes on from the element that last had

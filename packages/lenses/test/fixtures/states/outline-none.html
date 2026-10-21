@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>A shared focus ring, removed on one button</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        display: block;
+        margin: 12px 0;
+        padding: 8px 16px;
+        border: 1px solid #6b7280;
+        background-color: #f9fafb;
+        color: #111827;
+        font: inherit;
+      }
+      button:hover {
+        background-color: #e5e7eb;
+      }
+      /* One ring for every control, as an app's base styles give it. */
+      :focus-visible {
+        outline: 2px solid #1d4ed8;
+        outline-offset: 2px;
+      }
+      /*
+       * Tailwind's `focus:outline-none`: only the style goes. The shared rule still sets the width, the
+       * colour and the offset, so they change under focus while nothing is drawn.
+       */
+      #no-ring:focus {
+        outline-style: none;
+      }
+    </style>
+  </head>
+  <body>
+    <button type="button" id="ring">Shared ring</button>
+    <button type="button" id="no-ring">Ring removed</button>
+  </body>
+</html>
