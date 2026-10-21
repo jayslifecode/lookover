@@ -65,8 +65,36 @@ describe('passesTargetSize', () => {
     expect(passesTargetSize(SMALL, [box(11, 12, 30, 30)])).toEqual({ ok: false, nearest: 5 });
   });
 
-  test('is a distance of 0 when the centre lies inside another box', () => {
-    expect(passesTargetSize(SMALL, [box(-4, -4, 40, 40)])).toEqual({ ok: false, nearest: 0 });
+  test('is a distance of 0 when the centre lies inside a box that overlaps the target without containing it', () => {
+    expect(passesTargetSize(SMALL, [box(4, 4, 40, 40)])).toEqual({ ok: false, nearest: 0 });
+  });
+
+  test('ignores a box that contains the target: a listbox row is not crowded by its listbox', () => {
+    const listbox = box(-10, -10, 160, 100);
+
+    expect(passesTargetSize(SMALL, [listbox])).toEqual({ ok: true });
+  });
+
+  test('ignores a box the target contains: a button is not crowded by the icon inside it', () => {
+    const target = box(0, 0, 20, 20);
+    const icon = box(4, 4, 12, 12);
+
+    expect(passesTargetSize(target, [icon])).toEqual({ ok: true });
+  });
+
+  test('ignores a box that is the same size and place as the target', () => {
+    expect(passesTargetSize(SMALL, [box(0, 0, SMALL_SIDE, SMALL_SIDE)])).toEqual({ ok: true });
+  });
+
+  test('still counts the other boxes when it ignores a container', () => {
+    const others = [box(-10, -10, 160, 100), box(19, 0, SMALL_SIDE, SMALL_SIDE)];
+
+    expect(passesTargetSize(SMALL, others)).toEqual({ ok: false, nearest: 11 });
+  });
+
+  test('counts a box that covers only part of the target', () => {
+    // It starts inside the target and reaches past it on one side, so it neither contains nor is contained.
+    expect(passesTargetSize(SMALL, [box(10, 0, 50, SMALL_SIDE)])).toEqual({ ok: false, nearest: 2 });
   });
 
   test('names the smallest of several distances', () => {

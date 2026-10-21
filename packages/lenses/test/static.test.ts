@@ -11,7 +11,7 @@ import type {
 import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { MAX_CONTRAST_ELEMENTS, MUST_BE_FOCUSABLE_ROLES, measureStatic } from '../src/interaction/static.js';
-import { passesTargetSize } from '../src/interaction/target-size.js';
+import { MIN_TARGET_PX, passesTargetSize } from '../src/interaction/target-size.js';
 import { createTestRun, type LensContextOptions, lensContextFor, type TestRun } from './helpers/context.js';
 import { DEFAULT_TEST_VIEWPORT, launchTestSession, type TestSession } from './helpers/session.js';
 
@@ -113,10 +113,22 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(selectorsFor(findings, CONTRAST_LOW)).toEqual(['#low']);
     });
 
-    test('skips #on-image, whose background is a gradient, and says why', async () => {
+    test('skips #on-image, whose background is a gradient, and #disabled-faint, and says why', async () => {
       const { skipped } = await measure('contrast.html');
 
-      expect(skipped).toEqual([{ reason: 'background-uncertain:background-image', count: 1 }]);
+      expect(skipped).toEqual([
+        { reason: 'background-uncertain:background-image', count: 1 },
+        { reason: 'disabled', count: 1 },
+      ]);
+    });
+
+    test('does not judge the faded text of a disabled control: inactive components are exempt', async () => {
+      const { context, findings } = await measure('contrast.html');
+      const faint = context.screen.elements.find((element) => element.selector === '#disabled-faint');
+
+      expect(faint).toMatchObject({ disabled: true });
+      expect(selectorsFor(findings, CONTRAST_FAIL)).not.toContain('#disabled-faint');
+      expect(selectorsFor(findings, CONTRAST_LOW)).not.toContain('#disabled-faint');
     });
 
     test('an unreadable finding carries the colours, the ratio and its trace', async () => {
@@ -226,7 +238,7 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
     });
   });
 
-  describe('target size on targets.html', () => {
+  describe('target size', () => {
     test('reports the two crowded 16 px buttons and the crowded custom checkbox, and nothing exempt', async () => {
       const { findings } = await measure('targets.html');
 
@@ -246,6 +258,17 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
       };
 
       expect(['#inline', '#check', '#radio', '#pick', '#off'].filter(passesBySize)).toEqual([]);
+    });
+
+    test('does not count a listbox as crowding the option rows inside it', async () => {
+      const { context, findings } = await measure('listbox.html');
+      const rows = context.screen.elements.filter((element) => element.role === 'option');
+
+      // The rows are under 24 px tall and 4 px apart (14 px from one centre to the next row), so the
+      // listbox around them is the only thing that could put one inside another's 24 px circle.
+      expect(rows).toHaveLength(3);
+      expect(rows.every((row) => row.box.height < MIN_TARGET_PX)).toBe(true);
+      expect(selectorsFor(findings, TARGET_SIZE)).toEqual([]);
     });
 
     test('says how big the target is and how far the nearest other one is from its centre', async () => {

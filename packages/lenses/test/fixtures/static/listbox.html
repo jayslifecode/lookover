@@ -1,0 +1,33 @@
+<!-- biome-ignore-all lint/a11y: a listbox of option rows is built from roles on purpose, as design systems build them -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Listbox rows fixture</title>
+    <style>
+      body {
+        margin: 24px;
+        background: #ffffff;
+        font: 14px/20px sans-serif;
+        color: #111827;
+      }
+      [role='listbox'] {
+        width: 160px;
+        border: 1px solid #374151;
+      }
+      /* 20 px tall, so under 24, but 4 px apart: no row has another within 12 px of its centre. */
+      [role='option'] {
+        height: 20px;
+        margin-bottom: 4px;
+        padding: 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div role="listbox" id="fruit" tabindex="0" aria-label="Fruit">
+      <div role="option" id="apple" tabindex="-1" aria-selected="true">Apple</div>
+      <div role="option" id="pear" tabindex="-1" aria-selected="false">Pear</div>
+      <div role="option" id="plum" tabindex="-1" aria-selected="false">Plum</div>
+    </div>
+  </body>
+</html>

@@ -71,6 +71,8 @@ const NATIVE_CONTROL_TAGS: ReadonlySet<string> = new Set(['select', 'option']);
 /** The element left the page between being extracted and being measured. */
 const SKIP_GONE = 'gone';
 const SKIP_CONTRAST_CAP = 'contrast-elements-cap';
+/** WCAG 1.4.3 puts no contrast requirement on the text of an inactive user interface component. */
+const SKIP_DISABLED = 'disabled';
 const SIZE_DECIMALS = 1;
 
 const CONTRAST_WHAT = 'text colour, background colour and contrast ratio';
@@ -160,10 +162,12 @@ async function judgeEach(
  * background when it has alpha, against the background behind it. The ratio is rounded once, and that
  * value is what is compared with 3 (`text-contrast-fail` under it) and with the minimum for the text's
  * size (`text-contrast-low` under that), printed and stored. An element without text has nothing to
- * judge. One whose background cannot be trusted (`background-uncertain:<why>`, see
+ * judge, and a disabled one is skipped (`disabled`): WCAG exempts the text of an inactive component.
+ * One whose background cannot be trusted (`background-uncertain:<why>`, see
  * `EFFECTIVE_BACKGROUND_SOURCE`) or whose colour cannot be read (`colour-unparseable`) is skipped.
  */
 async function judgeContrast(context: LensContext, element: ElementRef): Promise<StaticResult> {
+  if (element.disabled) return skipped(SKIP_DISABLED);
   const { cdp } = context.ipage;
   const sample = await measureOn<TextSample>(cdp, element, TEXT_SAMPLE_SOURCE);
   if (sample === null) return NOTHING;
@@ -205,8 +209,9 @@ function isExemptFromTargetSize({ tag, role, disabled }: ElementRef): boolean {
 }
 
 /**
- * Target size (WCAG 2.2 2.5.8) of an element: see `passesTargetSize` for the 24 px minimum and the
- * spacing exception, with `others` the boxes of every other element on the screen. Exempt are a native
+ * Target size (WCAG 2.2 2.5.8) of an element: see `passesTargetSize` for the 24 px minimum, the
+ * spacing exception and which boxes count, with `others` the boxes of every other element on the
+ * screen. Exempt are a native
  * checkbox, radio button, `<select>` and `<option>`, a disabled element, and a link or other inline
  * element in a line of text (`IS_INLINE_IN_TEXT_SOURCE`, asked only of an element that is too small).
  */
