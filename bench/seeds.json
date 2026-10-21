@@ -88,6 +88,15 @@
       "rule": "interaction.focus-visible-missing",
       "expectedSeverity": "high",
       "control": true
+    },
+    {
+      "id": "control-002",
+      "lens": "interaction",
+      "route": "/organisations",
+      "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(1) > a:nth-of-type(1)",
+      "rule": "interaction.target-size",
+      "expectedSeverity": "medium",
+      "control": true
     }
   ]
 }
