@@ -1,5 +1,14 @@
 {
   "version": 1,
   "app": "bench/app",
-  "issues": []
+  "issues": [
+    {
+      "id": "interaction-001",
+      "lens": "interaction",
+      "route": "/settings",
+      "selector": "[data-testid=\"settings-save\"]",
+      "rule": "interaction.focus-visible-missing",
+      "expectedSeverity": "high"
+    }
+  ]
 }

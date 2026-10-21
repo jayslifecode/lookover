@@ -4,7 +4,7 @@ import { useActionState } from 'react';
 import { type SettingsFormState, saveSettingsAction } from '@/app/settings/actions';
 import { TIME_ZONES } from '@/lib/validation';
 import { InputField, SelectField } from './field';
-import { BUTTON_PRIMARY } from './styles';
+import { BUTTON_PRIMARY_NO_RING } from './styles';
 
 export function SettingsForm({ initialState }: { initialState: SettingsFormState }) {
   const [{ values, errors, status }, formAction, isPending] = useActionState(
@@ -42,7 +42,12 @@ export function SettingsForm({ initialState }: { initialState: SettingsFormState
         error={errors.timeZone}
       />
       <div className="flex items-center gap-3">
-        <button type="submit" className={BUTTON_PRIMARY} disabled={isPending}>
+        <button
+          type="submit"
+          data-testid="settings-save"
+          className={BUTTON_PRIMARY_NO_RING}
+          disabled={isPending}
+        >
           Save
         </button>
         <p role="status" className="text-sm text-slate-700">

@@ -10,6 +10,9 @@
 export const BUTTON_PRIMARY =
   'inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60';
 
+/** Settings' Save button: the primary button with its focus outline removed and nothing in its place. */
+export const BUTTON_PRIMARY_NO_RING = `${BUTTON_PRIMARY} focus:outline-none`;
+
 export const BUTTON_SECONDARY =
   'inline-flex items-center rounded-md border border-slate-500 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-100';
 
