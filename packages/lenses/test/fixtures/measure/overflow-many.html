@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Overflow caps fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font: 16px/1.5 sans-serif;
+      }
+      .wide {
+        height: 4px;
+      }
+      .clipped {
+        width: 100px;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Seven elements past the right edge, the widest last; only the five widest are offenders. -->
+    <div class="wide" id="w400" style="width: 400px"></div>
+    <div class="wide" id="w500" style="width: 500px"></div>
+    <div class="wide" id="w600" style="width: 600px"></div>
+    <div class="wide" id="w700" style="width: 700px"></div>
+    <div class="wide" id="w800" style="width: 800px"></div>
+    <div class="wide" id="w900" style="width: 900px"></div>
+    <div class="wide" id="w1000" style="width: 1000px"></div>
+
+    <!-- Twelve clipped captions; only the first ten are reported. -->
+    <p class="clipped">Caption one, much too long for its box</p>
+    <p class="clipped">Caption two, much too long for its box</p>
+    <p class="clipped">Caption three, much too long for its box</p>
+    <p class="clipped">Caption four, much too long for its box</p>
+    <p class="clipped">Caption five, much too long for its box</p>
+    <p class="clipped">Caption six, much too long for its box</p>
+    <p class="clipped">Caption seven, much too long for its box</p>
+    <p class="clipped">Caption eight, much too long for its box</p>
+    <p class="clipped">Caption nine, much too long for its box</p>
+    <p class="clipped">Caption ten, much too long for its box</p>
+    <p class="clipped">Caption eleven, much too long for its box</p>
+    <p class="clipped">Caption twelve, much too long for its box</p>
+  </body>
+</html>

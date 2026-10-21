@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Focus fixture</title>
+    <style>
+      body {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <button type="button" id="shown">Shown</button>
+    <a id="transparent" href="#a" style="opacity: 0">Transparent link</a>
+    <div style="opacity: 0">
+      <button type="button" id="in-transparent">In a transparent box</button>
+    </div>
+    <a id="offscreen" href="#b" style="position: absolute; left: -9999px">Off the page</a>
+    <button type="button" id="zero" style="width: 0; height: 0; padding: 0; border: 0; overflow: hidden">
+      Zero
+    </button>
+    <button type="button" id="hiding">Hides on focus</button>
+
+    <!-- biome-ignore lint/a11y/noPositiveTabindex: the source under test lists positive tabindex values -->
+    <input id="third" tabindex="3" aria-label="Third" />
+    <!-- biome-ignore lint/a11y/noPositiveTabindex: the source under test lists positive tabindex values -->
+    <button type="button" tabindex="1">First</button>
+    <button type="button" tabindex="0">In order</button>
+    <span tabindex="-1">Programmatic only</span>
+    <!-- biome-ignore lint/a11y/noPositiveTabindex: the source under test lists positive tabindex values -->
+    <a href="#c" tabindex="2">Second</a>
+  </body>
+</html>

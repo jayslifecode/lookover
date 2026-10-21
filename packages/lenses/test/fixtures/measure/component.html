@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Component fixture</title>
+  </head>
+  <body>
+    <button type="button" id="save">Save</button>
+    <div id="card">Profile</div>
+    <button type="button" id="internals-only">Orphan</button>
+    <button type="button" id="plain">Plain</button>
+    <button type="button" id="production">Minified</button>
+    <script>
+      // Hand-built fibers in the shape React 19 leaves on DOM nodes: a `__reactFiber$<random>` key on
+      // the node, a `.return` chain up to the root, and a `.type` that is the tag name for host
+      // elements, a symbol for React's own wrappers and the function or class for components. The
+      // development build's fibers also carry `_debugOwner` (and other `_debug*` fields); production
+      // fibers do not. React 19 ships no UMD build to load offline; the end-to-end suite checks real React.
+      const fiberKey = '__reactFiber$abc123';
+      const fiber = (type, parent) => ({ type, return: parent, _debugOwner: null });
+      const productionFiber = (type, parent) => ({ type, return: parent });
+
+      function App() {}
+      function SaveButton() {}
+      // Names React and bundlers use for their own wrappers, which are not the app's components.
+      function Fragment() {}
+      function _interopWrapper() {}
+      function lowercaseHelper() {}
+      class ProfileCardImpl {}
+      ProfileCardImpl.displayName = 'ProfileCard';
+
+      const root = fiber(App, null);
+      const saveButton = fiber(SaveButton, root);
+      const internals = fiber(lowercaseHelper, fiber(_interopWrapper, fiber(Fragment, saveButton)));
+      const fragment = fiber(Symbol.for('react.fragment'), internals);
+      document.getElementById('save')[fiberKey] = fiber('button', fragment);
+
+      document.getElementById('card')[fiberKey] = fiber('div', fiber(ProfileCardImpl, root));
+
+      const onlyInternals = fiber(Fragment, fiber(Symbol.for('react.suspense'), null));
+      document.getElementById('internals-only')[fiberKey] = fiber('button', onlyInternals);
+
+      // A production build: the same chain without `_debug*` fields, the component's name minified.
+      function Ue() {}
+      document.getElementById('production')[fiberKey] = productionFiber('button', productionFiber(Ue, null));
+    </script>
+  </body>
+</html>

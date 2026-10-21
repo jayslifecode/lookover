@@ -41,7 +41,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/core/src/**", "packages/rules/src/**"],
+      "includes": ["packages/core/src/**", "packages/lenses/src/**", "packages/rules/src/**"],
       "linter": {
         "rules": {
           "suspicious": {

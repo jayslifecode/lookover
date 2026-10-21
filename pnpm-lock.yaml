@@ -74,6 +74,22 @@ importers:
         specifier: workspace:*
         version: link:../test-support
 
+  packages/lenses:
+    dependencies:
+      '@jayslifecode/lookover-core':
+        specifier: workspace:*
+        version: link:../core
+      '@jayslifecode/lookover-rules':
+        specifier: workspace:*
+        version: link:../rules
+      playwright:
+        specifier: 1.64.1
+        version: 1.64.1
+    devDependencies:
+      '@jayslifecode/lookover-test-support':
+        specifier: workspace:*
+        version: link:../test-support
+
   packages/rules:
     dependencies:
       zod:

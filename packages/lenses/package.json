@@ -1,0 +1,29 @@
+{
+  "name": "@jayslifecode/lookover-lenses",
+  "version": "0.0.0",
+  "description": "Lookover lenses: the measurements a review makes on each captured screen.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@jayslifecode/lookover-core": "workspace:*",
+    "@jayslifecode/lookover-rules": "workspace:*",
+    "playwright": "1.64.1"
+  },
+  "devDependencies": {
+    "@jayslifecode/lookover-test-support": "workspace:*"
+  }
+}

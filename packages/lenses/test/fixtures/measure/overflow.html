@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Overflow fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font: 16px/1.5 sans-serif;
+      }
+      .narrow {
+        width: 200px;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="banner" style="width: 600px; height: 40px">A fixed-width banner</div>
+
+    <p id="caption" class="narrow">A caption far too long to fit in two hundred pixels on one line</p>
+    <p id="ellipsis" class="narrow" style="text-overflow: ellipsis">A caption just as long, cut with an ellipsis</p>
+    <p id="wraps" style="width: 200px; overflow: hidden">A caption that is allowed to wrap onto as many lines as it needs</p>
+
+    <div id="table-wrap" style="overflow-x: auto">
+      <table style="width: 800px">
+        <tr>
+          <td>A wide table</td>
+          <td>that scrolls inside its own wrapper</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Neither of these extends the document (its scrollWidth stays the banner's 600 px), so neither is an offender. -->
+    <div style="overflow: hidden">
+      <div id="slides" style="width: 1200px">Carousel slides clipped by their track</div>
+    </div>
+
+    <div id="drawer" style="position: fixed; top: 0; left: 380px; width: 300px">A fixed drawer off to the right</div>
+  </body>
+</html>
