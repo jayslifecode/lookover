@@ -13,12 +13,14 @@ export function SettingsForm({ initialState }: { initialState: SettingsFormState
   );
   return (
     <form action={formAction} className="max-w-lg space-y-5">
+      {/* biome-ignore lint/a11y/noPositiveTabindex: seeded issue interaction-005 */}
       <InputField
         id="workspaceName"
         name="workspaceName"
         label="Workspace name"
         type="text"
         required
+        tabIndex={1}
         defaultValue={values.workspaceName}
         error={errors.workspaceName}
       />

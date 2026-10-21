@@ -33,6 +33,14 @@
       "selector": "[data-testid=\"stat-organisations\"]",
       "rule": "interaction.keyboard-unreachable",
       "expectedSeverity": "high"
+    },
+    {
+      "id": "interaction-005",
+      "lens": "interaction",
+      "route": "/settings",
+      "selector": "#workspaceName",
+      "rule": "interaction.positive-tabindex",
+      "expectedSeverity": "low"
     }
   ]
 }
