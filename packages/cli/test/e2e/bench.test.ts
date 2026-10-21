@@ -19,6 +19,7 @@ const RUN_BUDGET_MS = 150_000;
 const PROCESS_TIMEOUT_MS = 240_000;
 const MAX_SCREENS = '12';
 const MIN_SCREENS = 6;
+const MIN_SEEDED_CANDIDATES = 1;
 const EDIT_ROUTE = '/organisations/[id]';
 const LOGIN_ROUTE = '/login';
 const LOGOUT_PATH = '/logout';
@@ -169,11 +170,12 @@ describe('lookover run against the bench app', () => {
     expect(map.screens.filter((screen) => screen.route === LOGOUT_PATH)).toEqual([]);
   });
 
-  // The bench app is built clean. Task 15 replaces this with the findings of its seeded defects.
-  test('finds nothing wrong with the bench app: no candidates and nothing worth a look', async () => {
-    const { findings, worthALook } = await readFindings(project);
+  // The bench app carries seeded issues (bench/seeds.json). Task 15 replaces this placeholder with
+  // recall and precision against them.
+  test('writes findings.json with at least one candidate from the seeded bench', async () => {
+    const { findings } = await readFindings(project);
 
-    expect({ findings, worthALook }).toEqual({ findings: [], worthALook: [] });
+    expect(findings.length).toBeGreaterThanOrEqual(MIN_SEEDED_CANDIDATES);
   });
 
   test('ends the run log with run.finished', async () => {
