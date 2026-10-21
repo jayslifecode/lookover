@@ -1,10 +1,11 @@
 import { ruleById } from '@jayslifecode/lookover-rules';
-import type { ConsoleMessage, Frame, Request } from 'playwright';
+import type { ConsoleMessage } from 'playwright';
 import type { InstrumentedPage } from '../browser/session.js';
 import { occurrenceFinding } from '../findings/build.js';
 import type { EvidenceItem, Finding } from '../findings/types.js';
 import type { Screen } from '../map/types.js';
 import type { RunContext } from '../run/run-context.js';
+import { NavigationBuffer } from './buffer.js';
 import { isIgnoredConsoleEntry } from './noise.js';
 import type { Observer, ObserverResult } from './types.js';
 
@@ -70,36 +71,23 @@ function collapseWhitespace(text: string): string {
 export class ConsoleObserver implements Observer {
   readonly name = 'console';
 
-  /**
-   * Filled by the page listeners one entry at a time (at most `MAX_CONSOLE_ENTRIES`, noise never in
-   * it), so a page that logs in a loop costs a push each rather than a copy of everything logged so far.
-   * It is never handed out: `drain` swaps in a fresh array.
-   */
-  private entries: ConsoleEntry[] = [];
-  /** How many entries arrived after the buffer was full. */
-  private dropped = 0;
-  /** True from a main-frame navigation request until the navigation commits. */
-  private isLoadingDocument = false;
+  private readonly buffer = new NavigationBuffer<ConsoleEntry>(MAX_CONSOLE_ENTRIES);
 
   constructor(private readonly ctx: RunContext) {}
 
   /**
-   * The listeners only read the event and record it, so none of them can throw. A main-frame document
-   * navigation (a request that loads a document, then its commit) empties the buffer: what was logged
-   * before it belongs to a page that is gone (a lens reload, a redirect that landed elsewhere), and what
-   * the new page logs arrives only after the commit. A same-document navigation (`pushState`,
-   * `replaceState`, a hash change) also raises `framenavigated` but sends no request, so the page's
-   * messages stay.
+   * The listeners only read the event and record it, so none of them can throw. What was logged before
+   * a main-frame document navigation belongs to a page that is gone, so the buffer forgets it (see
+   * `NavigationBuffer`).
    */
   attach({ page }: InstrumentedPage): void {
+    this.buffer.attach(page);
     page.on('console', (message) => this.recordConsole(message));
     page.on('pageerror', (error) => this.record('pageerror', describePageError(error), null));
-    page.on('request', (request) => this.noteRequest(request));
-    page.on('framenavigated', (frame) => this.forgetOnNavigation(frame));
   }
 
   async collect(screen: Screen): Promise<ObserverResult> {
-    const { entries, dropped } = this.drain();
+    const { entries, dropped } = this.buffer.drain();
     if (entries.length === 0) return { findings: [], worthALook: [], evidence: [] };
     const ref = await this.ctx.evidence.putJson(`console-${screen.id}`, {
       screenId: screen.id,
@@ -135,34 +123,7 @@ export class ConsoleObserver implements Observer {
       location,
     };
     if (isIgnoredConsoleEntry(entry)) return;
-    if (this.entries.length >= MAX_CONSOLE_ENTRIES) {
-      this.dropped += 1;
-      return;
-    }
-    this.entries.push(entry);
-  }
-
-  /**
-   * `isNavigationRequest` comes first: `frame()` throws for a service worker's request, which is not
-   * one. A page's own `request` events always have their frame.
-   */
-  private noteRequest(request: Request): void {
-    if (request.isNavigationRequest() && request.frame().parentFrame() === null) {
-      this.isLoadingDocument = true;
-    }
-  }
-
-  private forgetOnNavigation(frame: Frame): void {
-    if (frame.parentFrame() !== null || !this.isLoadingDocument) return;
-    this.isLoadingDocument = false;
-    this.drain();
-  }
-
-  private drain(): { entries: ConsoleEntry[]; dropped: number } {
-    const seen = { entries: this.entries, dropped: this.dropped };
-    this.entries = [];
-    this.dropped = 0;
-    return seen;
+    this.buffer.record(entry);
   }
 }
 
