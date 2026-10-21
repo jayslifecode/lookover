@@ -73,6 +73,8 @@ const SKIP_GONE = 'gone';
 const SKIP_CONTRAST_CAP = 'contrast-elements-cap';
 /** WCAG 1.4.3 puts no contrast requirement on the text of an inactive user interface component. */
 const SKIP_DISABLED = 'disabled';
+/** A colour the page's canvas or `parseCssColor` cannot read. */
+const SKIP_UNPARSEABLE = 'colour-unparseable';
 const SIZE_DECIMALS = 1;
 
 const CONTRAST_WHAT = 'text colour, background colour and contrast ratio';
@@ -165,8 +167,10 @@ async function judgeEach(
  * judge, and a disabled one is skipped (`disabled`): WCAG exempts the text of an inactive component.
  * One whose text is painted by a descendant in other colours (`text-colour-uncertain:<why>`, see
  * `TEXT_SAMPLE_SOURCE`), whose background cannot be trusted (`background-uncertain:<why>`, see
- * `EFFECTIVE_BACKGROUND_SOURCE`) or whose colour cannot be read (`colour-unparseable`) is skipped. Both
- * colours come from the page already painted into sRGB, so the last is a guard rather than a case.
+ * `EFFECTIVE_BACKGROUND_SOURCE`) or whose text or background colour cannot be read
+ * (`colour-unparseable`: the page's canvas rejects it, or `parseCssColor` cannot read what came back) is
+ * skipped. Both colours come from the page already painted into sRGB, so the last is a guard rather
+ * than a case.
  */
 async function judgeContrast(context: LensContext, element: ElementRef): Promise<StaticResult> {
   if (element.disabled) return skipped(SKIP_DISABLED);
@@ -176,10 +180,11 @@ async function judgeContrast(context: LensContext, element: ElementRef): Promise
   if (sample.uncertain !== null) return skipped(`text-colour-uncertain:${sample.uncertain}`);
   const background = await measureOn<EffectiveBackground>(cdp, element, EFFECTIVE_BACKGROUND_SOURCE);
   if (background === null) return skipped(SKIP_GONE);
+  if (background.uncertain === SKIP_UNPARSEABLE) return skipped(SKIP_UNPARSEABLE);
   if (background.color === null) return skipped(`background-uncertain:${background.uncertain}`);
-  const text = parseCssColor(sample.color);
+  const text = sample.color === null ? null : parseCssColor(sample.color);
   const behind = parseCssColor(background.color);
-  if (text === null || behind === null) return skipped('colour-unparseable');
+  if (sample.color === null || text === null || behind === null) return skipped(SKIP_UNPARSEABLE);
   const ratio = roundedContrastRatio(blendOver(text, behind), behind);
   const required = requiredRatio(isLargeText(sample.fontSize, sample.fontWeight));
   const rule = contrastRuleFor(ratio, required);

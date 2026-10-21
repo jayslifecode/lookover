@@ -64,7 +64,8 @@ export type BackgroundUncertainty =
   | 'mix-blend-mode'
   | 'filter'
   | 'backdrop-filter'
-  | 'never-opaque';
+  | 'never-opaque'
+  | 'colour-unparseable';
 
 export interface EffectiveBackground {
   /** `rgb(r, g, b)`, opaque; `null` exactly when `uncertain` is set. */
@@ -78,8 +79,8 @@ export interface TextSample {
   /** Computed, in CSS pixels. */
   fontSize: number;
   fontWeight: number;
-  /** The text colour in sRGB, `rgb(r, g, b)` or `rgba(r, g, b, a)`, for `parseCssColor`. */
-  color: string;
+  /** The text colour in sRGB, `rgb(r, g, b)` or `rgba(r, g, b, a)`, for `parseCssColor`; `null` when it cannot be read. */
+  color: string | null;
   /**
    * `'descendant'` when the colours above may not be the ones the text is painted in (see
    * `TEXT_SAMPLE_SOURCE`); `null` when they can be trusted.
@@ -158,7 +159,10 @@ function effectiveBackground(this: Element, colours: ColourReader): EffectiveBac
     const isCovered = color.a >= OPAQUE_ALPHA;
     const reason = reasonAt(style, isCovered);
     if (reason !== null) return { color: null, uncertain: reason };
-    if (!isCovered) color = under(color, colours.paint(style.backgroundColor));
+    if (isCovered) continue;
+    const painted = colours.paint(style.backgroundColor);
+    if (painted === null) return { color: null, uncertain: 'colour-unparseable' };
+    color = under(color, painted);
   }
   if (color.a < OPAQUE_ALPHA) return { color: null, uncertain: 'never-opaque' };
   const channel = (value: number): number => Math.round(value);
@@ -176,6 +180,7 @@ function effectiveBackground(this: Element, colours: ColourReader): EffectiveBac
  * when the element or any ancestor has `opacity` below 1, a `mix-blend-mode` or a `filter` (they
  * change the colours of everything inside), or when no layer up to `<html>` makes it opaque
  * (`never-opaque`: the browser's canvas colour shows through, and that depends on the colour scheme).
+ * A background colour the canvas cannot read is `colour-unparseable`.
  */
 export const EFFECTIVE_BACKGROUND_SOURCE = `function () { return (${effectiveBackground.toString()}).call(this, (${COLOUR_READER_SOURCE})()); }`;
 
@@ -254,7 +259,8 @@ function textSample(this: Element, colours: ColourReader): TextSample | null {
  * The element's text as shown (`innerText`, whitespace collapsed, the first 80 characters) with the
  * computed font size, weight and colour that text contrast is judged by (`TextSample`); `null` when
  * the element shows no text. The colour is read the way `EFFECTIVE_BACKGROUND_SOURCE` reads a
- * background (see `colourReader`), so it is `rgb()` or `rgba()` whatever space it was computed in.
+ * background (see `colourReader`), so it is `rgb()` or `rgba()` whatever space it was computed in, or
+ * `null` when the canvas cannot read it.
  *
  * The colour and the font are the element's own, but the text may belong to its descendants.
  * `uncertain` is `'descendant'` when any descendant element that holds text (anywhere in its subtree)

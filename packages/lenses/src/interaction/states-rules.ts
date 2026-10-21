@@ -53,6 +53,8 @@ const NO_OUTLINE_STYLE = 'none';
 const SHADOW_LAYER = /^([a-z-]+\([^()]*\)|[a-z-]+)((?:\s+-?[\d.]+px){2,4})(\s+inset)?$/;
 /** A comma between layers; the commas inside a colour function are followed by its `)` first. */
 const LAYER_SEPARATOR = /,(?![^(]*\))/;
+/** The mark's colour or the background's cannot be read. */
+const SKIP_COLOUR_UNREADABLE = 'focus-indicator-colour-unreadable';
 
 const STATE_LABELS: Readonly<Record<GalleryState, string>> = {
   rest: 'at rest',
@@ -181,10 +183,11 @@ async function judgeIndicator(subject: Subject, indicator: string): Promise<Judg
   const { cdp } = subject.context.ipage;
   const background = await measureOn<EffectiveBackground>(cdp, subject.element, PARENT_BACKGROUND_SOURCE);
   if (background === null) return NOTHING;
+  if (background.uncertain === 'colour-unparseable') return skippedFor(SKIP_COLOUR_UNREADABLE);
   if (background.color === null) return skippedFor(`focus-indicator-background:${background.uncertain}`);
   const mark = parseCssColor(indicator);
   const behind = parseCssColor(background.color);
-  if (mark === null || behind === null) return skippedFor('focus-indicator-colour-unreadable');
+  if (mark === null || behind === null) return skippedFor(SKIP_COLOUR_UNREADABLE);
   // Rounded once, so the ratio it is judged by is the one it reports: "3.00:1" is never a failure.
   const ratio = roundedContrastRatio(blendOver(mark, behind), behind);
   if (ratio >= MIN_INDICATOR_RATIO) return NOTHING;

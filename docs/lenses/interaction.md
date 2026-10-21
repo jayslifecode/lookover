@@ -137,8 +137,8 @@ whatever has it, so no control's rest state shows its focus ring.
   which Chromium paints in two tones that depend on the platform, so it is exempt;
   `focus-indicator-on-ancestor` when the mark is on an ancestor (its presence counts for the rule above,
   its contrast is only judged on the control itself); `focus-indicator-background:<why>` when the
-  background cannot be trusted; `focus-indicator-colour-unreadable` when the mark's colour cannot be
-  read. The mark's colour is read straight from the computed style, and colours computed in `lab()` (for
+  background cannot be trusted; `focus-indicator-colour-unreadable` when the mark's colour or the
+  background's cannot be read. The mark's colour is read straight from the computed style, and colours computed in `lab()` (for
   example Tailwind 4.3's palette) are not read yet, so such rings are skipped with that reason.
 - **Bench:** no seed yet. Fixtures `states/ring.html` (`#faint`, 1.24:1) and `states/dark.html`.
 
@@ -196,8 +196,9 @@ measurement is skipped with the first reason met on the way up, when:
   describe, and the element is skipped (`text-colour-uncertain:descendant`). Descendants inside shadow
   roots are not looked at.
 - **Skips:** `disabled`, `text-colour-uncertain:descendant`, `background-uncertain:<why>` (the reasons
-  under "Backgrounds"), `colour-unparseable` (a guard: both colours arrive already in sRGB, so it is not
-  expected), `gone` (the element left the page), `contrast-elements-cap`, `time-budget:text-contrast`.
+  under "Backgrounds"), `colour-unparseable` (the page's canvas rejects the text or background colour,
+  or what it gives back cannot be read; a guard, since a computed colour is one the canvas paints),
+  `gone` (the element left the page), `contrast-elements-cap`, `time-budget:text-contrast`.
 - **Bench:** `interaction-002`, the Reports Export CSV button, `text-slate-400` on `bg-slate-100`
   (2.40:1). `text-contrast-low` has no seed yet; fixture `static/contrast.html` (`#low`, 4.23:1).
 

@@ -202,7 +202,7 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
     test('keeps an sRGB colour with alpha as Chromium writes it, and paints one in another space', async () => {
       const srgb = await measure<TextSample>('#translucent', TEXT_SAMPLE_SOURCE);
       const lab = await measure<TextSample>('#translucent-lab', TEXT_SAMPLE_SOURCE);
-      const parsed = parseCssColor(lab.color);
+      const parsed = parseCssColor(lab.color ?? '');
 
       expect(srgb.color).toBe('rgba(0, 0, 0, 0.3)');
       expect(lab.color).toMatch(/^rgba\(/);
