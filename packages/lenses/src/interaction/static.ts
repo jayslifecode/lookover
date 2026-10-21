@@ -163,7 +163,8 @@ async function judgeEach(
  * value is what is compared with 3 (`text-contrast-fail` under it) and with the minimum for the text's
  * size (`text-contrast-low` under that), printed and stored. An element without text has nothing to
  * judge, and a disabled one is skipped (`disabled`): WCAG exempts the text of an inactive component.
- * One whose background cannot be trusted (`background-uncertain:<why>`, see
+ * One whose text is painted by a descendant in other colours (`text-colour-uncertain:<why>`, see
+ * `TEXT_SAMPLE_SOURCE`), whose background cannot be trusted (`background-uncertain:<why>`, see
  * `EFFECTIVE_BACKGROUND_SOURCE`) or whose colour cannot be read (`colour-unparseable`) is skipped.
  */
 async function judgeContrast(context: LensContext, element: ElementRef): Promise<StaticResult> {
@@ -171,6 +172,7 @@ async function judgeContrast(context: LensContext, element: ElementRef): Promise
   const { cdp } = context.ipage;
   const sample = await measureOn<TextSample>(cdp, element, TEXT_SAMPLE_SOURCE);
   if (sample === null) return NOTHING;
+  if (sample.uncertain !== null) return skipped(`text-colour-uncertain:${sample.uncertain}`);
   const background = await measureOn<EffectiveBackground>(cdp, element, EFFECTIVE_BACKGROUND_SOURCE);
   if (background === null) return skipped(SKIP_GONE);
   if (background.color === null) return skipped(`background-uncertain:${background.uncertain}`);
@@ -244,7 +246,8 @@ function forDisplay(value: number): number {
 /**
  * Keyboard reachability (WCAG 2.2 2.1.1): a control of a role in `MUST_BE_FOCUSABLE_ROLES` that cannot
  * receive focus at all (no `tabindex`, not natively focusable). Not reported: a disabled one, and one
- * inside an element with `aria-activedescendant`, which keeps focus itself and points at its children.
+ * inside (not itself) an element with `aria-activedescendant`, which keeps focus and points at its
+ * children.
  */
 async function judgeKeyboard(context: LensContext, element: ElementRef): Promise<StaticResult> {
   const { focusable, disabled, role, tag } = element;

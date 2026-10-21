@@ -79,6 +79,11 @@ export interface TextSample {
   fontWeight: number;
   /** The computed `color` as Chromium serialises it, for `parseCssColor`. */
   color: string;
+  /**
+   * `'descendant'` when the colours above may not be the ones the text is painted in (see
+   * `TEXT_SAMPLE_SOURCE`); `null` when they can be trusted.
+   */
+  uncertain: 'descendant' | null;
 }
 
 export interface PositiveTabindex {
@@ -243,15 +248,31 @@ export const COMPONENT_NAME_SOURCE: string = componentName.toString();
 
 function textSample(this: Element): TextSample | null {
   const MAX_TEXT_LENGTH = 80;
+  const TRANSPARENT = 'rgba(0, 0, 0, 0)';
   const raw = this instanceof HTMLElement ? this.innerText : (this.textContent ?? '');
   const text = raw.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT_LENGTH);
   if (text === '') return null;
   const style = getComputedStyle(this);
+  /** Whether the element is painted differently from `this`, so the text inside it may be too. */
+  const looksDifferent = (el: Element): boolean => {
+    const own = getComputedStyle(el);
+    return (
+      own.color !== style.color ||
+      own.backgroundColor !== TRANSPARENT ||
+      own.backgroundImage !== 'none' ||
+      Number.parseFloat(own.opacity) < 1
+    );
+  };
+  const hasText = (el: Element): boolean => (el.textContent ?? '').trim() !== '';
+  const isDescendantPainted = Array.from(this.querySelectorAll('*')).some(
+    (el) => hasText(el) && looksDifferent(el),
+  );
   return {
     text,
     fontSize: Number.parseFloat(style.fontSize),
     fontWeight: Number.parseFloat(style.fontWeight),
     color: style.color,
+    uncertain: isDescendantPainted ? 'descendant' : null,
   };
 }
 
@@ -259,6 +280,12 @@ function textSample(this: Element): TextSample | null {
  * The element's text as shown (`innerText`, whitespace collapsed, the first 80 characters) with the
  * computed font size, weight and colour that text contrast is judged by (`TextSample`); `null` when
  * the element shows no text.
+ *
+ * The colour and the font are the element's own, but the text may belong to its descendants.
+ * `uncertain` is `'descendant'` when any descendant element that holds text (anywhere in its subtree)
+ * has a computed `color` different from the element's, a `background-color` that is not transparent, a
+ * `background-image`, or an `opacity` below 1: the text is then painted in colours this sample does not
+ * describe, and the caller should not judge it by them.
  */
 export const TEXT_SAMPLE_SOURCE: string = textSample.toString();
 
@@ -278,13 +305,15 @@ function isInlineInText(this: Element): boolean {
 export const IS_INLINE_IN_TEXT_SOURCE: string = isInlineInText.toString();
 
 function isInActiveDescendantWidget(this: Element): boolean {
-  return this.closest('[aria-activedescendant]') !== null;
+  return this.parentElement?.closest('[aria-activedescendant]') != null;
 }
 
 /**
- * Whether the element is, or is inside, an element with `aria-activedescendant`: a listbox, a combobox
+ * Whether the element is inside an element with `aria-activedescendant`: a listbox, a combobox popup
  * or a toolbar that keeps focus on itself and points at its active child. Those children are never
- * focused themselves, so the keyboard-reachability rule leaves them alone.
+ * focused themselves, so the keyboard-reachability rule leaves them alone. Only ancestors count: an
+ * element that names an active descendant itself (`div[role=combobox][aria-activedescendant]`) is the
+ * widget, and it has to be focusable.
  */
 export const IN_ACTIVEDESCENDANT_WIDGET_SOURCE: string = isInActiveDescendantWidget.toString();
 

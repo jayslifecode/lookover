@@ -18,5 +18,15 @@
     </p>
     <button type="button" id="oklch" style="color: oklch(0.488 0.243 264.376)">Save</button>
     <button type="button" id="icon" aria-label="Close">   </button>
+    <!-- the text is a child's: white on the black behind it, though the anchor itself keeps the dark colour -->
+    <a id="white-on-black" href="#white-on-black" style="display: inline-block; background: #000000"><span style="color: #ffffff">Label</span></a>
+    <!-- a child badge paints its own background under its text -->
+    <a id="with-badge" href="#with-badge">Inbox <span style="background: #fef08a">3</span></a>
+    <!-- a wrapper between the anchor and its text paints a background -->
+    <a id="wrapped" href="#wrapped"><span style="display: inline-block; background: #000000"><b>Wrapped</b></span></a>
+    <a id="faded-child" href="#faded-child">Name <span style="opacity: 0.5">detail</span></a>
+    <a id="image-child" href="#image-child">Name <span style="background-image: linear-gradient(#1e3a8a, #93c5fd)">detail</span></a>
+    <!-- children that look like their parent, and one that holds no text, leave the parent's colours the truth -->
+    <p id="same-look">Hello <strong>bold</strong> and <em>italic</em><span style="background: #000000; display: inline-block; width: 8px; height: 8px"></span></p>
   </body>
 </html>

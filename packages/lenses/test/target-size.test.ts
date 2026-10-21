@@ -35,12 +35,31 @@ describe('passesTargetSize', () => {
     expect(result).toEqual({ ok: false, nearest: 11 });
   });
 
-  test('passes when the other box is 13 px from the centre', () => {
-    expect(passesTargetSize(SMALL, [box(21, 0, SMALL_SIDE, SMALL_SIDE)])).toEqual({ ok: true });
+  test('passes when a full-size box is 13 px from the centre', () => {
+    expect(passesTargetSize(SMALL, [box(21, 0, 24, 24)])).toEqual({ ok: true });
   });
 
-  test('passes when the other box is exactly 12 px from the centre: the circle touches it, it does not meet it', () => {
-    expect(passesTargetSize(SMALL, [box(20, 0, SMALL_SIDE, SMALL_SIDE)])).toEqual({ ok: true });
+  test('passes when a full-size box is exactly 12 px from the centre: the circle touches it, it does not meet it', () => {
+    expect(passesTargetSize(SMALL, [box(20, 0, 24, 24)])).toEqual({ ok: true });
+  });
+
+  test('fails two small targets whose circles meet: 4 px apart is 12 px from the box but 20 px between centres', () => {
+    // The other box starts at x = 20, 12 px from the centre, so it only touches the circle; but its centre is
+    // 20 px from this one's, under 24, so the two circles overlap.
+    expect(passesTargetSize(SMALL, [box(20, 0, SMALL_SIDE, SMALL_SIDE)])).toEqual({ ok: false, nearest: 12 });
+  });
+
+  test('fails a small target 13 px from another small one: 21 px between centres is under 24', () => {
+    expect(passesTargetSize(SMALL, [box(21, 0, SMALL_SIDE, SMALL_SIDE)])).toEqual({ ok: false, nearest: 13 });
+  });
+
+  test('passes two small targets whose centres are 24 px apart: the circles only touch', () => {
+    expect(passesTargetSize(SMALL, [box(24, 0, SMALL_SIDE, SMALL_SIDE)])).toEqual({ ok: true });
+  });
+
+  test('centres the circle of a wide, short neighbour on its own middle, far from this one', () => {
+    // 96 x 16 starting at x = 20: it is undersized, but its centre (68, 8) is 60 px away.
+    expect(passesTargetSize(SMALL, [box(20, 0, 96, SMALL_SIDE)])).toEqual({ ok: true });
   });
 
   test('fails a target 23 px wide and 24 px tall when another box touches it', () => {

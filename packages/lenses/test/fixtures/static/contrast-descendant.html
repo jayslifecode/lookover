@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Contrast with text in descendants fixture</title>
+    <style>
+      body {
+        margin: 24px;
+        background: #ffffff;
+        font: 16px/1.5 sans-serif;
+        color: #111827;
+      }
+      a {
+        display: block;
+        width: 240px;
+        margin-bottom: 40px;
+        padding: 12px 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- white text on black, in a child; the anchor itself keeps the dark inherited colour, which would read 1.1:1 -->
+    <a href="#white-on-black" id="white-on-black" style="background: #000000"><span style="color: #ffffff">Label</span></a>
+    <!-- a child badge paints a background of its own under its text -->
+    <a href="#inbox" id="badge-host">Inbox <span style="background: #1e3a8a; color: #ffffff">3</span></a>
+    <!-- children that look like their parent leave the parent's colours the truth, so this is judged, and passes -->
+    <a href="#same-look" id="same-look">Hello <strong>bold</strong> and <em>italic</em></a>
+    <!-- plain faint text, judged as always -->
+    <a href="#plain-faint" id="plain-faint" style="color: #9ca3af">Faint link</a>
+  </body>
+</html>

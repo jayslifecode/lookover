@@ -39,6 +39,10 @@
     <br />
     <span role="link" id="span-link">Read the docs</span>
     <br />
+    <!-- names an active descendant itself, but nothing can focus it: a control, not a child of one -->
+    <div role="combobox" id="combo" aria-expanded="false" aria-controls="list" aria-label="City" aria-activedescendant="apple">
+      Choose a city
+    </div>
     <!-- a listbox keeps focus on itself and points at the active option -->
     <ul role="listbox" id="list" tabindex="0" aria-label="Fruit" aria-activedescendant="apple">
       <li role="option" id="apple" aria-selected="true">Apple</li>

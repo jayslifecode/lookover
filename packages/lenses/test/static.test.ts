@@ -216,6 +216,18 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
     });
   });
 
+  describe('text contrast with the text in descendants, on contrast-descendant.html', () => {
+    test('skips the anchors whose text sits in a child with its own colour or background, and judges the rest', async () => {
+      const { findings, skipped } = await measure('contrast-descendant.html');
+
+      // #white-on-black would read 1.1:1 on its own colour and be reported though its visible text is white
+      // on black; #badge-host has a badge whose own white-on-blue text is not what the anchor's colours say.
+      expect(skipped).toEqual([{ reason: 'text-colour-uncertain:descendant', count: 2 }]);
+      expect(selectorsFor(findings, CONTRAST_FAIL)).toEqual(['#plain-faint']);
+      expect(selectorsFor(findings, CONTRAST_LOW)).toEqual([]);
+    });
+  });
+
   describe('text contrast on a crowded screen', () => {
     test(`judges at most ${MAX_CONTRAST_ELEMENTS} elements and counts the rest as skipped`, async () => {
       const ipage = await browser.newPage();
@@ -280,7 +292,7 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
         source: 'interaction',
         severity: 'medium',
         key: '/targets.html|#icon',
-        observed: '16×16 px, nearest other target 10 px away',
+        observed: '16×16 px, nearest other target 12 px away',
         target: { selector: '#icon', role: 'button', name: 'Close', componentName: null },
       });
       expect(finding.trace.steps).toEqual([
@@ -292,19 +304,20 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
         selector: '#icon',
         width: 16,
         height: 16,
-        nearest: 10,
+        nearest: 12,
       });
     });
   });
 
   describe('keyboard reachability on keyboard.html', () => {
-    test('reports the div and the span that look like controls and cannot be focused', async () => {
+    test('reports the divs and the span that look like controls and cannot be focused', async () => {
       const { findings } = await measure('keyboard.html');
 
       // Not #tab-zero (reachable), #roving (focusable by a script), #disabled, #list or #apple (an option is
       // not a role that must be reachable), #bold or #italic (their toolbar points at them with
-      // aria-activedescendant, so they are never focused themselves).
-      expect(selectorsFor(findings, KEYBOARD)).toEqual(['#no-tab', '#span-link']);
+      // aria-activedescendant, so they are never focused themselves). #combo names an active descendant
+      // itself and cannot be focused: it is a control, not the child of one.
+      expect(selectorsFor(findings, KEYBOARD)).toEqual(['#no-tab', '#span-link', '#combo']);
     });
 
     test('names the control and what is wrong', async () => {

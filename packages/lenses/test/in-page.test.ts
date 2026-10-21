@@ -146,13 +146,13 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
     beforeEach(() => open('activedescendant.html'));
 
     test.each([
-      ['#tools', true],
+      ['#tools', false],
       ['#bold', true],
       ['#italic', true],
       ['#apple', true],
       ['#outside', false],
       ['#own-tab-stop', false],
-    ])('%s is in a widget that points at its active child: %s', async (selector, expected) => {
+    ])('%s is inside a widget that points at its active child: %s', async (selector, expected) => {
       expect(await measure<boolean>(selector, IN_ACTIVEDESCENDANT_WIDGET_SOURCE)).toBe(expected);
     });
   });
@@ -166,6 +166,7 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
         fontSize: 24,
         fontWeight: 700,
         color: 'rgb(17, 24, 39)',
+        uncertain: null,
       });
     });
 
@@ -186,6 +187,24 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
     test('is null for an element without text', async () => {
       expect(await measureOn(ipage.cdp, { selector: '#icon' }, TEXT_SAMPLE_SOURCE)).toBeNull();
+    });
+
+    test.each([
+      ['#white-on-black', 'a child has its own colour'],
+      ['#with-badge', 'a child paints its own background'],
+      ['#wrapped', 'a wrapper around the text paints a background'],
+      ['#faded-child', 'a child is translucent'],
+      ['#image-child', 'a child has a background image'],
+    ])('%s is uncertain about its descendants: %s', async (selector) => {
+      expect((await measure<TextSample>(selector, TEXT_SAMPLE_SOURCE)).uncertain).toBe('descendant');
+    });
+
+    test.each([
+      ['#same-look', 'children that look like their parent, and an empty one with a background'],
+      ['#long', 'no children'],
+      ['#heading', 'no children'],
+    ])('%s is certain: %s', async (selector) => {
+      expect((await measure<TextSample>(selector, TEXT_SAMPLE_SOURCE)).uncertain).toBeNull();
     });
   });
 
