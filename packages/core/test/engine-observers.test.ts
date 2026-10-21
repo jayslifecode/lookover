@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { configSchema } from '../src/config/schema.js';
 import { FINDINGS_FILE } from '../src/findings/persist.js';
@@ -11,7 +12,6 @@ import { runReview } from '../src/run/engine.js';
 import { createRun, type RunContext } from '../src/run/run-context.js';
 import { RunLog } from '../src/run/run-log.js';
 import { occurrence, occurrenceFinding } from './fixtures/findings.js';
-import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/observers', import.meta.url));
 const BROWSER_TIMEOUT_MS = 60_000;

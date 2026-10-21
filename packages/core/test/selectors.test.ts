@@ -1,11 +1,11 @@
 import { fileURLToPath } from 'node:url';
+import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { extractElements } from '../src/map/elements.js';
 import { BUILD_SELECTOR_SOURCE, type SelectorCandidate, stableSelector } from '../src/map/selectors.js';
 import type { ElementRef } from '../src/map/types.js';
 import { redact } from '../src/util/redact.js';
-import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/site', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;

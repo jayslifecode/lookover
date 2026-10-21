@@ -2,11 +2,6 @@ import { access, chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
-import { ensureAuth, isLoginUrl } from '../src/browser/auth.js';
-import { BrowserSession } from '../src/browser/session.js';
-import { configSchema, type LookoverConfig } from '../src/config/schema.js';
-import { LookoverError } from '../src/errors.js';
 import {
   DEMO_CREDENTIALS,
   type FixtureServer,
@@ -16,7 +11,12 @@ import {
   SESSION_COOKIE,
   serveFixture,
   submitLogin,
-} from './fixtures/serve.js';
+} from '@jayslifecode/lookover-test-support';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { ensureAuth, isLoginUrl } from '../src/browser/auth.js';
+import { BrowserSession } from '../src/browser/session.js';
+import { configSchema, type LookoverConfig } from '../src/config/schema.js';
+import { LookoverError } from '../src/errors.js';
 
 const LOGIN_DIR = fileURLToPath(new URL('./fixtures/login', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;

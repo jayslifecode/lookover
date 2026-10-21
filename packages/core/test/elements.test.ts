@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { boxFor } from '../src/browser/cdp.js';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
@@ -6,7 +7,6 @@ import { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from '../
 import { BUILD_SELECTOR_SOURCE } from '../src/map/selectors.js';
 import type { Box, ElementRef } from '../src/map/types.js';
 import { redact } from '../src/util/redact.js';
-import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/elements', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;

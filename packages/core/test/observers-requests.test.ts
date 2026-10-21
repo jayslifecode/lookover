@@ -4,6 +4,12 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  type FixtureRoute,
+  type FixtureServer,
+  redirect,
+  serveFixture,
+} from '@jayslifecode/lookover-test-support';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
@@ -17,7 +23,6 @@ import {
 } from '../src/observers/requests.js';
 import type { ObserverResult } from '../src/observers/types.js';
 import { createRun, type RunContext } from '../src/run/run-context.js';
-import { type FixtureRoute, type FixtureServer, redirect, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/observers', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;

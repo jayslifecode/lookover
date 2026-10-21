@@ -1,9 +1,9 @@
 import { fileURLToPath } from 'node:url';
+import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { collectTokens, MAX_SAMPLED_ELEMENTS, MAX_SAMPLES_PER_PROPERTY } from '../src/map/tokens.js';
 import type { TokenProperty, TokenSample } from '../src/map/types.js';
-import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/tokens', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;

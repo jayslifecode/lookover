@@ -4,6 +4,15 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  eventStream,
+  type FixtureServer,
+  LOGIN_PATH,
+  redirect,
+  requireSession,
+  SESSION_COOKIE,
+  serveFixture,
+} from '@jayslifecode/lookover-test-support';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
@@ -17,15 +26,6 @@ import { createRun, type RunContext } from '../src/run/run-context.js';
 import { RunLog } from '../src/run/run-log.js';
 import { shortId } from '../src/util/hash.js';
 import { redactDeep } from '../src/util/redact.js';
-import {
-  eventStream,
-  type FixtureServer,
-  LOGIN_PATH,
-  redirect,
-  requireSession,
-  SESSION_COOKIE,
-  serveFixture,
-} from './fixtures/serve.js';
 
 // The real form extractor, wrapped so one test can make a single capture throw a LookoverError.
 vi.mock('../src/map/forms.js', async (importOriginal) => {

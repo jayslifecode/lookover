@@ -1,10 +1,10 @@
 import { fileURLToPath } from 'node:url';
+import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { extractForms } from '../src/map/forms.js';
 import type { Box, FieldInfo, FormInfo } from '../src/map/types.js';
 import { redact } from '../src/util/redact.js';
-import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/forms', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;

@@ -4,6 +4,19 @@ import { join, relative } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
+  DEMO_CREDENTIALS,
+  type FixtureRoute,
+  type FixtureServer,
+  HOME_PATH,
+  hasSessionCookie,
+  LOGIN_PATH,
+  redirect,
+  requireSession,
+  SESSION_COOKIE,
+  serveFixture,
+  submitLogin,
+} from '@jayslifecode/lookover-test-support';
+import {
   afterAll,
   afterEach,
   beforeAll,
@@ -30,19 +43,6 @@ import type { RunEvent, RunEventBody } from '../src/run/events.js';
 import { createRun, type RunContext } from '../src/run/run-context.js';
 import { RunLog } from '../src/run/run-log.js';
 import { occurrence, occurrenceFinding, stepFinding } from './fixtures/findings.js';
-import {
-  DEMO_CREDENTIALS,
-  type FixtureRoute,
-  type FixtureServer,
-  HOME_PATH,
-  hasSessionCookie,
-  LOGIN_PATH,
-  redirect,
-  requireSession,
-  SESSION_COOKIE,
-  serveFixture,
-  submitLogin,
-} from './fixtures/serve.js';
 
 // The real login and crawl, wrapped so a test can shorten the login timeout or see the crawl's options.
 vi.mock('../src/browser/auth.js', async (importOriginal) => {

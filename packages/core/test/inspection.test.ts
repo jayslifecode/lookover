@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
@@ -17,7 +18,6 @@ import { Inspection, PER_SCREEN_BUDGET_MS } from '../src/run/inspection.js';
 import { createRun, type RunContext } from '../src/run/run-context.js';
 import { RunLog } from '../src/run/run-log.js';
 import { occurrence, occurrenceFinding, stepFinding } from './fixtures/findings.js';
-import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const SITE_DIR = fileURLToPath(new URL('./fixtures/site', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;

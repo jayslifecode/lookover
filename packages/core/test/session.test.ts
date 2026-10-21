@@ -3,11 +3,11 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import type { Page } from 'playwright';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { boxFor, callOnNode, getAXTree, resolveBackendNode } from '../src/browser/cdp.js';
 import { BrowserSession, type InstrumentedPage, type SessionEvent } from '../src/browser/session.js';
-import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/session', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;
