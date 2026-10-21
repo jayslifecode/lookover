@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Console frame fixture</title>
+  </head>
+  <body>
+    <script>
+      console.error('Logged before the frame loads');
+    </script>
+    <iframe src="/console-clean.html" title="A frame that navigates after the page logged"></iframe>
+  </body>
+</html>

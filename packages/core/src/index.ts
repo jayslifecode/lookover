@@ -21,6 +21,8 @@ export type { ErrorCode } from './errors.js';
 export { LookoverError } from './errors.js';
 export type { EvidenceRef } from './evidence/store.js';
 export { EvidenceStore } from './evidence/store.js';
+export type { OccurrenceFindingInput } from './findings/build.js';
+export { occurrenceFinding } from './findings/build.js';
 export type { FixPromptInput } from './findings/fix-prompt.js';
 export { fixPromptFor } from './findings/fix-prompt.js';
 export { findingId, mergeFindings } from './findings/id.js';
@@ -73,6 +75,7 @@ export type {
   Viewport,
 } from './map/types.js';
 export { isFailedScreen } from './map/types.js';
+export { ConsoleObserver } from './observers/console.js';
 export type { Observer, ObserverResult } from './observers/types.js';
 export type { ConfirmHosts } from './run/backend-probe.js';
 export { confirmHostCommand } from './run/backend-probe.js';
