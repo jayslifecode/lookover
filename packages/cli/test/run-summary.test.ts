@@ -125,23 +125,51 @@ describe('summaryRows', () => {
   });
 
   describe('after an inspection', () => {
+    const skipped = [
+      { reason: 'time-budget', count: 12 },
+      { reason: 'focus-indicator-ua-ring', count: 9 },
+      { reason: 'background-uncertain:overlapped', count: 4 },
+      { reason: 'gone', count: 1 },
+    ];
     const inspected = {
       ...summary,
       inspection: {
-        findings: findingsFile(candidates(3), candidates(2, 3)),
+        findings: findingsFile(candidates(3), candidates(2, 3), skipped),
         findingsPath: '/work/app/.lookover/findings.json',
       },
     };
 
-    test('adds the candidates, the worth-a-look entries and the findings file after the other rows', () => {
+    test('adds the candidates, the worth-a-look entries, the skips and the findings file after the other rows', () => {
       const rows = summaryRows(inspected);
 
       expect(rows.slice(0, 8)).toEqual(summaryRows(summary));
       expect(rows.slice(8)).toEqual([
         ['Candidates', '3'],
         ['Worth a look', '2'],
+        ['Skipped', 'time-budget 12 · focus-indicator-ua-ring 9 · background-uncertain:overlapped 4'],
         ['Findings', '.lookover/findings.json'],
       ]);
+    });
+
+    test('lists every reason when there are three or fewer, in the order the file keeps them', () => {
+      const few = { ...inspected.inspection, findings: findingsFile([], [], skipped.slice(2)) };
+
+      expect(summaryRows({ ...inspected, inspection: few })).toContainEqual([
+        'Skipped',
+        'background-uncertain:overlapped 4 · gone 1',
+      ]);
+    });
+
+    test('says none when nothing was skipped, or the file predates the tally', () => {
+      for (const tally of [[], undefined]) {
+        const clean = { ...inspected.inspection, findings: findingsFile([], [], tally) };
+
+        expect(summaryRows({ ...inspected, inspection: clean })).toContainEqual(['Skipped', 'none']);
+      }
+    });
+
+    test('has no Skipped row for a --map-only run', () => {
+      expect(summaryRows(summary).map(([label]) => label)).not.toContain('Skipped');
     });
 
     test('reports zero candidates as 0', () => {

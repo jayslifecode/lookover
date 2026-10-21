@@ -271,16 +271,17 @@ describe('lookover run with the engine stubbed', () => {
     );
     const events = [captured({ id: 'a', route: '/a' }), inspected('a', 3)];
 
-    test('adds the candidates, worth-a-look and findings rows right after the duration', async () => {
+    test('adds the candidates, worth-a-look, skipped and findings rows right after the duration', async () => {
       const { stdout: lines } = await run({}, { events, findings });
 
-      const positions = ['Duration', 'Candidates', 'Worth a look', 'Findings'].map((key) =>
+      const positions = ['Duration', 'Candidates', 'Worth a look', 'Skipped', 'Findings'].map((key) =>
         lines.findIndex((line) => line.startsWith(`  ${key} `)),
       );
       expect(positions[0]).toBeGreaterThan(0);
-      expect(positions.map((position) => position - (positions[0] ?? 0))).toEqual([0, 1, 2, 3]);
+      expect(positions.map((position) => position - (positions[0] ?? 0))).toEqual([0, 1, 2, 3, 4]);
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Candidates +3$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Worth a look +1$/));
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Skipped +none$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Findings +\.lookover\/findings\.json$/));
     });
 
@@ -307,7 +308,7 @@ describe('lookover run with the engine stubbed', () => {
 
       const text = lines.join('\n');
       expect(text).toMatch(/^ {2}Screens +1$/m);
-      expect(text).not.toMatch(/Candidates|Worth a look|Findings|interaction\.focus-visible-missing/);
+      expect(text).not.toMatch(/Candidates|Worth a look|Skipped|Findings|interaction\.focus-visible-missing/);
       expect(text).not.toContain(CANDIDATES_NOTE);
     });
   });

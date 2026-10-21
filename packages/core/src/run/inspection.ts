@@ -2,7 +2,7 @@ import type { InstrumentedPage } from '../browser/session.js';
 import { LookoverError } from '../errors.js';
 import { mergeFindings } from '../findings/id.js';
 import type { Lens, LensContext, LensResult, LensSkip } from '../findings/lens.js';
-import type { Finding, FindingsFile } from '../findings/types.js';
+import type { Finding, FindingsFile, SkipTally } from '../findings/types.js';
 import { describeError } from '../map/navigation.js';
 import type { Screen, Viewport } from '../map/types.js';
 import type { Observer, ObserverResult } from '../observers/types.js';
@@ -45,6 +45,8 @@ export class Inspection {
   private readonly captureViewport: Viewport;
   private findings: readonly Finding[] = [];
   private worthALook: readonly Finding[] = [];
+  /** What the lenses skipped so far, by reason. */
+  private skipped: ReadonlyMap<string, number> = new Map();
 
   constructor(
     private readonly ctx: RunContext,
@@ -72,6 +74,7 @@ export class Inspection {
     const yielded = await this.yieldOf(screen, ipage);
     const findings = mergeFindings(yielded.findings);
     const worthALook = mergeFindings(yielded.worthALook);
+    this.skipped = tallied(this.skipped, yielded.skipped);
     await this.add(findings, worthALook);
     await this.ctx.log.append({
       type: 'screen.inspected',
@@ -84,7 +87,10 @@ export class Inspection {
     });
   }
 
-  /** The run's merged candidates and worth-a-look entries so far, each in the order first seen. */
+  /**
+   * The run's merged candidates and worth-a-look entries so far, each in the order first seen, and what
+   * the lenses skipped on every screen, per reason (see `FindingsFile.skipped`).
+   */
   file(): FindingsFile {
     return {
       version: 1,
@@ -92,6 +98,7 @@ export class Inspection {
       createdAt: new Date().toISOString(),
       findings: [...this.findings],
       worthALook: [...this.worthALook],
+      skipped: skipTally(this.skipped),
     };
   }
 
@@ -149,6 +156,30 @@ export class Inspection {
       await this.ctx.log.append({ type: 'finding.candidate', finding });
     }
   }
+}
+
+/** `counts` with `skips` added to it, per reason; `counts` itself is not changed. */
+function tallied(
+  counts: ReadonlyMap<string, number>,
+  skips: readonly LensSkip[],
+): ReadonlyMap<string, number> {
+  return skips.reduce(
+    (sum, { reason, count }) => new Map(sum).set(reason, (sum.get(reason) ?? 0) + count),
+    counts,
+  );
+}
+
+/** The most frequent reason first, then by reason, by code point. */
+function skipTally(counts: ReadonlyMap<string, number>): SkipTally[] {
+  return [...counts]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count || compareText(a.reason, b.reason));
+}
+
+/** By code point, so the order does not depend on the locale. */
+function compareText(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
 }
 
 /** What an observer or a lens reported; only lenses skip anything. */

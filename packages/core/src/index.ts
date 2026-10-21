@@ -51,6 +51,7 @@ export type {
   OccurrenceFinding,
   RuleRef,
   Severity,
+  SkipTally,
   Step,
   StepFinding,
   StepTrace,

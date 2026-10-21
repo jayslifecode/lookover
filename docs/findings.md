@@ -33,8 +33,16 @@ interface FindingsFile {
   createdAt: string;       // ISO 8601
   findings: Finding[];     // the candidates
   worthALook: Finding[];   // lower-confidence candidates, kept apart
+  skipped?: { reason: string; count: number }[];  // what the lenses left out, per reason
 }
 ```
+
+`skipped` adds up what the lenses skipped on every screen (each screen's `screen.inspected.skipped` in
+the run log), one entry per reason, the most frequent first and then by reason. A skip is a measurement
+that could not be trusted or was not reached (`background-uncertain:overlapped`, `time-budget`, …; the
+reasons are listed in [the interaction lens](lenses/interaction.md)); it never becomes a finding. The
+summary `lookover run` prints shows the three most frequent in its `Skipped` row (`none` when there are
+none). The field is optional: a file written before it existed has none, and the version stays 1.
 
 `worthALook` holds what is less certain than a candidate: missing hover feedback
 (`interaction.hover-state-missing`), which a hover effect written in JavaScript would not show, and

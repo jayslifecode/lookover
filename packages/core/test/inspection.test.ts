@@ -257,6 +257,39 @@ describe('Inspection', { timeout: BROWSER_TIMEOUT_MS }, () => {
     ]);
   });
 
+  test('tallies what the lenses skipped on every screen into the file, most first, then by reason', async () => {
+    let index = 0;
+    const skipping = fakeLens(async () => {
+      index += 1;
+      const skipped =
+        index === 1
+          ? [
+              { reason: 'time-budget', count: 1 },
+              { reason: 'gone', count: 2 },
+            ]
+          : [
+              { reason: 'gone', count: 1 },
+              { reason: 'disabled', count: 3 },
+            ];
+      return { ...NOTHING_FOUND, skipped };
+    });
+
+    const { inspection } = await inspectSite({ lenses: [skipping] });
+
+    expect(index).toBe(2);
+    expect(inspection.file().skipped).toEqual([
+      { reason: 'disabled', count: 3 },
+      { reason: 'gone', count: 3 },
+      { reason: 'time-budget', count: 1 },
+    ]);
+  });
+
+  test('writes an empty tally when nothing was skipped', async () => {
+    const { inspection } = await inspectSite({ lenses: [fakeLens(async () => NOTHING_FOUND)] });
+
+    expect(inspection.file().skipped).toEqual([]);
+  });
+
   test.each(['lens', 'observer'] as const)(
     'a %s that throws a LookoverError fails the crawl',
     async (part) => {

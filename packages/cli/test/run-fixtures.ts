@@ -9,6 +9,7 @@ import type {
   OccurrenceFinding,
   Screen,
   Severity,
+  SkipTally,
   StepFinding,
   Viewport,
 } from '@jayslifecode/lookover-core';
@@ -144,6 +145,17 @@ export function occurrenceCandidate(
   return finding;
 }
 
-export function findingsFile(findings: Finding[], worthALook: Finding[] = []): FindingsFile {
-  return { version: 1, runId: 'run-1', createdAt: '2026-10-22T00:00:00.000Z', findings, worthALook };
+export function findingsFile(
+  findings: Finding[],
+  worthALook: Finding[] = [],
+  skipped?: SkipTally[],
+): FindingsFile {
+  return {
+    version: 1,
+    runId: 'run-1',
+    createdAt: '2026-10-22T00:00:00.000Z',
+    findings,
+    worthALook,
+    ...(skipped === undefined ? {} : { skipped }),
+  };
 }

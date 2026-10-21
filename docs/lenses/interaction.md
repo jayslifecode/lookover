@@ -52,8 +52,9 @@ left). Because the plain `time-budget` count adds elements, presses and viewport
 "something was cut short", not as a number of anything.
 
 **Skips.** Every skip has a reason and a count. The counts of one screen are added up per reason and
-written to the run log in the screen's `screen.inspected` event (`skipped`). A skip never becomes a
-finding.
+written to the run log in the screen's `screen.inspected` event (`skipped`); the run's are added up
+again in `findings.json` (`skipped`, the most frequent first), and the summary `lookover run` prints
+names the three most frequent in its `Skipped` row. A skip never becomes a finding.
 
 **The state gallery.** The lens writes one gallery per screen to the run's evidence folder as
 `gallery-<screenId>-<hash>.json`: `{ screenId, viewport, entries, focusOrder }`. Each entry is one

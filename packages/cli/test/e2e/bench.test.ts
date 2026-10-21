@@ -389,6 +389,7 @@ describe('lookover run against the bench app', () => {
       'Duration',
       'Candidates',
       'Worth a look',
+      'Skipped',
       'Findings',
     ]) {
       expect(run.stdout).toMatch(new RegExp(`^ {2}${row} +\\S`, 'm'));

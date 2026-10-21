@@ -96,6 +96,12 @@ export type OccurrenceFinding = FindingBase & {
 
 export type Finding = StepFinding | OccurrenceFinding;
 
+/** What the lenses left out across a run for one reason, and how many times. */
+export interface SkipTally {
+  reason: string;
+  count: number;
+}
+
 /** `findings.json`: what a run found. `worthALook` holds the lower-confidence candidates. */
 export interface FindingsFile {
   version: 1;
@@ -103,4 +109,9 @@ export interface FindingsFile {
   createdAt: string;
   findings: Finding[];
   worthALook: Finding[];
+  /**
+   * What the lenses skipped on every screen, added up per reason, the most frequent first (then by
+   * reason). Absent from files written before it was added.
+   */
+  skipped?: SkipTally[];
 }

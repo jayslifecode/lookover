@@ -5,6 +5,7 @@ import {
   type FindingsFile,
   isFailedScreen,
   type Screen,
+  type SkipTally,
 } from '@jayslifecode/lookover-core';
 
 /** What the summary adds for a run that inspected its screens (not a `--map-only` run). */
@@ -33,6 +34,10 @@ export const CANDIDATES_NOTE =
   'Candidates are measured but not yet judged or reproduced; the judge arrives in the next release.';
 
 const NO_HOSTS = 'none';
+const NO_SKIPS = 'none';
+/** The reasons the Skipped row lists: the most frequent, as the findings file orders them. */
+const LISTED_SKIP_REASONS = 3;
+const SKIP_SEPARATOR = ' · ';
 const MS_PER_SECOND = 1_000;
 const SECONDS_PER_MINUTE = 60;
 const TENTHS_PER_SECOND = 10;
@@ -88,8 +93,23 @@ function inspectionRows({ cwd, inspection }: RunSummary): [string, string][] {
   return [
     ['Candidates', String(findings.findings.length)],
     ['Worth a look', String(findings.worthALook.length)],
+    ['Skipped', skippedSummary(findings.skipped ?? [])],
     ['Findings', displayPath(cwd, findingsPath)],
   ];
+}
+
+/**
+ * The most frequent reasons the lenses skipped a measurement for, with their counts:
+ * `time-budget 12 · focus-indicator-ua-ring 9 · gone 1`; `none` when nothing was skipped.
+ */
+function skippedSummary(skipped: readonly SkipTally[]): string {
+  if (skipped.length === 0) {
+    return NO_SKIPS;
+  }
+  return skipped
+    .slice(0, LISTED_SKIP_REASONS)
+    .map(({ reason, count }) => `${reason} ${count}`)
+    .join(SKIP_SEPARATOR);
 }
 
 /** `42.3 s` under a minute, `2 min 5 s` from then on. */
