@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { StatCard } from '@/components/stat-card';
+import { StatsStatus } from '@/components/stats-status';
 import { HEADING, LINK } from '@/components/styles';
 import { listOrganisations } from '@/lib/store';
 import { summarise } from '@/lib/summary';
@@ -33,6 +34,7 @@ export default async function DashboardPage() {
           detail="The most recent registered-on date, as YYYY-MM-DD."
         />
       </div>
+      <StatsStatus />
       <section aria-labelledby="shortcuts-heading" className="space-y-3">
         <h2 id="shortcuts-heading" className="text-lg font-semibold">
           Go to

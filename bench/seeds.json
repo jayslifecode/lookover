@@ -72,6 +72,13 @@
       "selector": "#last-edited",
       "rule": "observers.raw-value",
       "expectedSeverity": "high"
+    },
+    {
+      "id": "observers-004",
+      "lens": "observers",
+      "route": "/",
+      "rule": "observers.request-server-error",
+      "expectedSeverity": "high"
     }
   ]
 }
