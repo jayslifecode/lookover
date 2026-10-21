@@ -10,8 +10,6 @@ import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-su
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { parseCssColor, type Rgba } from '../src/interaction/contrast.js';
 import {
-  ACTIVE_ELEMENT_SOURCE,
-  type ActiveElement,
   COMPONENT_NAME_SOURCE,
   EFFECTIVE_BACKGROUND_SOURCE,
   type EffectiveBackground,
@@ -28,6 +26,7 @@ import {
   type TextSample,
 } from '../src/interaction/in-page.js';
 import { evaluateSource, measureOn } from '../src/interaction/measure.js';
+import { ACTIVE_ELEMENT_SOURCE, type ActiveElement } from '../src/interaction/tab-in-page.js';
 import { launchTestSession, type TestSession } from './helpers/session.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/measure', import.meta.url));

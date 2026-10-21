@@ -10,11 +10,9 @@ export {
   roundedContrastRatio,
 } from './interaction/contrast.js';
 export type {
-  ActiveElement,
   BackgroundUncertainty,
   ClippedText,
   EffectiveBackground,
-  FocusHiddenReason,
   OverflowMeasure,
   OverflowOffender,
   PositiveTabindex,
@@ -24,7 +22,6 @@ export type {
   TextSample,
 } from './interaction/in-page.js';
 export {
-  ACTIVE_ELEMENT_SOURCE,
   COMPONENT_NAME_SOURCE,
   EFFECTIVE_BACKGROUND_SOURCE,
   IN_ACTIVEDESCENDANT_WIDGET_SOURCE,
@@ -57,6 +54,8 @@ export {
 } from './interaction/states.js';
 export type { StaticResult } from './interaction/static.js';
 export { MAX_CONTRAST_ELEMENTS, MUST_BE_FOCUSABLE_ROLES, measureStatic } from './interaction/static.js';
+export type { ActiveElement, FocusHiddenReason } from './interaction/tab-in-page.js';
+export { ACTIVE_ELEMENT_SOURCE } from './interaction/tab-in-page.js';
 export type { TabWalkResult } from './interaction/tab-walk.js';
 export { MAX_TAB_PRESSES, TRAP_REPEATS, tabWalk } from './interaction/tab-walk.js';
 export type { TargetSizeResult } from './interaction/target-size.js';

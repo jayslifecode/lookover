@@ -8,11 +8,12 @@ import {
   stepFinding,
 } from '@jayslifecode/lookover-core';
 import { type Rule, ruleById } from '@jayslifecode/lookover-rules';
-import { ACTIVE_ELEMENT_SOURCE, type ActiveElement, COMPONENT_NAME_SOURCE } from './in-page.js';
+import { COMPONENT_NAME_SOURCE } from './in-page.js';
 import { evaluateSource, measureOn } from './measure.js';
 import { tally } from './skips.js';
 import type { FocusStop } from './states.js';
-import { BLUR_SOURCE, FINISH_ALL_TRANSITIONS_SOURCE } from './states-in-page.js';
+import { FINISH_ALL_TRANSITIONS_SOURCE } from './states-in-page.js';
+import { ACTIVE_ELEMENT_SOURCE, type ActiveElement, RESTART_TAB_ORDER_SOURCE } from './tab-in-page.js';
 
 /** Per screen, Tab is pressed at most this many times, whatever the screen holds. */
 export const MAX_TAB_PRESSES = 300;
@@ -27,6 +28,11 @@ const PRESSES_PER_CONTROL = 2;
 const PRESS_HEADROOM = 5;
 /** While Tab moves through the controls inside an iframe, the iframe stays the page's active element. */
 const FRAME_TAG = 'iframe';
+/**
+ * Only a custom element can have a closed shadow root, and its tag name has a hyphen. From the page a
+ * closed root cannot be looked into: focus moving between the controls in it looks like focus staying.
+ */
+const CUSTOM_ELEMENT_TAG_PART = '-';
 
 const SKIP_UNADDRESSABLE = 'focus-stop-unaddressable';
 const SKIP_PRESSES_CAP = 'tab-presses-cap';
@@ -43,27 +49,6 @@ const HIDDEN_REASONS: Readonly<Record<string, string>> = {
   offscreen: 'it is outside the page',
 };
 
-/*
- * Runs in the page, so it stays self-contained (see `in-page.ts`): what it needs is passed in.
- *
- * Blurring is not enough to start Tab at the top: Chromium goes on from the element that last had
- * focus, or was last clicked, so the controls before it would never be reached. Focusing the body
- * (it has to be given a `tabindex` for that, put back at once) moves that starting point to the top.
- */
-function restartTabOrder(blur: () => void): void {
-  blur();
-  const { body } = document;
-  const tabindex = body.getAttribute('tabindex');
-  body.tabIndex = -1;
-  body.focus({ preventScroll: true });
-  body.blur();
-  if (tabindex === null) body.removeAttribute('tabindex');
-  else body.setAttribute('tabindex', tabindex);
-  window.scrollTo(0, 0);
-}
-
-/** Back to the top of the page with nothing focused, so the first Tab press lands on the first control. */
-export const RESTART_TAB_ORDER_SOURCE = `() => (${restartTabOrder.toString()})(${BLUR_SOURCE})`;
 /**
  * `ACTIVE_ELEMENT_SOURCE` once the transitions the focus started have run to their end, so a skip link
  * that slides in on `:focus` is read in the place it settles, not where it started.
@@ -105,8 +90,9 @@ interface Walked {
 
 /**
  * Presses Tab from the top of the page and records where focus lands, one `FocusStop` for each press
- * (`index` is the number of presses it took). At most `min(2 * focusableCount + 5, MAX_TAB_PRESSES)`
- * presses are made, and `context.deadline` is checked before each. The walk ends when focus leaves the
+ * (`index` is the number of presses it took). At most `2 * focusableCount + 5` presses are made, not
+ * counting the ones that stay on a multi-part control (`staysOnMultiPart`), and never more than
+ * `MAX_TAB_PRESSES`. `context.deadline` is checked before each. The walk ends when focus leaves the
  * document (the active element is the body), when it comes back round to the first stop, when the same
  * element keeps focus for `TRAP_REPEATS` presses (`isStuck`; `tab-walk-stopped` counts the presses not
  * made), when the presses run out (`tab-presses-cap`) or at the deadline (`time-budget`, counting the
@@ -130,26 +116,28 @@ export async function tabWalk(context: LensContext, focusableCount: number): Pro
   };
 }
 
+/** The presses a screen with this many focusable controls is given, before `MAX_TAB_PRESSES`. */
 function pressBudget(focusableCount: number): number {
-  return Math.min(PRESSES_PER_CONTROL * focusableCount + PRESS_HEADROOM, MAX_TAB_PRESSES);
+  return PRESSES_PER_CONTROL * focusableCount + PRESS_HEADROOM;
 }
 
 async function walkStops(context: LensContext, budget: number): Promise<Walked> {
   const { page } = context.ipage;
   await evaluateSource(page, RESTART_TAB_ORDER_SOURCE);
   let landings: Landing[] = [];
+  let counted = 0;
   const ended = (end: WalkEnd): Walked => ({ stops: landings.map(({ stop }) => stop), end });
-  for (let press = 1; press <= budget; press += 1) {
-    if (performance.now() >= context.deadline) {
-      return ended({ kind: 'deadline', pressesLeft: budget - press + 1 });
-    }
+  const pressesLeft = (): number => Math.min(budget - counted, MAX_TAB_PRESSES - landings.length);
+  while (pressesLeft() > 0) {
+    if (performance.now() >= context.deadline) return ended({ kind: 'deadline', pressesLeft: pressesLeft() });
     await page.keyboard.press('Tab');
     const active = await evaluateSource<ActiveElement>(page, SETTLED_ACTIVE_ELEMENT_SOURCE);
     if (active.isBody) return ended({ kind: 'finished' });
-    const landing = landingOf(press, active);
+    const landing = landingOf(landings.length + 1, active);
     if (isWrap(landings, landing)) return ended({ kind: 'finished' });
+    counted += staysOnMultiPart(landings, landing) ? 0 : 1;
     landings = [...landings, landing];
-    if (isStuck(landings)) return ended({ kind: 'stuck', pressesLeft: budget - press });
+    if (isStuck(landings)) return ended({ kind: 'stuck', pressesLeft: pressesLeft() });
   }
   return ended({ kind: 'cap' });
 }
@@ -176,17 +164,28 @@ function isWrap(landings: readonly Landing[], { stop }: Landing): boolean {
   );
 }
 
+/** The press left focus on the multi-part control it was already on: its next part, not another stop. */
+function staysOnMultiPart(landings: readonly Landing[], landing: Landing): boolean {
+  const previous = landings.at(-1);
+  return landing.isMultiPart && landing.stop.selector !== null && previous?.identity === landing.identity;
+}
+
 /**
- * The last `TRAP_REPEATS` landings are the same element and the same control inside it. Focus can
- * move without the active element changing, so those moves are not a trap: between the controls in a
- * shadow tree (`identity` includes where in it focus is), between the segments of a native control
- * the browser draws in parts (`isMultiPart`), and between the controls in an iframe (see `FRAME_TAG`).
+ * Focus can move without the active element changing, and then it is not a trap: between the segments
+ * of a native control the browser draws in parts (`isMultiPart`), between the controls in an iframe
+ * (`FRAME_TAG`) and between the controls in a closed shadow root (`CUSTOM_ELEMENT_TAG_PART`). The
+ * controls in an open shadow root are told apart by `identity`.
  */
+function movesInside({ stop, isMultiPart }: Landing): boolean {
+  return isMultiPart || stop.tag === FRAME_TAG || stop.tag.includes(CUSTOM_ELEMENT_TAG_PART);
+}
+
+/** The last `TRAP_REPEATS` landings are the same element and the same control inside it. */
 function isStuck(landings: readonly Landing[]): boolean {
   const run = landings.slice(-TRAP_REPEATS);
   const [head] = run;
   if (head === undefined || run.length < TRAP_REPEATS) return false;
-  if (head.stop.selector === null || head.stop.tag === FRAME_TAG || head.isMultiPart) return false;
+  if (head.stop.selector === null || movesInside(head)) return false;
   return run.every(({ identity }) => identity === head.identity);
 }
 

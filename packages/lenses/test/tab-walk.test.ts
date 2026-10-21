@@ -6,12 +6,8 @@ import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { evaluateSource } from '../src/interaction/measure.js';
 import type { FocusStop } from '../src/interaction/states.js';
-import {
-  MAX_TAB_PRESSES,
-  RESTART_TAB_ORDER_SOURCE,
-  TRAP_REPEATS,
-  tabWalk,
-} from '../src/interaction/tab-walk.js';
+import { RESTART_TAB_ORDER_SOURCE } from '../src/interaction/tab-in-page.js';
+import { MAX_TAB_PRESSES, TRAP_REPEATS, tabWalk } from '../src/interaction/tab-walk.js';
 import { createTestRun, lensContextFor, type TestRun } from './helpers/context.js';
 import { DEFAULT_TEST_VIEWPORT, launchTestSession, type TestSession } from './helpers/session.js';
 
@@ -330,6 +326,25 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const { focusOrder, findings, skipped } = await walk('shadow.html');
 
       expect(selectorsOf(focusOrder)).toEqual(['#before', ...times('#host', 3), '#after']);
+      expect(findings).toEqual([]);
+      expect(skipped).toEqual([]);
+    });
+
+    test('does not call the buttons in a closed shadow root a trap: a custom element hides where focus is', async () => {
+      const { focusOrder, findings, skipped } = await walk('closed.html');
+
+      expect(selectorsOf(focusOrder)).toEqual(['#before', ...times('#widget', 3), '#after']);
+      expect(findings).toEqual([]);
+      expect(skipped).toEqual([]);
+    });
+
+    test('does not count the presses that stay on a date input against the budget for the page', async () => {
+      // Three datetime-local inputs take about 18 presses; the budget for the 4 controls is 13.
+      const { focusOrder, findings, skipped } = await walk('dates.html', { focusableCount: 4 });
+      const selectors = selectorsOf(focusOrder);
+
+      expect(selectors.length).toBeGreaterThan(budgetFor(4));
+      expect(selectors.at(-1)).toBe('#after');
       expect(findings).toEqual([]);
       expect(skipped).toEqual([]);
     });
