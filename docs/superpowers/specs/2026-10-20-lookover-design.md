@@ -95,7 +95,7 @@ Findings come in two shapes. A **step finding** carries a minimal step trace (ro
 
 **Fix prompts in v0** contain: the screen route, the element's selector and accessible name, the React component name when the app runs in development mode and exposes it, the measured facts, and the rule. File and line are included only when the rule came from code. Mapping arbitrary DOM elements back to source files (via source maps or a build-time attribute) is a later improvement, not a v0 requirement.
 
-Findings the tool is not sure about are not findings. They can appear in a separate "worth a look" list only if the user enables it.
+Findings the tool is not sure about are not findings. They go to a separate "worth a look" list (amended 2026-10-22: as built in plan 02, worth-a-look entries are always recorded in `findings.json` and counted in the run summary, but never streamed as candidates nor listed as findings; the toggle that shows them to the user belongs to the report, in plan 03).
 
 ## 6. Architecture
 
@@ -184,3 +184,4 @@ Vite + React targets beyond Next.js; React Native via a static scan of Expo buil
 - Authentication is the practical blocker for autonomous exploration; the stored-session and test-account story must work in v0.
 - Cost and run time on large apps; sampling strategy for screens may be needed.
 - The consistency lens can produce "true but unimportant" findings; severity rules and grouping must keep the report short.
+- Interaction styles driven by JavaScript events are invisible to forced pseudo-states; the lens cross-checks focus with real focus and treats hover as worth a look. (amended 2026-10-22)
