@@ -10,6 +10,8 @@ const BROWSER_TIMEOUT_MS = 30_000;
 const READ_ID_SOURCE = 'function () { return this.id; }';
 const JOIN_ARGS_SOURCE = 'function (separator, suffix) { return [this.id, suffix].join(separator); }';
 const THROWING_SOURCE = 'function () { throw new Error("measurement exploded"); }';
+/** No element has this backend node id in a fixture this small. */
+const UNKNOWN_BACKEND_ID = 999_999;
 
 describe('measureOn and evaluateSource', { timeout: BROWSER_TIMEOUT_MS }, () => {
   let fixture: FixtureServer;
@@ -68,6 +70,20 @@ describe('measureOn and evaluateSource', { timeout: BROWSER_TIMEOUT_MS }, () => 
     await ipage.page.reload();
 
     expect(await measureOn(ipage.cdp, element, READ_ID_SOURCE)).toBeNull();
+  });
+
+  test('is null when no node has the backend node id', async () => {
+    expect(
+      await measureOn(ipage.cdp, { selector: '#alone', backendNodeId: UNKNOWN_BACKEND_ID }, READ_ID_SOURCE),
+    ).toBeNull();
+  });
+
+  test('rejects, rather than reporting the element gone, when the CDP session is detached', async () => {
+    const element = await elementFor('#in-sentence');
+    const detached = await browser.session.context.newCDPSession(ipage.page);
+    await detached.detach();
+
+    await expect(measureOn(detached, element, READ_ID_SOURCE)).rejects.toThrow();
   });
 
   test('rethrows when the source throws in the page', async () => {

@@ -7,10 +7,21 @@ import {
 import type { CDPSession, Page } from 'playwright';
 
 /**
+ * What `DOM.resolveNode` fails with when the element is gone: no node has the backend node id any
+ * more (it was collected), or the node is alive but no longer in the page's document (the document
+ * was replaced, e.g. by a reload). Any other failure (a closed session or target) is not about the
+ * element and is rethrown.
+ */
+const GONE_NODE_ERRORS: readonly string[] = [
+  'No node with given id found',
+  'Node with given id does not belong to the document',
+];
+
+/**
  * Runs an element source (see `in-page.ts`) with `this` bound to the element and `args` passed to it,
  * and returns its result. The element is found by its backend node id when it has one, else by its
- * selector; `null` when it cannot be found (removed, or gone with the document it was in). An error
- * the source throws in the page is rethrown.
+ * selector; `null` when it cannot be found (removed, or gone with the document it was in). Any other
+ * failure, a closed CDP session or an error the source throws in the page, is rethrown.
  *
  * Finding it by selector requests the document, which drops the pseudo states forced before (see
  * `forcePseudoState`): measure a forced state by backend node id.
@@ -46,6 +57,14 @@ async function resolveElement(
   if (element.backendNodeId === undefined) {
     return resolveSelector(cdp, element.selector);
   }
-  // Resolving fails only when no node has that id any more: nothing left to measure.
-  return resolveBackendNode(cdp, element.backendNodeId).catch(() => null);
+  return resolveBackendNode(cdp, element.backendNodeId).catch((error: unknown) => {
+    if (isGoneNodeError(error)) {
+      return null;
+    }
+    throw error;
+  });
+}
+
+function isGoneNodeError(error: unknown): boolean {
+  return error instanceof Error && GONE_NODE_ERRORS.some((message) => error.message.includes(message));
 }
