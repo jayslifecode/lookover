@@ -19,7 +19,7 @@ export interface CandidateGroup {
  * U+061C). The other format characters stay: the zero width joiner holds emoji sequences together, and
  * Persian and Mongolian write joiners and non-joiners inside words.
  */
-const TERMINAL_UNSAFE_CHARACTERS = /[\p{Cc}\p{Zl}\p{Zp}‪-‮⁦-⁩‎‏؜]/gu;
+const TERMINAL_UNSAFE_CHARACTERS = /[\p{Cc}\p{Zl}\p{Zp}\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]/gu;
 const COLUMN_GAP = '  ';
 const LINE_INDENT = '  ';
 
