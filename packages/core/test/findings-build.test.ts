@@ -1,9 +1,10 @@
 import { ruleById } from '@jayslifecode/lookover-rules';
 import { describe, expect, test } from 'vitest';
-import { occurrenceFinding } from '../src/findings/build.js';
+import { occurrenceFinding, stepFinding } from '../src/findings/build.js';
 import { fixPromptFor } from '../src/findings/fix-prompt.js';
 import { findingId } from '../src/findings/id.js';
-import { evidenceItem, occurrence } from './fixtures/findings.js';
+import type { StepTrace } from '../src/findings/types.js';
+import { DESKTOP, evidenceItem, occurrence, SAVE_BUTTON } from './fixtures/findings.js';
 
 const RULE = ruleById('observers.console-error');
 const KEY = 'Report locale missing for # rows';
@@ -93,5 +94,107 @@ describe('occurrenceFinding', () => {
     expect(() =>
       occurrenceFinding({ rule: RULE, key: KEY, occurrences: [], observed: OBSERVED, evidence: [] }),
     ).toThrow(/at least one occurrence/);
+  });
+});
+
+describe('stepFinding', () => {
+  const FOCUS_RULE = ruleById('interaction.focus-visible-missing');
+  const OVERFLOW_RULE = ruleById('interaction.horizontal-overflow');
+  const FOCUS_OBSERVED = 'shows no change when it receives keyboard focus';
+  const SCREEN = { id: 'screen-7', route: '/settings', url: 'http://localhost:3123/settings' };
+  const TRACE: StepTrace = {
+    route: SCREEN.route,
+    url: SCREEN.url,
+    viewport: DESKTOP,
+    steps: [
+      { kind: 'navigate', url: SCREEN.url },
+      { kind: 'set-viewport', viewport: DESKTOP },
+      { kind: 'force-state', selector: SAVE_BUTTON.selector, state: 'focus' },
+      { kind: 'measure', what: 'computed styles before and after focus' },
+    ],
+  };
+
+  function build(overrides: Partial<Parameters<typeof stepFinding>[0]> = {}) {
+    return stepFinding({
+      rule: FOCUS_RULE,
+      screen: SCREEN,
+      target: SAVE_BUTTON,
+      trace: TRACE,
+      observed: FOCUS_OBSERVED,
+      evidence: [],
+      ...overrides,
+    });
+  }
+
+  test('fills a candidate from the rule, the screen, the target and the trace', () => {
+    const evidence = [evidenceItem('def456')];
+    const key = '/settings|button[type="submit"]';
+
+    const finding = build({ evidence, createdAt: CREATED_AT });
+
+    expect(finding).toEqual({
+      shape: 'step',
+      id: findingId(FOCUS_RULE.id, key),
+      key,
+      source: 'interaction',
+      rule: { id: 'interaction.focus-visible-missing', source: 'catalogue' },
+      severity: FOCUS_RULE.severity,
+      status: 'candidate',
+      title: FOCUS_RULE.title,
+      expected: FOCUS_RULE.expected,
+      observed: FOCUS_OBSERVED,
+      whyItMatters: FOCUS_RULE.whyItMatters,
+      evidence,
+      fixPrompt: fixPromptFor({
+        rule: FOCUS_RULE,
+        route: '/settings',
+        url: 'http://localhost:3123/settings',
+        target: SAVE_BUTTON,
+        observed: FOCUS_OBSERVED,
+      }),
+      createdAt: CREATED_AT,
+      screenId: 'screen-7',
+      target: SAVE_BUTTON,
+      trace: TRACE,
+    });
+  });
+
+  test('leads the fix prompt with the screen and names the element', () => {
+    const { fixPrompt } = build();
+
+    expect(fixPrompt.split('\n')[0]).toBe(
+      'In /settings (http://localhost:3123/settings), the button "Save" (selector `button[type="submit"]`, ' +
+        `React component SettingsForm) ${FOCUS_OBSERVED}.`,
+    );
+    expect(
+      fixPrompt.endsWith("Keep the control's accessible name, then tell me which file you changed."),
+    ).toBe(true);
+  });
+
+  test('adds the suffix to the key of a viewport-specific rule', () => {
+    const key = '/settings|button[type="submit"]|mobile';
+
+    const finding = build({ rule: OVERFLOW_RULE, keySuffix: 'mobile' });
+
+    expect(finding.key).toBe(key);
+    expect(finding.id).toBe(findingId(OVERFLOW_RULE.id, key));
+  });
+
+  test('gives the same id for the same rule, route and selector on another screen', () => {
+    const other = build({
+      screen: { ...SCREEN, id: 'screen-9', url: 'http://localhost:3123/settings?tab=2' },
+    });
+
+    expect(other.id).toBe(build().id);
+    expect(build({ rule: OVERFLOW_RULE }).id).not.toBe(build().id);
+  });
+
+  test('stamps the time it was built unless it is given one', () => {
+    const before = Date.now();
+
+    const { createdAt } = build();
+
+    expect(new Date(createdAt).toISOString()).toBe(createdAt);
+    expect(Date.parse(createdAt)).toBeGreaterThanOrEqual(before);
   });
 });
