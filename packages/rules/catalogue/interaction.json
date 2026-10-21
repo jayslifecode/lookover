@@ -74,7 +74,7 @@
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
       "whyItMatters": "Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.",
-      "fixHint": "Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave at least 24 pixels of space around it.",
+      "fixHint": "Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle.",
       "reference": {
         "standard": "WCAG 2.2",
         "criterion": "2.5.8 Target Size (Minimum)",
