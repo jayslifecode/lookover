@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Focus styles set by script</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        color: #111827;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        display: block;
+        margin: 12px 0;
+        padding: 8px 16px;
+        border: 1px solid #6b7280;
+        border-radius: 6px;
+        background-color: #f9fafb;
+        color: #111827;
+        font: inherit;
+        outline: none;
+      }
+      button:hover {
+        background-color: #e5e7eb;
+      }
+      /*
+       * No pseudo-class shows focus on the first three: a focus listener sets a class or an attribute,
+       * as Headless UI (data-focus), React Aria (data-focus-visible) and MUI (.Mui-focusVisible) do.
+       */
+      .is-focused {
+        outline: 2px solid #1d4ed8;
+        outline-offset: 2px;
+      }
+      [data-focus-visible] {
+        box-shadow: 0 0 0 3px #1d4ed8;
+      }
+      /* gray-200 on white: about 1.24:1. */
+      .is-faint {
+        outline: 2px solid #e5e7eb;
+        outline-offset: 2px;
+      }
+      #css-ring:focus-visible {
+        outline: 2px solid #1d4ed8;
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <button type="button" id="js-class" class="js-class">Class on focus</button>
+      <button type="button" id="js-attribute" class="js-attribute">Attribute on focus</button>
+      <button type="button" id="js-faint" class="js-faint">Faint class on focus</button>
+      <button type="button" id="css-ring" class="css-ring">CSS ring</button>
+      <button type="button" id="none" class="none">No ring</button>
+    </main>
+    <script>
+      const onFocus = (id, show, hide) => {
+        const element = document.getElementById(id);
+        element.addEventListener('focus', () => show(element));
+        element.addEventListener('blur', () => hide(element));
+      };
+      onFocus(
+        'js-class',
+        (element) => element.classList.add('is-focused'),
+        (element) => element.classList.remove('is-focused'),
+      );
+      onFocus(
+        'js-attribute',
+        (element) => element.setAttribute('data-focus-visible', ''),
+        (element) => element.removeAttribute('data-focus-visible'),
+      );
+      onFocus(
+        'js-faint',
+        (element) => element.classList.add('is-faint'),
+        (element) => element.classList.remove('is-faint'),
+      );
+    </script>
+  </body>
+</html>

@@ -37,6 +37,7 @@ export { evaluateSource, measureOn } from './interaction/measure.js';
 export type {
   FocusLook,
   FocusMarkOn,
+  FocusMarkVia,
   FocusStop,
   GalleryEntry,
   GalleryState,

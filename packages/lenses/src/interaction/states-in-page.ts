@@ -55,6 +55,13 @@ function blurActiveElement(): void {
   if (active instanceof HTMLElement || active instanceof SVGElement) active.blur();
 }
 
+/** Blurs the element, then whatever has focus now (a focus listener may have moved it on). */
+function blurSelf(this: Element): void {
+  if (this instanceof HTMLElement || this instanceof SVGElement) this.blur();
+  const active = document.activeElement;
+  if (active instanceof HTMLElement || active instanceof SVGElement) active.blur();
+}
+
 /*
  * The two sources below are `null` for an element no longer in the document: Chromium still resolves
  * a removed element that is alive, and its computed style is then all empty strings.
@@ -70,5 +77,6 @@ export const SETTLED_SNAPSHOT_SOURCE = `function () { if (!this.isConnected) ret
 export const ANCESTOR_SNAPSHOTS_SOURCE = `function () { return (${ancestorSnapshots.toString()}).call(this, ${MAX_FOCUS_WITHIN_DEPTH}, ${finishTransitions.toString()}, ${STYLE_SNAPSHOT_SOURCE}); }`;
 export const PLACE_IN_VIEW_SOURCE = placeInView.toString();
 export const BLUR_SOURCE = blurActiveElement.toString();
+export const BLUR_SELF_SOURCE = blurSelf.toString();
 /** Ends the transitions a cleared state started, so the page is back at rest for whatever measures next. */
 export const FINISH_ALL_TRANSITIONS_SOURCE = finishAllTransitions.toString();

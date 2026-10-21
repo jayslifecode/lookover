@@ -59,9 +59,10 @@ finding.
 `gallery-<screenId>-<hash>.json`: `{ screenId, viewport, entries, focusOrder }`. Each entry is one
 control (`selector`, `role`, `name`, `componentName`) with its computed styles in each state it was put
 in (`states.rest`, `hover`, `focus`, `active`), the cropped screenshots of those states (`crops`), why it
-was not put in every state (`skipped`: `disabled`, `no-backend-node` or `gone`, else `null`) and where
-its focus shows (`focusMarkOn`: `self`, `ancestor:<n>` or `null`). `focusOrder` is the Tab walk's list
-of stops.
+was not put in every state (`skipped`: `disabled`, `no-backend-node` or `gone`, else `null`), where
+its focus shows (`focusMarkOn`: `self`, `ancestor:<n>` or `null`) and how that was found
+(`focusMarkVia`: `forced`, `real` or `null`, see "Focus set by script" below). `focusOrder` is the Tab
+walk's list of stops.
 
 **React component names.** In a React development build each finding's target carries the name of the
 component that rendered the element (`componentName`), which the fix prompt passes on. It is read from
@@ -100,6 +101,15 @@ whatever has it, so no control's rest state shows its focus ring.
   `none` in at least one of the two states: with `outline-style: none` in both, nothing is painted
   whatever they do. (Tailwind's `focus:outline-none` under an app-wide `:focus-visible` outline rule
   changes the width, colour and offset and still draws nothing.)
+- **Focus set by script.** Forcing a pseudo-class dispatches no event, so a focus style that a focus
+  listener sets (Headless UI's `data-focus`, React Aria's `data-focus-visible`, MUI's
+  `.Mui-focusVisible`) does not show under forced focus. When forced focus shows no mark on a control
+  that can take focus, the control is also focused for real (CDP `DOM.focus` by its backend node id)
+  while `:focus` and `:focus-visible` stay forced, its transitions are finished and the same styles are
+  read again, on it and its three nearest ancestors; then it is blurred and the forced states cleared,
+  whatever happens. When the real focus shows a mark, that look is the gallery's focus state (and its
+  crop), and `focusMarkVia` is `real`; a mark found with focus forced is `forced`. Only the controls the
+  forced path found nothing on are focused this way, so the extra work stays bounded.
 - **Crops.** The controls of the first 12 class signatures (`MAX_GALLERY_ELEMENTS`; a signature is the
   tag and the sorted class list) are cropped in every state, with 8 px around them so an outline shows
   (`page.screenshot` with a clip, after scrolling the control into view).
@@ -113,7 +123,8 @@ whatever has it, so no control's rest state shows its focus ring.
 - **Measured:** for each control that can take focus, whether forced focus changes anything.
 - **Threshold:** a finding when none of the tracked properties of the control, its `::before` or its
   `::after` changes under `:focus` and `:focus-visible`, and none of its three nearest ancestors
-  changes either (`MAX_FOCUS_WITHIN_DEPTH`).
+  changes either (`MAX_FOCUS_WITHIN_DEPTH`), both with focus forced and once the control is focused for
+  real (see "Focus set by script" above).
 - **Exemptions:** a focus mark on one of the three nearest ancestors counts (the input-group pattern,
   where a wrapper's `:focus-within` draws the ring). The forced-state skips above.
 - **Bench:** `interaction-001`, the Settings Save button with `focus:outline-none` and nothing in its

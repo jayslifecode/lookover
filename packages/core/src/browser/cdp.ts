@@ -140,6 +140,16 @@ export async function forcePseudoState(
 }
 
 /**
+ * Gives the element with this backend node id keyboard focus for real (CDP `DOM.focus`), as a script's
+ * `element.focus()` does: its `focus` and `focusin` events fire, so a style a focus listener sets shows.
+ * Unlike `forcePseudoState`, it needs no node id, so it does not request the document. Rejects when the
+ * element cannot take focus or is gone.
+ */
+export async function focusBackendNode(cdp: CDPSession, backendNodeId: number): Promise<void> {
+  await cdp.send('DOM.focus', { backendNodeId });
+}
+
+/**
  * Calls `fnSource` (a function declaration; `this` is the element) with `args` and returns its
  * result by value. Rejects when the function throws in the page.
  */

@@ -3,7 +3,6 @@ import {
   type ElementRef,
   type EvidenceRef,
   type Finding,
-  forcePseudoState,
   type LensContext,
   type LensSkip,
   type PseudoState,
@@ -16,15 +15,20 @@ import type { StyleSnapshot } from './in-page.js';
 import { evaluateSource, measureOn } from './measure.js';
 import { tally } from './skips.js';
 import {
-  ANCESTOR_SNAPSHOTS_SOURCE,
-  BLUR_SOURCE,
-  FINISH_ALL_TRANSITIONS_SOURCE,
-  PLACE_IN_VIEW_SOURCE,
-  type Placement,
-  SETTLED_SNAPSHOT_SOURCE,
-} from './states-in-page.js';
-import { focusMarkOf, judgeStates } from './states-rules.js';
+  type CaptureTarget,
+  captureFocus,
+  captureState,
+  type FocusMarkVia,
+  type FocusShot,
+  lookOf,
+  type Shot,
+  whileForced,
+} from './states-capture.js';
+import { BLUR_SOURCE, FINISH_ALL_TRANSITIONS_SOURCE } from './states-in-page.js';
+import { type FocusLook, judgeStates } from './states-rules.js';
 
+export type { FocusMarkVia } from './states-capture.js';
+export { CROP_PADDING_PX } from './states-capture.js';
 export { MAX_FOCUS_WITHIN_DEPTH } from './states-in-page.js';
 export type { FocusLook } from './states-rules.js';
 export { focusIndicatorColor, focusMarkOf, stateDiffers } from './states-rules.js';
@@ -33,8 +37,6 @@ export { focusIndicatorColor, focusMarkOf, stateDiffers } from './states-rules.j
 export const MAX_STATE_ELEMENTS = 60;
 /** Per screen, the controls of at most this many class signatures are cropped, in every state. */
 export const MAX_GALLERY_ELEMENTS = 12;
-/** Room kept around a control in its crop, so an outline or a ring outside its box shows. */
-export const CROP_PADDING_PX = 8;
 
 export type GalleryState = 'rest' | 'hover' | 'focus' | 'active';
 /** What shows a control's focus: itself, or its n-th ancestor (`ancestor:1` is the parent). */
@@ -50,8 +52,13 @@ export interface GalleryEntry {
   crops: Partial<Record<GalleryState, EvidenceRef>>;
   /** Why it was not put in every state (`disabled`, `no-backend-node`, `gone`); `null` when it was. */
   skipped: string | null;
-  /** What changed under forced focus (see `focusMarkOf`); `null` when nothing did or it was not forced. */
+  /** What changed under focus (see `focusMarkOf`); `null` when nothing did or it was not focused. */
   focusMarkOn: FocusMarkOn | null;
+  /**
+   * How the mark was found: with focus forced, or only once the control was focused for real (a mark a
+   * focus listener sets); `null` when there is none.
+   */
+  focusMarkVia: FocusMarkVia | null;
 }
 
 /** One stop of the Tab walk, in the order focus reached it. */
@@ -95,11 +102,6 @@ const SKIP_NO_BACKEND_NODE = 'no-backend-node';
 const SKIP_GONE = 'gone';
 /** The DOM node id `pushNodes` gives an element that is no longer in the document. */
 const NOT_IN_DOCUMENT = 0;
-/**
- * What `CSS.forcePseudoState` fails with once the element has been removed: Chromium unbinds its node
- * id, and drops the states forced on it at the same time.
- */
-const UNKNOWN_NODE_ERROR = 'Could not find node with given id';
 
 /**
  * The states in the order they are captured, the pseudo-classes forced for each, and whether the
@@ -123,21 +125,15 @@ interface Walked {
   skipped: LensSkip[];
 }
 
-type Shots = Pick<GalleryEntry, 'states' | 'crops' | 'skipped' | 'focusMarkOn'>;
+type Shots = Pick<GalleryEntry, 'states' | 'crops' | 'skipped' | 'focusMarkOn' | 'focusMarkVia'>;
 
-/** What the states captured so far hold, the ancestors' snapshots included. */
-interface Taken {
-  states: GalleryEntry['states'];
-  crops: GalleryEntry['crops'];
-  ancestors: Partial<Record<GalleryState, readonly StyleSnapshot[]>>;
+/** What the states captured so far hold. */
+interface Taken extends Omit<Shots, 'skipped'> {
+  /** How the control looks at rest, its nearest ancestors included, for focus to be compared with. */
+  rest: FocusLook | null;
 }
 
-interface Shot {
-  snapshot: StyleSnapshot;
-  /** Empty unless asked for. */
-  ancestors: readonly StyleSnapshot[];
-  crop: EvidenceRef | null;
-}
+const NOTHING_TAKEN: Taken = { states: {}, crops: {}, focusMarkOn: null, focusMarkVia: null, rest: null };
 
 /**
  * Puts the screen's controls, in reading order, at rest and then in a forced `:hover`, `:focus` (with
@@ -147,7 +143,8 @@ interface Shot {
  * at rest only; past `context.deadline` the rest are left out (`time-budget`). Focus is first moved
  * off whatever has it, so no control's rest state shows its focus mark. At rest and with focus, the
  * `MAX_FOCUS_WITHIN_DEPTH` nearest ancestors are snapshotted too, to tell where focus shows
- * (`GalleryEntry.focusMarkOn`).
+ * (`GalleryEntry.focusMarkOn`); a control whose forced focus shows nothing is focused for real as well,
+ * for a mark a focus listener sets (see `captureFocus`, `GalleryEntry.focusMarkVia`).
  *
  * Every node id is pushed once, before anything is forced, and states are measured by backend node id
  * only: requesting the document again would strand the forced states (see `forcePseudoState`). Each
@@ -239,6 +236,7 @@ async function captureElement(
     crops: {},
     skipped: null,
     focusMarkOn: null,
+    focusMarkVia: null,
   };
   if (!isForcible(element)) {
     return { entry: { ...blank, skipped: SKIP_NO_BACKEND_NODE }, signature: null, signatures };
@@ -272,107 +270,44 @@ async function captureEveryState(
   nodeId: number,
   isCropped: boolean,
 ): Promise<Shots> {
-  let taken: Taken = { states: {}, crops: {}, ancestors: {} };
-  for (const { state, forced, withAncestors } of GALLERY_STATES) {
-    const shot = await whileForced(context.ipage.cdp, nodeId, forced, () =>
-      captureState(context, element, isCropped, withAncestors),
-    );
+  let taken = NOTHING_TAKEN;
+  for (const gallery of GALLERY_STATES) {
+    const shot = await shotIn(context, { element, nodeId, isCropped }, gallery, taken.rest);
     if (shot === null) return shotsOf(taken, SKIP_GONE);
-    taken = {
-      states: { ...taken.states, [state]: shot.snapshot },
-      crops: shot.crop === null ? taken.crops : { ...taken.crops, [state]: shot.crop },
-      ancestors: { ...taken.ancestors, [state]: shot.ancestors },
-    };
+    taken = withShot(taken, gallery.state, shot);
   }
   return shotsOf(taken, null);
 }
 
-/** The gallery's part of what was taken: the ancestors' snapshots only decide where focus shows. */
-function shotsOf({ states, crops, ancestors }: Taken, skipped: string | null): Shots {
-  const { rest, focus } = states;
-  const focusMarkOn =
-    rest === undefined || focus === undefined
-      ? null
-      : focusMarkOf(
-          { self: rest, ancestors: ancestors.rest ?? [] },
-          { self: focus, ancestors: ancestors.focus ?? [] },
-        );
-  return { states, crops, skipped, focusMarkOn };
-}
-
-/**
- * Runs `measure` with `states` forced on the node (none: at rest), clearing them afterwards whatever
- * happens; `null` when the element has already left the page.
- */
-async function whileForced<T>(
-  cdp: CDPSession,
-  nodeId: number,
-  states: readonly PseudoState[],
-  measure: () => Promise<T | null>,
-): Promise<T | null> {
-  if (states.length === 0) return measure();
-  if (!(await forceUnlessGone(cdp, nodeId, states))) return null;
-  try {
-    return await measure();
-  } finally {
-    // Gone by now or not, nothing stays forced: a removed element's states go with its node id.
-    await forceUnlessGone(cdp, nodeId, []);
-  }
-}
-
-/** Forces `states` on the node (`[]` clears them); `false` when the element has left the page. */
-async function forceUnlessGone(
-  cdp: CDPSession,
-  nodeId: number,
-  states: readonly PseudoState[],
-): Promise<boolean> {
-  try {
-    await forcePseudoState(cdp, nodeId, states);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && error.message.includes(UNKNOWN_NODE_ERROR)) return false;
-    throw error;
-  }
-}
-
-/**
- * The control's style snapshot in the state it is in, its nearest ancestors' when asked, and its crop
- * when it is cropped; `null` once it is gone.
- */
-async function captureState(
+/** The control in one state; the focus state is compared with `rest` as it is taken (see `captureFocus`). */
+function shotIn(
   context: LensContext,
-  element: ForcibleElement,
-  isCropped: boolean,
-  withAncestors: boolean,
-): Promise<Shot | null> {
-  const { cdp } = context.ipage;
-  const snapshot = await measureOn<StyleSnapshot>(cdp, element, SETTLED_SNAPSHOT_SOURCE);
-  if (snapshot === null) return null;
-  const ancestors = withAncestors
-    ? await measureOn<StyleSnapshot[]>(cdp, element, ANCESTOR_SNAPSHOTS_SOURCE)
-    : [];
-  if (ancestors === null) return null;
-  return { snapshot, ancestors, crop: isCropped ? await cropOf(context, element) : null };
+  { element, nodeId, isCropped }: CaptureTarget,
+  { state, forced, withAncestors }: (typeof GALLERY_STATES)[number],
+  rest: FocusLook | null,
+): Promise<Shot | FocusShot | null> {
+  if (state === 'focus' && rest !== null) {
+    return captureFocus(context, { element, nodeId, isCropped }, forced, rest);
+  }
+  return whileForced(context.ipage.cdp, nodeId, forced, () =>
+    captureState(context, element, isCropped, withAncestors),
+  );
 }
 
-/**
- * A screenshot of the control scrolled into view, padded by `CROP_PADDING_PX` and kept inside the
- * viewport; `null` when it is gone or nothing of it is in the viewport.
- */
-async function cropOf(context: LensContext, element: ForcibleElement): Promise<EvidenceRef | null> {
-  const placement = await measureOn<Placement>(context.ipage.cdp, element, PLACE_IN_VIEW_SOURCE);
-  const clip = placement === null ? null : paddedClip(placement);
-  if (clip === null) return null;
-  const png = await context.ipage.page.screenshot({ clip, type: 'png' });
-  return context.ctx.evidence.putPng(png);
+function withShot(taken: Taken, state: GalleryState, shot: Shot | FocusShot): Taken {
+  const focusMark = 'markOn' in shot ? { focusMarkOn: shot.markOn, focusMarkVia: shot.via } : {};
+  return {
+    ...taken,
+    ...focusMark,
+    states: { ...taken.states, [state]: shot.snapshot },
+    crops: shot.crop === null ? taken.crops : { ...taken.crops, [state]: shot.crop },
+    rest: state === 'rest' ? lookOf(shot) : taken.rest,
+  };
 }
 
-function paddedClip({ rect, viewportWidth, viewportHeight }: Placement): Box | null {
-  const x = Math.max(0, rect.x - CROP_PADDING_PX);
-  const y = Math.max(0, rect.y - CROP_PADDING_PX);
-  const right = Math.min(viewportWidth, rect.x + rect.width + CROP_PADDING_PX);
-  const bottom = Math.min(viewportHeight, rect.y + rect.height + CROP_PADDING_PX);
-  return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : null;
+/** The gallery's part of what was taken: the rest look only decides where focus shows. */
+function shotsOf({ rest: _, ...shots }: Taken, skipped: string | null): Shots {
+  return { ...shots, skipped };
 }
 
 function isForcible(element: ElementRef): element is ForcibleElement {

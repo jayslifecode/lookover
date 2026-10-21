@@ -2,7 +2,13 @@ import { fileURLToPath } from 'node:url';
 import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import type { CDPSession } from 'playwright';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
-import { callOnNode, forcePseudoState, pushNodes, resolveSelector } from '../src/browser/cdp.js';
+import {
+  callOnNode,
+  focusBackendNode,
+  forcePseudoState,
+  pushNodes,
+  resolveSelector,
+} from '../src/browser/cdp.js';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/cdp', import.meta.url));
@@ -121,6 +127,36 @@ describe('CDP helpers', { timeout: BROWSER_TIMEOUT_MS }, () => {
     });
   });
 
+  describe('focusBackendNode', () => {
+    test('focuses the element for real: its focus listeners run', async () => {
+      await ipage.page.evaluate(() => {
+        document.querySelector('#b')?.addEventListener('focus', (event) => {
+          (event.target as HTMLElement).dataset.focused = 'yes';
+        });
+      });
+      const [b] = await backendIdsOf(['#b']);
+
+      await focusBackendNode(ipage.cdp, b ?? UNKNOWN_BACKEND_ID);
+
+      expect(
+        await ipage.page.evaluate(() => [
+          document.activeElement?.id,
+          (document.activeElement as HTMLElement).dataset.focused,
+        ]),
+      ).toEqual(['b', 'yes']);
+    });
+
+    test('rejects for an element that cannot take focus', async () => {
+      const [main] = await backendIdsOf(['main']);
+
+      await expect(focusBackendNode(ipage.cdp, main ?? UNKNOWN_BACKEND_ID)).rejects.toThrow(/not focusable/);
+    });
+
+    test('rejects for a backend node id no element has', async () => {
+      await expect(focusBackendNode(ipage.cdp, UNKNOWN_BACKEND_ID)).rejects.toThrow();
+    });
+  });
+
   describe('forcePseudoState', () => {
     test('forces :hover and clears it again with an empty list', async () => {
       const nodeId = await nodeIdOf(ipage.cdp, '#a');
@@ -142,6 +178,17 @@ describe('CDP helpers', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
       await forcePseudoState(ipage.cdp, nodeId, []);
       expect(await computed('#b', 'outlineStyle')).toBe('none');
+    });
+
+    test('keeps a forced state while the element is focused for real', async () => {
+      const [b] = await backendIdsOf(['#b']);
+      const nodeId = await nodeIdOf(ipage.cdp, '#b');
+
+      await forcePseudoState(ipage.cdp, nodeId, ['focus-visible']);
+      await focusBackendNode(ipage.cdp, b ?? UNKNOWN_BACKEND_ID);
+      expect(await computed('#b', 'outlineStyle')).toBe('solid');
+
+      await forcePseudoState(ipage.cdp, nodeId, []);
     });
 
     test('enables the CSS domain on each new CDP session it is used with', async () => {

@@ -4,6 +4,7 @@ export type { AXNode, PseudoState } from './browser/cdp.js';
 export {
   boxFor,
   callOnNode,
+  focusBackendNode,
   forcePseudoState,
   getAXTree,
   pushNodes,
