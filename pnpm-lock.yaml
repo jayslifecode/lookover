@@ -60,6 +60,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@jayslifecode/lookover-rules':
+        specifier: workspace:*
+        version: link:../rules
       playwright:
         specifier: 1.64.1
         version: 1.64.1

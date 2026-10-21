@@ -1,3 +1,4 @@
+import type { Finding } from '../findings/types.js';
 import type { RouteInfo, Screen, Viewport } from '../map/types.js';
 
 export type RunEventBody =
@@ -21,6 +22,22 @@ export type RunEventBody =
   | { type: 'screen.skipped'; url: string; reason: 'redirected-duplicate'; landed: string }
   | { type: 'screen.captured'; screen: Screen }
   | { type: 'screen.truncated'; screenId: string; elements: number; kept: number }
+  /** A finding seen for the first time in this run. The run log redacts it like every other event body. */
+  | { type: 'finding.candidate'; finding: Finding }
+  /**
+   * A screen has been inspected by the observers and the lenses. `candidates` and `worthALook` count what
+   * the screen yielded, `skipped` is what the lenses left out and why, and `error` is the first line of
+   * the message when the inspection stopped on an error.
+   */
+  | {
+      type: 'screen.inspected';
+      screenId: string;
+      durationMs: number;
+      candidates: number;
+      worthALook: number;
+      skipped: { reason: string; count: number }[];
+      error: string | null;
+    }
   | { type: 'run.finished'; screens: number; durationMs: number }
   | { type: 'run.failed'; error: { code: string; message: string } };
 

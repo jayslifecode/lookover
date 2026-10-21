@@ -21,6 +21,27 @@ export type { ErrorCode } from './errors.js';
 export { LookoverError } from './errors.js';
 export type { EvidenceRef } from './evidence/store.js';
 export { EvidenceStore } from './evidence/store.js';
+export type { FixPromptInput } from './findings/fix-prompt.js';
+export { fixPromptFor } from './findings/fix-prompt.js';
+export { findingId, mergeFindings } from './findings/id.js';
+export { FINDINGS_FILE, readLatestFindings, writeFindings } from './findings/persist.js';
+export type {
+  ElementTarget,
+  EvidenceItem,
+  Finding,
+  FindingSource,
+  FindingStatus,
+  FindingsFile,
+  ForcedState,
+  LensName,
+  Occurrence,
+  OccurrenceFinding,
+  RuleRef,
+  Severity,
+  Step,
+  StepFinding,
+  StepTrace,
+} from './findings/types.js';
 export type { CrawlOptions } from './map/crawler.js';
 export { crawl } from './map/crawler.js';
 export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './map/elements.js';
