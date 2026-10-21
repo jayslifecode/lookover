@@ -97,6 +97,15 @@
       "rule": "interaction.target-size",
       "expectedSeverity": "medium",
       "control": true
+    },
+    {
+      "id": "control-003",
+      "lens": "interaction",
+      "route": "/reports",
+      "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > dialog:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+      "rule": "interaction.hover-state-missing",
+      "expectedSeverity": "low",
+      "control": true
     }
   ]
 }
