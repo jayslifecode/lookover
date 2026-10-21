@@ -1,7 +1,15 @@
 export type { EnsureAuthOptions, EnsureAuthResult } from './browser/auth.js';
 export { checkStorageState, ensureAuth, isLoginUrl } from './browser/auth.js';
-export type { AXNode } from './browser/cdp.js';
-export { boxFor, callOnNode, getAXTree, resolveBackendNode } from './browser/cdp.js';
+export type { AXNode, PseudoState } from './browser/cdp.js';
+export {
+  boxFor,
+  callOnNode,
+  forcePseudoState,
+  getAXTree,
+  pushNodes,
+  resolveBackendNode,
+  resolveSelector,
+} from './browser/cdp.js';
 export type { NetworkPolicy, RequestKind, ResolverTestHooks, Verdict } from './browser/network-policy.js';
 export {
   BLOCKED_PROVIDERS,

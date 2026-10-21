@@ -15,7 +15,16 @@ export interface AXNode {
   childIds: string[];
 }
 
+/** A pseudo-class `forcePseudoState` can force on an element. */
+export type PseudoState = 'hover' | 'focus' | 'focus-visible' | 'active';
+
 const QUAD_POINTS = 4;
+/** What `DOM.pushNodesByBackendIdsToFrontend` fails with until a `DOM.getDocument` for the current document. */
+const DOCUMENT_NOT_REQUESTED = 'Document needs to be requested first';
+/** The node id `DOM.querySelector` returns when nothing matches. */
+const NO_NODE = 0;
+/** The CDP sessions `forcePseudoState` has enabled the DOM and CSS domains on. */
+const cssEnabledSessions = new WeakSet<CDPSession>();
 
 /**
  * Every node of the main frame's accessibility tree. Chromium lists them breadth-first, not in
@@ -58,6 +67,76 @@ export async function resolveBackendNode(cdp: CDPSession, backendDOMNodeId: numb
     throw new Error(`DOM.resolveNode returned no object id for backend node ${backendDOMNodeId}`);
   }
   return object.objectId;
+}
+
+/**
+ * A remote object id for the first element `selector` matches in the main frame's document, for use
+ * with `callOnNode`; `null` when nothing matches. A selector the browser cannot parse rejects.
+ *
+ * It requests the document (`DOM.getDocument`), and Chromium then discards the node ids it handed out
+ * before, together with the pseudo states forced through them (see `forcePseudoState`). Remote object
+ * ids are not affected.
+ */
+export async function resolveSelector(cdp: CDPSession, selector: string): Promise<string | null> {
+  const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+  const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+  if (nodeId === NO_NODE) {
+    return null;
+  }
+  const { object } = await cdp.send('DOM.resolveNode', { nodeId });
+  if (object.objectId === undefined) {
+    throw new Error(`DOM.resolveNode returned no object id for ${selector}`);
+  }
+  return object.objectId;
+}
+
+/**
+ * The DOM node ids (what `DOM.*` and `CSS.*` commands take) of the elements with these backend node
+ * ids, in the same order; `0` for one that is not in the current document.
+ *
+ * Chromium hands out node ids only after the document has been requested. The document is requested
+ * only when it has not been yet (a new CDP session, or a new document after a navigation), so the
+ * ids an earlier call returned for the same document stay valid.
+ */
+export async function pushNodes(cdp: CDPSession, backendNodeIds: readonly number[]): Promise<number[]> {
+  const push = async (): Promise<number[]> => {
+    const { nodeIds } = await cdp.send('DOM.pushNodesByBackendIdsToFrontend', {
+      backendNodeIds: [...backendNodeIds],
+    });
+    return nodeIds;
+  };
+  try {
+    return await push();
+  } catch (error) {
+    if (!(error instanceof Error && error.message.includes(DOCUMENT_NOT_REQUESTED))) {
+      throw error;
+    }
+  }
+  await cdp.send('DOM.getDocument', { depth: 0 });
+  return push();
+}
+
+/**
+ * Forces `states` on the element with DOM node id `nodeId` (see `pushNodes`) until they are cleared
+ * with `[]`, so its computed style is the one that state shows. The DOM and CSS domains are enabled
+ * the first time a CDP session is used here.
+ *
+ * A state forced through a node id outlives that id: once the document is requested again
+ * (`resolveSelector`), it can no longer be cleared, and Chromium drops it only at the element's next
+ * style recalculation, so its computed style can still show it. Force, measure and clear without
+ * requesting the document in between (measure by backend node id, not by selector).
+ */
+export async function forcePseudoState(
+  cdp: CDPSession,
+  nodeId: number,
+  states: readonly PseudoState[],
+): Promise<void> {
+  if (!cssEnabledSessions.has(cdp)) {
+    await cdp.send('DOM.enable');
+    await cdp.send('CSS.enable');
+    cssEnabledSessions.add(cdp);
+  }
+  await cdp.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: [...states] });
 }
 
 /**
