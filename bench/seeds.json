@@ -56,6 +56,14 @@
       "route": "/reports",
       "rule": "observers.console-error",
       "expectedSeverity": "medium"
+    },
+    {
+      "id": "observers-002",
+      "lens": "observers",
+      "route": "/settings",
+      "selector": "#timeZone-hint",
+      "rule": "observers.raw-i18n-key",
+      "expectedSeverity": "medium"
     }
   ]
 }

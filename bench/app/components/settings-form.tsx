@@ -39,6 +39,7 @@ export function SettingsForm({ initialState }: { initialState: SettingsFormState
         name="timeZone"
         label="Time zone"
         required
+        hint="settings.timezone.hint"
         options={TIME_ZONES}
         defaultValue={values.timeZone}
         error={errors.timeZone}
