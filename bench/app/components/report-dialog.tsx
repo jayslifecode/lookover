@@ -11,7 +11,12 @@ export function ReportDialog({ summary }: { summary: RegistrationSummary }) {
   }, []);
   return (
     <>
-      <button type="button" className={BUTTON_PRIMARY} onClick={() => dialogRef.current?.showModal()}>
+      <button
+        type="button"
+        data-testid="open-report"
+        className={BUTTON_PRIMARY}
+        onClick={() => dialogRef.current?.showModal()}
+      >
         Open summary report
       </button>
       <dialog

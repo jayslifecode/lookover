@@ -102,7 +102,7 @@
       "id": "control-003",
       "lens": "interaction",
       "route": "/reports",
-      "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > dialog:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)",
+      "selector": "[data-testid=\"open-report\"]",
       "rule": "interaction.hover-state-missing",
       "expectedSeverity": "low",
       "control": true

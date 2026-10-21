@@ -130,7 +130,7 @@ false positive would have been reported as.
 | --- | --- | --- | --- | --- |
 | `control-001` | `/login` | `body > main:nth-of-type(1) > div:nth-of-type(1) > form:nth-of-type(1) > button:nth-of-type(1)` | `interaction.focus-visible-missing` | The Sign in button shows the shared focus ring |
 | `control-002` | `/organisations` | `[data-testid="organisations-table"] > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(1) > a:nth-of-type(1)` | `interaction.target-size` | The organisation name links are ordinary inline text links (the selector is the first row's) |
-| `control-003` | `/reports` | `body > main:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > dialog:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)` | `interaction.hover-state-missing` | The dialog's Close button changes on hover and on focus |
+| `control-003` | `/reports` | `[data-testid="open-report"]` | `interaction.hover-state-missing` | The Open summary report button changes on hover (`hover:bg-primary/90`) |
 
 ### Selectors
 
@@ -148,9 +148,6 @@ pnpm --filter @jayslifecode/lookover-bench dev      # in another terminal
 LOOKOVER_USERNAME=demo@lookover.dev LOOKOVER_PASSWORD=demo-password \
   node <repo>/packages/cli/dist/index.js run --yes --map-only --max-screens 12
 ```
-
-The Close button of `control-003` sits in a closed `<dialog>`, which a map does not list, so its
-selector comes from running the selector builder on the element in the live page.
 
 When you seed an issue, change the app and add its entry in the same commit, so the code and
 `seeds.json` always agree. Where a linter would reject the seeded code (the stat card, the positive
