@@ -54,6 +54,12 @@ importers:
       '@jayslifecode/lookover-core':
         specifier: workspace:*
         version: link:../core
+      '@jayslifecode/lookover-lenses':
+        specifier: workspace:*
+        version: link:../lenses
+      '@jayslifecode/lookover-rules':
+        specifier: workspace:*
+        version: link:../rules
       commander:
         specifier: ^15
         version: 15.0.0

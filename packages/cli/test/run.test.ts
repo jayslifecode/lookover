@@ -3,30 +3,17 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  type AppMap,
-  configSchema,
-  type ElementRef,
-  type FormInfo,
-  type LookoverConfig,
-  LookoverError,
-  type Screen,
-  writeConfig,
-} from '@jayslifecode/lookover-core';
+import { configSchema, type LookoverConfig, LookoverError, writeConfig } from '@jayslifecode/lookover-core';
+import { InteractionLens } from '@jayslifecode/lookover-lenses';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   collectRepeated,
   configForRun,
+  createLens,
   mergeHosts,
   parseRunFlags,
   saveConfirmedHosts,
 } from '../src/commands/run-options.js';
-import {
-  blockedHostsWarning,
-  formatDuration,
-  progressLine,
-  summaryRows,
-} from '../src/commands/run-summary.js';
 import { runCli } from './run-cli.js';
 
 const PERMISSION_BITS = 0o777;
@@ -36,54 +23,6 @@ const BASE_CONFIG: LookoverConfig = configSchema.parse({
   baseUrl: 'http://localhost:3000',
   interaction: 'safe',
 });
-
-function element(name: string): ElementRef {
-  return {
-    selector: `#${name}`,
-    role: 'button',
-    name,
-    tag: 'button',
-    box: { x: 0, y: 0, width: 10, height: 10 },
-    disabled: false,
-    focusable: true,
-  };
-}
-
-function form(selector: string): FormInfo {
-  return { selector, action: null, method: 'get', fields: [], submit: null };
-}
-
-function screen(overrides: Partial<Screen> = {}): Screen {
-  return {
-    id: 'abc',
-    url: 'http://localhost:3000/',
-    route: '/',
-    title: 'Home',
-    status: 'captured',
-    error: null,
-    viewport: { name: 'desktop', width: 1440, height: 900 },
-    screenshot: null,
-    elements: [],
-    forms: [],
-    tokens: [],
-    links: [],
-    redirectedFrom: null,
-    discoveredFrom: null,
-    capturedAt: '2026-10-21T00:00:00.000Z',
-    ...overrides,
-  };
-}
-
-function appMap(screens: Screen[]): AppMap {
-  return {
-    version: 1,
-    runId: 'run-1',
-    createdAt: '2026-10-21T00:00:00.000Z',
-    baseUrl: 'http://localhost:3000',
-    routes: [],
-    screens,
-  };
-}
 
 function lookoverErrorOf(fn: () => unknown): LookoverError {
   try {
@@ -108,13 +47,15 @@ describe('collectRepeated', () => {
 });
 
 describe('parseRunFlags', () => {
-  test('defaults to headless, the configured screen budget, no extra hosts and prompting', () => {
+  test('defaults to headless, the configured screen budget, no extra hosts, prompting and the interaction lens', () => {
     expect(parseRunFlags({})).toEqual({
       isHeaded: false,
       maxScreens: undefined,
       allowHosts: [],
       confirmHosts: [],
       isYes: false,
+      isMapOnly: false,
+      lenses: ['interaction'],
     });
   });
 
@@ -170,6 +111,43 @@ describe('parseRunFlags', () => {
 
   test('--headed and --yes are passed through', () => {
     expect(parseRunFlags({ headed: true, yes: true })).toMatchObject({ isHeaded: true, isYes: true });
+  });
+
+  test('--map-only is passed through', () => {
+    expect(parseRunFlags({ mapOnly: true }).isMapOnly).toBe(true);
+  });
+
+  test('--lens interaction names the interaction lens once, however often it is repeated', () => {
+    expect(parseRunFlags({ lens: ['interaction'] }).lenses).toEqual(['interaction']);
+    expect(parseRunFlags({ lens: ['interaction', ' interaction '] }).lenses).toEqual(['interaction']);
+  });
+
+  test.each(['nope', 'consistency', 'behaviour', '', 'constructor'])(
+    'rejects --lens %o, naming the lenses there are',
+    (value) => {
+      const error = lookoverErrorOf(() => parseRunFlags({ lens: ['interaction', value] }));
+
+      expect(error.code).toBe('E_USAGE');
+      expect(error.message).toBe(`--lens "${value}" is not a lens`);
+      expect(error.hint).toBe('Available lenses: interaction');
+    },
+  );
+});
+
+describe('createLens', () => {
+  test('creates the interaction lens', () => {
+    expect(createLens('interaction')).toBeInstanceOf(InteractionLens);
+  });
+
+  test('creates a new lens on every call', () => {
+    expect(createLens('interaction')).not.toBe(createLens('interaction'));
+  });
+
+  test('refuses a lens that is not available yet with E_USAGE', () => {
+    const error = lookoverErrorOf(() => createLens('consistency'));
+
+    expect(error.code).toBe('E_USAGE');
+    expect(error.hint).toBe('Available lenses: interaction');
   });
 });
 
@@ -326,104 +304,6 @@ describe('saveConfirmedHosts', () => {
   });
 });
 
-describe('progressLine', () => {
-  test('names the route with its element and form counts', () => {
-    const edit = screen({
-      route: '/organisations/[id]',
-      elements: Array.from({ length: 18 }, (_, index) => element(`e${index}`)),
-      forms: [form('form')],
-    });
-
-    expect(progressLine(edit)).toBe('✓ /organisations/[id]  18 elements · 1 form');
-  });
-
-  test('uses the singular for one element and the plural for no forms', () => {
-    expect(progressLine(screen({ elements: [element('only')] }))).toBe('✓ /  1 element · 0 forms');
-  });
-
-  test('shows where a redirected screen landed, after the path that was requested', () => {
-    const redirected = screen({
-      url: 'http://localhost:3000/home.html?tab=2',
-      route: '/home.html',
-      redirectedFrom: 'http://localhost:3000/',
-      elements: [element('a'), element('b'), element('c')],
-    });
-
-    expect(progressLine(redirected)).toBe('✓ /  → /home.html  3 elements · 0 forms');
-  });
-
-  test('flags a screen whose navigation failed', () => {
-    const failed = screen({
-      route: '/reports',
-      title: '(navigation failed: net::ERR_ABORTED)',
-      status: 'navigation-failed',
-      error: 'net::ERR_ABORTED',
-    });
-
-    expect(progressLine(failed)).toBe('! /reports  navigation failed');
-  });
-
-  test('goes by the status, not the title', () => {
-    const titledLikeAFailure = screen({ route: '/help', title: '(navigation failed: how to fix it)' });
-
-    expect(progressLine(titledLikeAFailure)).toBe('✓ /help  0 elements · 0 forms');
-  });
-});
-
-describe('summaryRows', () => {
-  const summary = {
-    cwd: '/work/app',
-    map: appMap([
-      screen({ elements: [element('a'), element('b')], forms: [form('f1')] }),
-      screen({ elements: [element('c')], forms: [form('f2'), form('f3')] }),
-    ]),
-    confirmedBackendHosts: ['api.dev.example.com', 'auth.dev.example.com'],
-    blockedRequests: 3,
-    runDir: '/work/app/.lookover/runs/20261021-101500-ab12',
-    appMapPath: '/work/app/.lookover/app-map.json',
-    durationMs: 42_345,
-  };
-
-  test('totals the map and shows paths relative to the project', () => {
-    expect(summaryRows(summary)).toEqual([
-      ['Screens', '2'],
-      ['Elements', '3'],
-      ['Forms', '3'],
-      ['Backend hosts', 'api.dev.example.com, auth.dev.example.com'],
-      ['Blocked requests', '3'],
-      ['Run dir', '.lookover/runs/20261021-101500-ab12'],
-      ['App map', '.lookover/app-map.json'],
-      ['Duration', '42.3 s'],
-    ]);
-  });
-
-  test('says none when no backend host is confirmed', () => {
-    const rows = summaryRows({ ...summary, confirmedBackendHosts: [] });
-
-    expect(rows).toContainEqual(['Backend hosts', 'none']);
-  });
-});
-
-describe('formatDuration', () => {
-  test.each([
-    [1_234, '1.2 s'],
-    [59_940, '59.9 s'],
-    [59_960, '1 min 0 s'],
-    [125_400, '2 min 5 s'],
-  ])('%d ms is %o', (ms, expected) => {
-    expect(formatDuration(ms)).toBe(expected);
-  });
-});
-
-describe('blockedHostsWarning', () => {
-  test('names the blocked hosts and the command that confirms them', () => {
-    const warning = blockedHostsWarning(['a.dev.test', 'b.dev.test']);
-
-    expect(warning).toContain('a.dev.test, b.dev.test');
-    expect(warning).toContain('lookover run --confirm-host a.dev.test --confirm-host b.dev.test');
-  });
-});
-
 describe('lookover run', () => {
   let dir: string;
 
@@ -462,6 +342,16 @@ describe('lookover run', () => {
     expect(result.stderr).toContain('E_USAGE');
     expect(result.stderr).not.toContain('E_CONFIG_INVALID');
     expect(result.stderr).toContain('--max-screens');
+  });
+
+  test('exits 2 with E_USAGE and the available lenses on an unknown --lens, before reading the config', async () => {
+    const result = await runCli(dir, ['run', '--lens', 'nope']);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
+    expect(result.stderr).toContain('--lens "nope" is not a lens');
+    expect(result.stderr).toContain('Available lenses: interaction');
+    expect(result.stderr).not.toContain('E_CONFIG_NOT_FOUND');
   });
 
   test('exits 2 with E_USAGE on a --confirm-host that is a URL', async () => {

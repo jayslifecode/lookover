@@ -9,13 +9,14 @@ import {
   RunLog,
 } from '@jayslifecode/lookover-core';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { CANDIDATES_NOTE } from '../../src/commands/run-summary.js';
 import { type CliResult, runCli } from '../run-cli.js';
 import { BENCH_APP_DIR, BENCH_DATA_FILES, BENCH_URL, E2E_OUTPUT_DIR } from './bench-env.js';
 
 /** The whole of Stage 1 must finish within this, measured around the `lookover run` process. */
-const RUN_BUDGET_MS = 90_000;
+const RUN_BUDGET_MS = 150_000;
 /** Stops a hung CLI well before the test times out, so the failure says what happened. */
-const PROCESS_TIMEOUT_MS = 170_000;
+const PROCESS_TIMEOUT_MS = 240_000;
 const MAX_SCREENS = '12';
 const MIN_SCREENS = 6;
 const EDIT_ROUTE = '/organisations/[id]';
@@ -187,7 +188,7 @@ describe('lookover run against the bench app', () => {
 
     expect(progress).toHaveLength(map.screens.length);
     expect(progress).toContainEqual(
-      expect.stringMatching(/^✓ \/organisations\/\[id\] {2}\d+ elements · 1 form$/),
+      expect.stringMatching(/^✓ \/organisations\/\[id\] {2}\d+ elements · 1 form · \d+ candidates?$/),
     );
     for (const row of [
       'Screens',
@@ -198,9 +199,16 @@ describe('lookover run against the bench app', () => {
       'Run dir',
       'App map',
       'Duration',
+      'Candidates',
+      'Worth a look',
+      'Findings',
     ]) {
       expect(run.stdout).toMatch(new RegExp(`^ {2}${row} +\\S`, 'm'));
     }
+  });
+
+  test('ends the candidates with the note that nothing has judged them yet', () => {
+    expect(run.stdout.split('\n')).toContain(CANDIDATES_NOTE);
   });
 
   test('leaves lookover.config.json loadable', async () => {

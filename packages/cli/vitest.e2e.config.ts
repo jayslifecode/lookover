@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 
-const E2E_TIMEOUT_MS = 180_000;
+const E2E_TIMEOUT_MS = 300_000;
 const TEARDOWN_TIMEOUT_MS = 30_000;
 
 /** The end-to-end suite: the built CLI against the bench app, which global setup serves on port 3123. */

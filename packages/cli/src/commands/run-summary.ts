@@ -1,5 +1,18 @@
 import { relative } from 'node:path';
-import { type AppMap, confirmHostCommand, isFailedScreen, type Screen } from '@jayslifecode/lookover-core';
+import {
+  type AppMap,
+  confirmHostCommand,
+  type FindingsFile,
+  isFailedScreen,
+  type Screen,
+} from '@jayslifecode/lookover-core';
+
+/** What the summary adds for a run that inspected its screens (not a `--map-only` run). */
+export interface InspectionSummary {
+  readonly findings: FindingsFile;
+  /** The run's `findings.json`. */
+  readonly findingsPath: string;
+}
 
 /** What the summary table reports about a finished run. */
 export interface RunSummary {
@@ -11,7 +24,13 @@ export interface RunSummary {
   readonly runDir: string;
   readonly appMapPath: string;
   readonly durationMs: number;
+  /** Absent for a `--map-only` run: it has no findings to report. */
+  readonly inspection?: InspectionSummary;
 }
+
+/** Printed after the candidates: they are measurements, nothing has judged or reproduced them yet. */
+export const CANDIDATES_NOTE =
+  'Candidates are measured but not yet judged or reproduced; the judge arrives in the next release.';
 
 const NO_HOSTS = 'none';
 const MS_PER_SECOND = 1_000;
@@ -21,9 +40,10 @@ const TENTHS_PER_SECOND = 10;
 /**
  * One line per captured screen: `✓ /organisations/[id]  18 elements · 1 form`. A screen the page
  * was redirected to shows the path asked for, then where it landed:
- * `✓ /  → /home.html  18 elements · 1 form`.
+ * `✓ /  → /home.html  18 elements · 1 form`. Once the screen has been inspected, `candidates` adds
+ * what it yielded: `✓ /organisations/[id]  12 elements · 1 form · 2 candidates`.
  */
-export function progressLine(screen: Screen): string {
+export function progressLine(screen: Screen, candidates?: number): string {
   if (isFailedScreen(screen)) {
     return `! ${screen.route}  navigation failed`;
   }
@@ -33,7 +53,8 @@ export function progressLine(screen: Screen): string {
     screen.redirectedFrom === null
       ? screen.route
       : `${pathOf(screen.redirectedFrom)}  → ${pathOf(screen.url)}`;
-  return `✓ ${where}  ${elements} · ${forms}`;
+  const measured = [elements, forms, ...(candidates === undefined ? [] : [count(candidates, 'candidate')])];
+  return `✓ ${where}  ${measured.join(' · ')}`;
 }
 
 /** The path of `href`, without the query a token may be in; `href` itself when it is not a URL. */
@@ -55,6 +76,19 @@ export function summaryRows(summary: RunSummary): [string, string][] {
     ['Run dir', displayPath(summary.cwd, summary.runDir)],
     ['App map', displayPath(summary.cwd, summary.appMapPath)],
     ['Duration', formatDuration(summary.durationMs)],
+    ...inspectionRows(summary),
+  ];
+}
+
+function inspectionRows({ cwd, inspection }: RunSummary): [string, string][] {
+  if (inspection === undefined) {
+    return [];
+  }
+  const { findings, findingsPath } = inspection;
+  return [
+    ['Candidates', String(findings.findings.length)],
+    ['Worth a look', String(findings.worthALook.length)],
+    ['Findings', displayPath(cwd, findingsPath)],
   ];
 }
 
@@ -82,7 +116,8 @@ export function blockedHostsWarning(
   );
 }
 
-function count(n: number, noun: string): string {
+/** `1 element`, `2 elements`. */
+export function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 

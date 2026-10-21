@@ -19,6 +19,8 @@
   "dependencies": {
     "@clack/prompts": "^1.8",
     "@jayslifecode/lookover-core": "workspace:*",
+    "@jayslifecode/lookover-lenses": "workspace:*",
+    "@jayslifecode/lookover-rules": "workspace:*",
     "commander": "^15"
   }
 }

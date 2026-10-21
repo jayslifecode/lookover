@@ -3,11 +3,14 @@ import { resolve } from 'node:path';
 import {
   CONFIG_FILENAME,
   detectIndent,
+  type Lens,
+  type LensName,
   type LookoverConfig,
   LookoverError,
   normaliseHost,
   writeFileAtomic,
 } from '@jayslifecode/lookover-core';
+import { InteractionLens } from '@jayslifecode/lookover-lenses';
 
 /** What commander hands the `run` action. */
 export interface RunFlags {
@@ -16,6 +19,8 @@ export interface RunFlags {
   readonly allowHost?: readonly string[];
   readonly confirmHost?: readonly string[];
   readonly yes?: boolean;
+  readonly mapOnly?: boolean;
+  readonly lens?: readonly string[];
 }
 
 /** The flags, validated: hosts normalised and deduplicated, the screen budget a number. */
@@ -26,6 +31,10 @@ export interface RunOptions {
   readonly allowHosts: readonly string[];
   readonly confirmHosts: readonly string[];
   readonly isYes: boolean;
+  /** The plan-01 behaviour: map the app, run no lens and no observer. */
+  readonly isMapOnly: boolean;
+  /** The lenses to run, each once; `--map-only` runs none of them. */
+  readonly lenses: readonly LensName[];
 }
 
 /** A repeatable host flag and what its values may look like. */
@@ -47,6 +56,14 @@ const CONFIRM_HOST: HostFlag = {
   hint: 'Pass one backend host alone, without a scheme, port, path or "*", e.g. --confirm-host api.dev.example.com',
 };
 
+/** The lenses `lookover run` can run, by the name `--lens` takes: one factory each, so a run builds its own. */
+const LENS_FACTORIES = {
+  interaction: () => new InteractionLens(),
+} as const satisfies Partial<Record<LensName, () => Lens>>;
+type AvailableLens = keyof typeof LENS_FACTORIES;
+
+const DEFAULT_LENSES: readonly AvailableLens[] = ['interaction'];
+const LENS_HINT = `Available lenses: ${Object.keys(LENS_FACTORIES).join(', ')}`;
 const POSITIVE_INTEGER = /^[1-9]\d*$/;
 /** A scheme, path, query, fragment, credentials or whitespace: what a URL has and a host name does not. */
 const NOT_IN_A_HOST = /[\s/?#@]/;
@@ -69,7 +86,17 @@ export function parseRunFlags(flags: RunFlags): RunOptions {
     allowHosts: parseHosts(ALLOW_HOST, flags.allowHost ?? []),
     confirmHosts: parseHosts(CONFIRM_HOST, flags.confirmHost ?? []),
     isYes: flags.yes === true,
+    isMapOnly: flags.mapOnly === true,
+    lenses: parseLenses(flags.lens),
   };
+}
+
+/** A new instance of the lens `name`. Throws `E_USAGE` for a lens that does not exist yet. */
+export function createLens(name: LensName): Lens {
+  if (!isAvailableLens(name)) {
+    throw unknownLens(name);
+  }
+  return LENS_FACTORIES[name]();
 }
 
 /**
@@ -159,6 +186,28 @@ function configChanged(problem: string): LookoverError {
     `Could not save the confirmed backend hosts: ${CONFIG_FILENAME} ${problem}`,
     CONFIG_CHANGED_HINT,
   );
+}
+
+function parseLenses(values: readonly string[] | undefined): readonly AvailableLens[] {
+  if (values === undefined || values.length === 0) {
+    return DEFAULT_LENSES;
+  }
+  return [...new Set(values.map((value) => parseLens(value.trim())))];
+}
+
+function parseLens(name: string): AvailableLens {
+  if (!isAvailableLens(name)) {
+    throw unknownLens(name);
+  }
+  return name;
+}
+
+function isAvailableLens(name: string): name is AvailableLens {
+  return Object.hasOwn(LENS_FACTORIES, name);
+}
+
+function unknownLens(name: string): LookoverError {
+  return new LookoverError('E_USAGE', `--lens "${name}" is not a lens`, LENS_HINT);
 }
 
 function parseMaxScreens(value: string | undefined): number | undefined {
