@@ -33,6 +33,8 @@ const LOGIN_ROUTE = '/login';
 const LOGOUT_PATH = '/logout';
 const ORGANISATION_FIELDS = 4;
 const SIGN_IN_TITLE = /^Sign in\b/;
+/** The one route the bench logs a console error on (seed observers-001). */
+const CONSOLE_ERROR_ROUTE = '/reports';
 
 const CREDENTIALS = {
   LOOKOVER_USERNAME: 'demo@lookover.dev',
@@ -304,7 +306,20 @@ describe('lookover run against the bench app', () => {
   test('reports only rules from the catalogue', async () => {
     const findings = allFindings(await readFindings(project));
 
+    expect(findings.length).toBeGreaterThan(0);
     expect(findings.map((finding) => finding.rule.id).filter((id) => !RULE_IDS.has(id))).toEqual([]);
+  });
+
+  test('reports console errors only where the bench logs one', async () => {
+    const findings = allFindings(await readFindings(project));
+
+    const routes = findings
+      .filter((finding) => finding.rule.id === 'observers.console-error')
+      .flatMap((finding) => (finding.shape === 'occurrence' ? finding.occurrences : []))
+      .map((occurrence) => occurrence.route);
+
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.filter((route) => route !== CONSOLE_ERROR_ROUTE)).toEqual([]);
   });
 
   test('names the React component of an element, since the bench runs in development mode', async () => {
@@ -335,12 +350,12 @@ describe('lookover run against the bench app', () => {
     expect(ofRun).toBe(latest);
   });
 
-  test('gives every finding a fix prompt that names the route it leads with', async () => {
+  test('gives every finding a fix prompt that opens with the route it leads with', async () => {
     const findings = allFindings(await readFindings(project));
 
     const unnamed = findings.filter((finding) => {
       const route = leadRouteOf(finding);
-      return finding.fixPrompt.trim() === '' || route === undefined || !finding.fixPrompt.includes(route);
+      return route === undefined || !finding.fixPrompt.startsWith(`In ${route} (`);
     });
 
     expect(findings.length).toBeGreaterThan(0);
