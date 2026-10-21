@@ -33,6 +33,9 @@ importers:
         specifier: ^19.3
         version: 19.3.1(react@19.3.1)
     devDependencies:
+      '@jayslifecode/lookover-rules':
+        specifier: workspace:*
+        version: link:../../packages/rules
       '@tailwindcss/postcss':
         specifier: ^4.3
         version: 4.3.3
@@ -45,6 +48,9 @@ importers:
       tailwindcss:
         specifier: ^4.3
         version: 4.3.3
+      zod:
+        specifier: ^4.6
+        version: 4.6.7
 
   packages/cli:
     dependencies:
