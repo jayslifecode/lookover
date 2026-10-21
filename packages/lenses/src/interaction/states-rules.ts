@@ -18,10 +18,10 @@ import {
   type StyleValues,
 } from './in-page.js';
 import { measureOn } from './measure.js';
-import type { ForcibleElement, GalleryEntry, GalleryState } from './states.js';
+import type { FocusMarkOn, ForcibleElement, GalleryEntry, GalleryState } from './states.js';
 
 /*
- * The three rules `captureStates` applies to a control once its states are captured, and the two
+ * The three rules `captureStates` applies to a control once its states are captured, and the
  * comparisons they rest on.
  */
 
@@ -32,6 +32,9 @@ const HOVER_RULE = ruleById('interaction.hover-state-missing');
 /** WCAG 2.2 1.4.11 (non-text contrast): a focus indicator needs 3:1 against the colour next to it. */
 const MIN_INDICATOR_RATIO = 3;
 const RATIO_DECIMALS = 2;
+const RATIO_SCALE = 10 ** RATIO_DECIMALS;
+/** The outline style of the browser's own focus ring, which it paints itself, in two tones. */
+const USER_AGENT_RING_STYLE = 'auto';
 /** The roles a pointer user clicks, and so expects hover feedback from. */
 const HOVER_ROLES: ReadonlySet<string> = new Set(['button', 'link']);
 const SNAPSHOT_PARTS = ['self', 'before', 'after'] as const;
@@ -50,7 +53,8 @@ const STATE_LABELS: Readonly<Record<GalleryState, string>> = {
   focus: 'focused',
   active: 'pressed',
 };
-const FOCUS_STYLES = 'computed styles of the control and its ::before/::after, before and after focus';
+const FOCUS_STYLES =
+  'computed styles of the control, its ::before/::after and its nearest ancestors, before and after focus';
 const HOVER_STYLES = 'computed styles of the control and its ::before/::after, before and after hover';
 const INDICATOR_COLOURS = 'the focus indicator colour and the background colour behind the control';
 
@@ -61,6 +65,12 @@ export interface Judged {
   findings: Finding[];
   worthALook: Finding[];
   skipped: LensSkip[];
+}
+
+/** How a control looks in one state: itself, and its nearest ancestors from the parent up. */
+export interface FocusLook {
+  self: StyleSnapshot;
+  ancestors: readonly StyleSnapshot[];
 }
 
 interface Subject {
@@ -80,12 +90,28 @@ export function stateDiffers(rest: StyleSnapshot, forced: StyleSnapshot): boolea
 }
 
 /**
+ * What shows focus: the control itself when any tracked property of it, its `::before` or its
+ * `::after` changes; else the first of its ancestors (`ancestor:1` is the parent) that changes, which
+ * is how a wrapper's `:focus-within` ring shows it; `null` when nothing does. Ancestors are compared
+ * pairwise, as far as both looks have them.
+ */
+export function focusMarkOf(rest: FocusLook, focus: FocusLook): FocusMarkOn | null {
+  if (stateDiffers(rest.self, focus.self)) return 'self';
+  const index = focus.ancestors.findIndex((forced, at) => {
+    const before = rest.ancestors[at];
+    return before !== undefined && stateDiffers(before, forced);
+  });
+  return index === -1 ? null : `ancestor:${index + 1}`;
+}
+
+/**
  * The colour of the mark focus adds around the element, to judge its contrast by: the `outline-color`
- * when focus gives the element a visible outline (not `none`, wider than 0, not fully transparent) that
- * differs from its rest outline; else the colour of the outermost `box-shadow` layer focus adds that
- * can be seen (not transparent, not `inset`, reaching past the box), so the white offset of a ring
- * and the empty layers Tailwind writes are passed over; else `null`: the mark is a fill or text change,
- * an inner ring or something on `::before`/`::after`, and its contrast is not checked.
+ * when focus gives the element a visible outline (not `none` or the browser's own `auto` ring, wider
+ * than 0, not fully transparent) that differs from its rest outline; else the colour of the outermost
+ * `box-shadow` layer focus adds that can be seen (not transparent, not `inset`, reaching past the box),
+ * so the white offset of a ring and the empty layers Tailwind writes are passed over; else `null`: the
+ * mark is a fill or text change, an inner ring or something on `::before`/`::after`, and its contrast
+ * is not checked.
  */
 export function focusIndicatorColor(rest: StyleSnapshot, focus: StyleSnapshot): string | null {
   return outlineIndicator(rest.self, focus.self) ?? shadowIndicator(rest.self, focus.self);
@@ -94,7 +120,9 @@ export function focusIndicatorColor(rest: StyleSnapshot, focus: StyleSnapshot): 
 /**
  * Applies the rules to a control whose states were all captured: `focus-visible-missing` and
  * `focus-indicator-contrast` for a focusable control (into `findings`), `hover-state-missing` for a
- * button or a link (into `worthALook`). An indicator whose background cannot be trusted is skipped.
+ * button or a link (into `worthALook`). Contrast is judged only for a mark the control carries itself
+ * in a colour that can be trusted; the browser's own ring, a mark on an ancestor and an indicator
+ * whose background cannot be trusted are skipped, each with its reason.
  */
 export async function judgeStates(
   context: LensContext,
@@ -113,38 +141,39 @@ export async function judgeStates(
 }
 
 async function judgeFocus(subject: Subject, rest: StyleSnapshot, focus: StyleSnapshot): Promise<Judged> {
-  if (!stateDiffers(rest, focus)) {
+  const { focusMarkOn } = subject.entry;
+  if (focusMarkOn === null) {
     const finding = await stateFinding(subject, FOCUS_VISIBLE_RULE, 'focus', {
       what: FOCUS_STYLES,
       observed: 'shows no change when it receives keyboard focus',
     });
     return { ...NOTHING, findings: [finding] };
   }
+  if (focusMarkOn !== 'self') return skippedFor('focus-indicator-on-ancestor');
+  if (isUserAgentRing(rest.self, focus.self)) return skippedFor('focus-indicator-ua-ring');
   const indicator = focusIndicatorColor(rest, focus);
   return indicator === null ? NOTHING : judgeIndicator(subject, indicator);
+}
+
+function skippedFor(reason: string): Judged {
+  return { ...NOTHING, skipped: [{ reason, count: 1 }] };
 }
 
 async function judgeIndicator(subject: Subject, indicator: string): Promise<Judged> {
   const { cdp } = subject.context.ipage;
   const background = await measureOn<EffectiveBackground>(cdp, subject.element, PARENT_BACKGROUND_SOURCE);
   if (background === null) return NOTHING;
-  if (background.color === null) {
-    return {
-      ...NOTHING,
-      skipped: [{ reason: `focus-indicator-background:${background.uncertain}`, count: 1 }],
-    };
-  }
+  if (background.color === null) return skippedFor(`focus-indicator-background:${background.uncertain}`);
   const mark = parseCssColor(indicator);
   const behind = parseCssColor(background.color);
-  if (mark === null || behind === null) {
-    return { ...NOTHING, skipped: [{ reason: 'focus-indicator-colour-unreadable', count: 1 }] };
-  }
-  const ratio = contrastRatio(blendOver(mark, behind), behind);
+  if (mark === null || behind === null) return skippedFor('focus-indicator-colour-unreadable');
+  // Rounded once, so the ratio it is judged by is the one it reports: "3.00:1" is never a failure.
+  const ratio = Math.round(contrastRatio(blendOver(mark, behind), behind) * RATIO_SCALE) / RATIO_SCALE;
   if (ratio >= MIN_INDICATOR_RATIO) return NOTHING;
   const finding = await stateFinding(subject, INDICATOR_CONTRAST_RULE, 'focus', {
     what: INDICATOR_COLOURS,
     observed: `has a focus outline ${indicator} with ${ratio.toFixed(RATIO_DECIMALS)}:1 contrast against ${background.color}`,
-    measured: { indicator, background: background.color },
+    measured: { indicator, background: background.color, ratio },
   });
   return { ...NOTHING, findings: [finding] };
 }
@@ -161,7 +190,7 @@ interface FindingText {
   what: string;
   observed: string;
   /** Stored with the style snapshots. */
-  measured?: Record<string, string>;
+  measured?: Record<string, string | number>;
 }
 
 /**
@@ -203,7 +232,7 @@ function traceOf(context: LensContext, selector: string, state: ForcedState, wha
 async function evidenceOf(
   { context, entry }: Subject,
   state: ForcedState,
-  measured: Record<string, string>,
+  measured: Record<string, string | number>,
 ): Promise<EvidenceItem[]> {
   const crops = (['rest', state] as const).flatMap((shown): EvidenceItem[] => {
     const ref = entry.crops[shown];
@@ -224,13 +253,22 @@ function pickTarget({ selector, role, name, box }: ForcibleElement): Omit<Elemen
 }
 
 function outlineIndicator(rest: StyleValues, focus: StyleValues): string | null {
-  const isChanged = OUTLINE_PROPERTIES.some((name) => rest[name] !== focus[name]);
-  return isChanged && isVisibleOutline(focus) ? focus['outline-color'] : null;
+  return isOutlineChanged(rest, focus) && isVisibleOutline(focus) ? focus['outline-color'] : null;
+}
+
+/** Focus gives the control the browser's own ring, which Chromium paints in colours that vary by OS. */
+function isUserAgentRing(rest: StyleValues, focus: StyleValues): boolean {
+  return isOutlineChanged(rest, focus) && focus['outline-style'] === USER_AGENT_RING_STYLE;
+}
+
+function isOutlineChanged(rest: StyleValues, focus: StyleValues): boolean {
+  return OUTLINE_PROPERTIES.some((name) => rest[name] !== focus[name]);
 }
 
 function isVisibleOutline(values: StyleValues): boolean {
   return (
     values['outline-style'] !== 'none' &&
+    values['outline-style'] !== USER_AGENT_RING_STYLE &&
     Number.parseFloat(values['outline-width']) > 0 &&
     !isTransparent(values['outline-color'])
   );

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Focus rings on a dark page</title>
+    <style>
+      /* Tailwind's gray-900. */
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #111827;
+        color: #f9fafb;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        margin: 8px;
+        padding: 8px 16px;
+        background-color: #1f2937;
+        color: #f9fafb;
+      }
+      button:hover {
+        background-color: #374151;
+      }
+      #almost,
+      #below {
+        outline: none;
+      }
+      /* 2.998:1 against gray-900, which is 3.00:1 to two decimals: not reported. */
+      #almost:focus-visible {
+        outline: 2px solid rgb(100, 100, 100);
+      }
+      /* 2.95:1 against gray-900: reported. */
+      #below:focus-visible {
+        outline: 2px solid rgb(99, 99, 99);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Keeps the browser's own focus ring, which Chromium paints itself in two tones. -->
+    <button type="button" id="default-ring">Default ring</button>
+    <button type="button" id="almost">Almost 3:1</button>
+    <button type="button" id="below">Below 3:1</button>
+  </body>
+</html>

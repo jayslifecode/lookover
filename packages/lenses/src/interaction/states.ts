@@ -13,9 +13,10 @@ import {
 import type { CDPSession } from 'playwright';
 import { COMPONENT_NAME_SOURCE, STYLE_SNAPSHOT_SOURCE, type StyleSnapshot } from './in-page.js';
 import { evaluateSource, measureOn } from './measure.js';
-import { judgeStates } from './states-rules.js';
+import { focusMarkOf, judgeStates } from './states-rules.js';
 
-export { focusIndicatorColor, stateDiffers } from './states-rules.js';
+export type { FocusLook } from './states-rules.js';
+export { focusIndicatorColor, focusMarkOf, stateDiffers } from './states-rules.js';
 
 /** Per screen, at most this many controls get forced states; the rest are counted in `skipped`. */
 export const MAX_STATE_ELEMENTS = 60;
@@ -23,8 +24,12 @@ export const MAX_STATE_ELEMENTS = 60;
 export const MAX_GALLERY_ELEMENTS = 12;
 /** Room kept around a control in its crop, so an outline or a ring outside its box shows. */
 export const CROP_PADDING_PX = 8;
+/** How many ancestors, from the parent up, can show a control's focus (a wrapper's `:focus-within`). */
+export const MAX_FOCUS_WITHIN_DEPTH = 3;
 
 export type GalleryState = 'rest' | 'hover' | 'focus' | 'active';
+/** What shows a control's focus: itself, or its n-th ancestor (`ancestor:1` is the parent). */
+export type FocusMarkOn = 'self' | `ancestor:${number}`;
 
 /** One control of the screen in each state it was put in. */
 export interface GalleryEntry {
@@ -34,8 +39,10 @@ export interface GalleryEntry {
   componentName: string | null;
   states: Partial<Record<GalleryState, StyleSnapshot>>;
   crops: Partial<Record<GalleryState, EvidenceRef>>;
-  /** Why the control was not put in every state (`disabled`, `no-backend-node`, `gone`); `null` when it was. */
+  /** Why it was not put in every state (`disabled`, `no-backend-node`, `gone`); `null` when it was. */
   skipped: string | null;
+  /** What changed under forced focus (see `focusMarkOf`); `null` when nothing did or it was not forced. */
+  focusMarkOn: FocusMarkOn | null;
 }
 
 /** One stop of the Tab walk, in the order focus reached it. */
@@ -81,12 +88,19 @@ const NOT_IN_DOCUMENT = 0;
  */
 const UNKNOWN_NODE_ERROR = 'Could not find node with given id';
 
-/** The states in the order they are captured, and the pseudo-classes forced for each. */
-const GALLERY_STATES: readonly { state: GalleryState; forced: readonly PseudoState[] }[] = [
-  { state: 'rest', forced: [] },
-  { state: 'hover', forced: ['hover'] },
-  { state: 'focus', forced: ['focus', 'focus-visible'] },
-  { state: 'active', forced: ['active'] },
+/**
+ * The states in the order they are captured, the pseudo-classes forced for each, and whether the
+ * control's nearest ancestors are snapshotted too (only to tell where focus shows).
+ */
+const GALLERY_STATES: readonly {
+  state: GalleryState;
+  forced: readonly PseudoState[];
+  withAncestors: boolean;
+}[] = [
+  { state: 'rest', forced: [], withAncestors: true },
+  { state: 'hover', forced: ['hover'], withAncestors: false },
+  { state: 'focus', forced: ['focus', 'focus-visible'], withAncestors: true },
+  { state: 'active', forced: ['active'], withAncestors: false },
 ];
 
 /*
@@ -124,14 +138,29 @@ function placeInView(this: Element): Placement | null {
   return { rect: { x, y, width, height }, viewportWidth: clientWidth, viewportHeight: clientHeight };
 }
 
+function ancestorSnapshots(
+  this: Element,
+  depth: number,
+  settle: (this: Element) => void,
+  snapshot: (this: Element) => StyleSnapshot,
+): StyleSnapshot[] | null {
+  if (!this.isConnected) return null;
+  const snapshots: StyleSnapshot[] = [];
+  for (let node = this.parentElement; node !== null && snapshots.length < depth; node = node.parentElement) {
+    settle.call(node);
+    snapshots.push(snapshot.call(node));
+  }
+  return snapshots;
+}
+
 function blurActiveElement(): void {
   const active = document.activeElement;
   if (active instanceof HTMLElement || active instanceof SVGElement) active.blur();
 }
 
 /*
- * The two sources below are `null` for an element no longer in the document: Chromium still resolves a
- * removed element that is alive, and its computed style is then all empty strings.
+ * The three sources below are `null` for an element no longer in the document: Chromium still resolves
+ * a removed element that is alive, and its computed style is then all empty strings.
  */
 
 /**
@@ -142,6 +171,8 @@ function blurActiveElement(): void {
 const SETTLED_SNAPSHOT_SOURCE = `function () { if (!this.isConnected) return null; (${finishTransitions.toString()}).call(this); return (${STYLE_SNAPSHOT_SOURCE}).call(this); }`;
 /** `{ componentName, classes }`: the React component (`COMPONENT_NAME_SOURCE`) and the sorted class list. */
 const IDENTITY_SOURCE = `function () { if (!this.isConnected) return null; return { componentName: (${COMPONENT_NAME_SOURCE}).call(this), classes: (${classList.toString()}).call(this) }; }`;
+/** `SETTLED_SNAPSHOT_SOURCE` for each of the `MAX_FOCUS_WITHIN_DEPTH` nearest ancestors, parent first. */
+const ANCESTOR_SNAPSHOTS_SOURCE = `function () { return (${ancestorSnapshots.toString()}).call(this, ${MAX_FOCUS_WITHIN_DEPTH}, ${finishTransitions.toString()}, ${STYLE_SNAPSHOT_SOURCE}); }`;
 const PLACE_IN_VIEW_SOURCE = placeInView.toString();
 const BLUR_SOURCE = blurActiveElement.toString();
 /** Ends the transitions a cleared state started, so the page is back at rest for whatever measures next. */
@@ -159,7 +190,21 @@ interface Walked {
   skipped: LensSkip[];
 }
 
-type Shots = Pick<GalleryEntry, 'states' | 'crops' | 'skipped'>;
+type Shots = Pick<GalleryEntry, 'states' | 'crops' | 'skipped' | 'focusMarkOn'>;
+
+/** What the states captured so far hold, the ancestors' snapshots included. */
+interface Taken {
+  states: GalleryEntry['states'];
+  crops: GalleryEntry['crops'];
+  ancestors: Partial<Record<GalleryState, readonly StyleSnapshot[]>>;
+}
+
+interface Shot {
+  snapshot: StyleSnapshot;
+  /** Empty unless asked for. */
+  ancestors: readonly StyleSnapshot[];
+  crop: EvidenceRef | null;
+}
 
 /**
  * Puts the screen's controls, in reading order, at rest and then in a forced `:hover`, `:focus` (with
@@ -167,7 +212,9 @@ type Shots = Pick<GalleryEntry, 'states' | 'crops' | 'skipped'>;
  * first `MAX_GALLERY_ELEMENTS` class signatures (`tag` and sorted class list) in every state. Only the
  * first `MAX_STATE_ELEMENTS` controls are taken (`state-elements-cap`); a disabled control is recorded
  * at rest only; past `context.deadline` the rest are left out (`time-budget`). Focus is first moved
- * off whatever has it, so no control's rest state shows its focus mark.
+ * off whatever has it, so no control's rest state shows its focus mark. At rest and with focus, the
+ * `MAX_FOCUS_WITHIN_DEPTH` nearest ancestors are snapshotted too, to tell where focus shows
+ * (`GalleryEntry.focusMarkOn`).
  *
  * Every node id is pushed once, before anything is forced, and states are measured by backend node id
  * only: requesting the document again would strand the forced states (see `forcePseudoState`). Each
@@ -250,6 +297,7 @@ async function captureElement(
     states: {},
     crops: {},
     skipped: null,
+    focusMarkOn: null,
   };
   if (!isForcible(element)) return { entry: { ...blank, skipped: SKIP_NO_BACKEND_NODE }, signatures };
   const nodeId = nodeIds.get(element.backendNodeId) ?? NOT_IN_DOCUMENT;
@@ -260,7 +308,7 @@ async function captureElement(
   if (identity === null) return { entry: { ...blank, skipped: SKIP_GONE }, signatures };
   const named = { ...blank, componentName: identity.componentName };
   if (element.disabled) {
-    const rest = await captureState(context, element, false);
+    const rest = await captureState(context, element, false, false);
     const states = rest === null ? {} : { rest: rest.snapshot };
     return { entry: { ...named, states, skipped: rest === null ? SKIP_GONE : SKIP_DISABLED }, signatures };
   }
@@ -279,19 +327,32 @@ async function captureEveryState(
   nodeId: number,
   isCropped: boolean,
 ): Promise<Shots> {
-  let shots: Shots = { states: {}, crops: {}, skipped: null };
-  for (const { state, forced } of GALLERY_STATES) {
+  let taken: Taken = { states: {}, crops: {}, ancestors: {} };
+  for (const { state, forced, withAncestors } of GALLERY_STATES) {
     const shot = await whileForced(context.ipage.cdp, nodeId, forced, () =>
-      captureState(context, element, isCropped),
+      captureState(context, element, isCropped, withAncestors),
     );
-    if (shot === null) return { ...shots, skipped: SKIP_GONE };
-    shots = {
-      states: { ...shots.states, [state]: shot.snapshot },
-      crops: shot.crop === null ? shots.crops : { ...shots.crops, [state]: shot.crop },
-      skipped: null,
+    if (shot === null) return shotsOf(taken, SKIP_GONE);
+    taken = {
+      states: { ...taken.states, [state]: shot.snapshot },
+      crops: shot.crop === null ? taken.crops : { ...taken.crops, [state]: shot.crop },
+      ancestors: { ...taken.ancestors, [state]: shot.ancestors },
     };
   }
-  return shots;
+  return shotsOf(taken, null);
+}
+
+/** The gallery's part of what was taken: the ancestors' snapshots only decide where focus shows. */
+function shotsOf({ states, crops, ancestors }: Taken, skipped: string | null): Shots {
+  const { rest, focus } = states;
+  const focusMarkOn =
+    rest === undefined || focus === undefined
+      ? null
+      : focusMarkOf(
+          { self: rest, ancestors: ancestors.rest ?? [] },
+          { self: focus, ancestors: ancestors.focus ?? [] },
+        );
+  return { states, crops, skipped, focusMarkOn };
 }
 
 /**
@@ -329,15 +390,24 @@ async function forceUnlessGone(
   }
 }
 
-/** The control's style snapshot in the state it is in, and its crop when it is cropped; `null` once it is gone. */
+/**
+ * The control's style snapshot in the state it is in, its nearest ancestors' when asked, and its crop
+ * when it is cropped; `null` once it is gone.
+ */
 async function captureState(
   context: LensContext,
   element: ForcibleElement,
   isCropped: boolean,
-): Promise<{ snapshot: StyleSnapshot; crop: EvidenceRef | null } | null> {
-  const snapshot = await measureOn<StyleSnapshot>(context.ipage.cdp, element, SETTLED_SNAPSHOT_SOURCE);
+  withAncestors: boolean,
+): Promise<Shot | null> {
+  const { cdp } = context.ipage;
+  const snapshot = await measureOn<StyleSnapshot>(cdp, element, SETTLED_SNAPSHOT_SOURCE);
   if (snapshot === null) return null;
-  return { snapshot, crop: isCropped ? await cropOf(context, element) : null };
+  const ancestors = withAncestors
+    ? await measureOn<StyleSnapshot[]>(cdp, element, ANCESTOR_SNAPSHOTS_SOURCE)
+    : [];
+  if (ancestors === null) return null;
+  return { snapshot, ancestors, crop: isCropped ? await cropOf(context, element) : null };
 }
 
 /**

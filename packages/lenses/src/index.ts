@@ -34,6 +34,8 @@ export {
 } from './interaction/in-page.js';
 export { evaluateSource, measureOn } from './interaction/measure.js';
 export type {
+  FocusLook,
+  FocusMarkOn,
   FocusStop,
   GalleryEntry,
   GalleryState,
@@ -44,6 +46,8 @@ export {
   CROP_PADDING_PX,
   captureStates,
   focusIndicatorColor,
+  focusMarkOf,
+  MAX_FOCUS_WITHIN_DEPTH,
   MAX_GALLERY_ELEMENTS,
   MAX_STATE_ELEMENTS,
   stateDiffers,

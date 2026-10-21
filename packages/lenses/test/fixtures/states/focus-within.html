@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Focus marks on a wrapper</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        font: 16px/1.5 sans-serif;
+      }
+      input {
+        border: none;
+        outline: none;
+        font: inherit;
+      }
+      /* The input group pattern: the wrapper shows the ring while the input inside has focus. */
+      .field {
+        display: flex;
+        gap: 8px;
+        margin: 16px 0;
+        padding: 4px 8px;
+        border: 1px solid #6b7280;
+        border-radius: 6px;
+      }
+      .field:focus-within {
+        box-shadow: 0 0 0 3px #1d4ed8;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- The ring is on the input's grandparent: within the three ancestors looked at. -->
+    <div class="field">
+      <span class="affix"><input id="in-field" aria-label="Search" /></span>
+    </div>
+    <!-- The ring is on the fourth ancestor up: too far to count. -->
+    <div class="field">
+      <div><div><div><input id="too-deep" aria-label="Filter" /></div></div></div>
+    </div>
+    <!-- No ring anywhere. -->
+    <input id="bare" aria-label="Name" />
+  </body>
+</html>

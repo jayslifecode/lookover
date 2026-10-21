@@ -15,7 +15,9 @@ import {
   CROP_PADDING_PX,
   captureStates,
   focusIndicatorColor,
+  focusMarkOf,
   type GalleryEntry,
+  MAX_FOCUS_WITHIN_DEPTH,
   MAX_GALLERY_ELEMENTS,
   MAX_STATE_ELEMENTS,
   type StatesResult,
@@ -123,6 +125,37 @@ describe('focusIndicatorColor', () => {
     ).toBeNull();
     expect(focusIndicatorColor(snapshot(), snapshot({}, outline(BLUE)))).toBeNull();
   });
+
+  test("is null for the browser's own ring, which it paints itself in a colour that depends on the platform", () => {
+    expect(focusIndicatorColor(snapshot(), snapshot(outline('rgb(0, 95, 204)', 'auto')))).toBeNull();
+  });
+});
+
+describe('focusMarkOf', () => {
+  const ring = snapshot({ 'box-shadow': `${BLUE} 0px 0px 0px 3px` });
+
+  test('is the control itself when it changes, whatever its ancestors do', () => {
+    const rest = { self: snapshot(), ancestors: [snapshot()] };
+
+    expect(focusMarkOf(rest, { self: snapshot({ 'outline-style': 'auto' }), ancestors: [ring] })).toBe(
+      'self',
+    );
+  });
+
+  test('is the first ancestor that changes, counted from the parent', () => {
+    const rest = { self: snapshot(), ancestors: [snapshot(), snapshot(), snapshot()] };
+
+    expect(focusMarkOf(rest, { self: snapshot(), ancestors: [snapshot(), ring, ring] })).toBe('ancestor:2');
+  });
+
+  test('is null when neither the control nor an ancestor changes', () => {
+    const rest = { self: snapshot(), ancestors: [snapshot()] };
+
+    expect(focusMarkOf(rest, { self: snapshot(), ancestors: [snapshot()] })).toBeNull();
+    expect(
+      focusMarkOf({ self: snapshot(), ancestors: [] }, { self: snapshot(), ancestors: [ring] }),
+    ).toBeNull();
+  });
 });
 
 describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
@@ -220,7 +253,7 @@ describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
           { kind: 'force-state', selector: '#none', state: 'focus' },
           {
             kind: 'measure',
-            what: 'computed styles of the control and its ::before/::after, before and after focus',
+            what: 'computed styles of the control, its ::before/::after and its nearest ancestors, before and after focus',
           },
         ],
       });
@@ -292,7 +325,11 @@ describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(hover.states.rest?.self['background-color']).toBe(REST_BUTTON_BACKGROUND);
       expect(hover.states.hover?.self['background-color']).toBe('rgb(219, 234, 254)');
       expect(entryFor(result, '#search').states.rest?.self['outline-style']).toBe('none');
-      expect(result.skipped).toEqual([]);
+      expect(
+        ['#none', '#ok', '#after', '#off'].map((selector) => entryFor(result, selector).focusMarkOn),
+      ).toEqual([null, 'self', 'self', null]);
+      // The nine focusable controls that keep the browser's own ring: their contrast is not judged.
+      expect(result.skipped).toEqual([{ reason: 'focus-indicator-ua-ring', count: 9 }]);
     });
 
     test('crops each state while it is forced, padded around the control', async () => {
@@ -424,6 +461,47 @@ describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(cropped.map((entry) => entry.selector)).toEqual(
         Array.from({ length: MAX_GALLERY_ELEMENTS }, (_, index) => `#k${index + 1}`),
       );
+    });
+
+    test("skips the browser's own focus ring rather than judge its platform colour on a dark page", async () => {
+      const context = await open('dark.html');
+
+      const result = await captureStates(context, context.screen.elements);
+
+      expect(selectorsFor(result.findings, INDICATOR_CONTRAST)).toEqual(['#below']);
+      expect(entryFor(result, '#default-ring').focusMarkOn).toBe('self');
+      expect(result.skipped).toEqual([{ reason: 'focus-indicator-ua-ring', count: 1 }]);
+    });
+
+    test('rounds the ratio once, so it is judged by the number it reports', async () => {
+      const context = await open('dark.html');
+
+      const result = await captureStates(context, context.screen.elements);
+
+      // #almost is 2.998:1, which is 3.00:1 to two decimals: it passes rather than read "3.00:1" as a failure.
+      const [below] = result.findings.filter((finding) => finding.rule.id === INDICATOR_CONTRAST);
+      expect(below?.observed).toBe(
+        'has a focus outline rgb(99, 99, 99) with 2.95:1 contrast against rgb(17, 24, 39)',
+      );
+      const styles = below?.evidence.find((item) => item.kind === 'styles');
+      if (styles === undefined) throw new Error('expected the styles evidence');
+      expect(JSON.parse(await readFile(run.ctx.evidence.resolve(styles.ref), 'utf8'))).toMatchObject({
+        indicator: 'rgb(99, 99, 99)',
+        background: 'rgb(17, 24, 39)',
+        ratio: 2.95,
+      });
+    });
+
+    test('accepts a focus mark on an ancestor within three levels and leaves its contrast unjudged', async () => {
+      const context = await open('focus-within.html');
+
+      const result = await captureStates(context, context.screen.elements);
+
+      expect(MAX_FOCUS_WITHIN_DEPTH).toBe(3);
+      expect(selectorsFor(result.findings, FOCUS_VISIBLE)).toEqual(['#too-deep', '#bare']);
+      expect(entryFor(result, '#in-field').focusMarkOn).toBe('ancestor:2');
+      expect(entryFor(result, '#too-deep').focusMarkOn).toBeNull();
+      expect(result.skipped).toEqual([{ reason: 'focus-indicator-on-ancestor', count: 1 }]);
     });
 
     test('skips a focus ring whose background or colour cannot be read, and says why', async () => {
