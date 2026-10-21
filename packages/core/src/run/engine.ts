@@ -1,7 +1,7 @@
 import { join, resolve } from 'node:path';
-import { checkStorageState, type EnsureAuthOptions, ensureAuth, isLoginUrl } from '../browser/auth.js';
+import { type EnsureAuthOptions, ensureAuth, isLoginUrl } from '../browser/auth.js';
 import { isAllowedHost, normaliseHost } from '../browser/network-policy.js';
-import { BrowserSession, type SessionOptions } from '../browser/session.js';
+import type { BrowserSession } from '../browser/session.js';
 import { assertAcknowledged, CONFIG_FILENAME } from '../config/load.js';
 import type { LookoverConfig } from '../config/schema.js';
 import { LookoverError } from '../errors.js';
@@ -12,7 +12,8 @@ import type { AppMap, RouteInfo, Screen, Viewport } from '../map/types.js';
 import { type ConfirmHosts, confirmBackends } from './backend-probe.js';
 import type { RunEvent } from './events.js';
 import type { RunContext } from './run-context.js';
-import { firstLine, messageOf, recordFailure, SessionRecorder } from './session-recorder.js';
+import { launchSession, usingSession } from './session-launch.js';
+import { recordFailure, SessionRecorder } from './session-recorder.js';
 
 export interface DiscoveryHooks {
   /**
@@ -58,8 +59,6 @@ interface CrawlPlan {
 
 const STATE_DIR = 'state';
 const ROOT_SEED = '/';
-/** How Playwright names a storage state it cannot read or will not accept. */
-const STORAGE_STATE_ERROR = /storage ?state/i;
 
 /**
  * Stage 1 end to end, recorded in the run log from `run.started` to `run.finished`:
@@ -191,43 +190,6 @@ function afterRecorded(
 /** A storage state path is relative to the project directory, not to wherever the process runs. */
 function resolveAuth(auth: Auth, cwd: string): Auth {
   return auth.type === 'storageState' ? { ...auth, path: resolve(cwd, auth.path) } : auth;
-}
-
-/**
- * Launches the session. A storage state is checked first, so a missing or malformed file fails as the
- * auth problem it is (`E_AUTH_FAILED` naming the file) rather than as a browser error; so does a file the
- * browser still rejects, such as one holding a cookie it cannot use.
- */
-async function launchSession(options: SessionOptions): Promise<BrowserSession> {
-  const statePath = options.storageStatePath;
-  if (statePath !== undefined) {
-    await checkStorageState(statePath);
-  }
-  try {
-    return await BrowserSession.launch(options);
-  } catch (error) {
-    if (statePath === undefined || !STORAGE_STATE_ERROR.test(messageOf(error))) {
-      throw error;
-    }
-    throw new LookoverError(
-      'E_AUTH_FAILED',
-      `The browser rejected the storage state file ${statePath}: ${firstLine(error)}`,
-      `Save the storage state again with Playwright, or point auth.path in ${CONFIG_FILENAME} at another file`,
-    );
-  }
-}
-
-/** Runs `use`, then closes the session. When `use` failed, its error is the one surfaced. */
-async function usingSession<T>(session: BrowserSession, use: () => Promise<T>): Promise<T> {
-  let result: T;
-  try {
-    result = await use();
-  } catch (error) {
-    await session.close().catch(() => undefined);
-    throw error;
-  }
-  await session.close();
-  return result;
 }
 
 /** Logs the session in as `auth` says and records how; the crawl runs it again when a form login is lost. */
