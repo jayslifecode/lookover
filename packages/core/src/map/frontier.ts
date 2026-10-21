@@ -39,7 +39,7 @@ export interface NextScreen {
 /**
  * The breadth-first queue and the crawl's bounds. Every screen taken from the queue becomes one
  * captured screen, so the budget counts those plus the ones still queued, except for a visit that
- * turns out to land on a screen captured before (see `markCaptured`).
+ * turns out to land on a screen captured before or on a full route (see `markCaptured`).
  */
 export class Frontier {
   private readonly queue: QueuedScreen[] = [];
@@ -83,19 +83,35 @@ export class Frontier {
   }
 
   /**
-   * Records that the page landed on `url` and that a screen is captured for it, whichever URL was
-   * requested. Returns `false` when a screen for it was captured before: that visit gives no screen,
-   * so it gives its place in the budget back. `url` is also seen from now on, so a link to it later
-   * is ignored like any URL seen before.
+   * Records that the page, asked for `requested`, landed on `landed`, and that a screen is captured
+   * for it. Returns `false` when it must not be: a screen for `landed` was captured before, or a
+   * redirect moved the screen to a route that is already captured `maxPerRoute` times (the requested
+   * route was counted when it was queued; the landed one is counted here). Either way that visit
+   * gives no screen, so it gives its place in the budget back. A captured `landed` is also seen from
+   * now on, so a link to it later is ignored like any URL seen before.
    */
-  markCaptured(url: URL): boolean {
-    const key = routeKey(url);
-    this.seen.add(key);
-    if (this.captured.has(key)) {
+  markCaptured(landed: URL, requested: URL): boolean {
+    const key = routeKey(landed);
+    if (this.captured.has(key) || !this.claimLandedRoute(landed, requested)) {
       this.taken -= 1;
       return false;
     }
+    this.seen.add(key);
     this.captured.add(key);
+    return true;
+  }
+
+  /** Counts the screen against the route it landed on, unless a redirect left its route as it was. */
+  private claimLandedRoute(landed: URL, requested: URL): boolean {
+    const route = routeOf(landed, this.base, this.opts.routes);
+    if (route === routeOf(requested, this.base, this.opts.routes)) {
+      return true;
+    }
+    const instances = this.perRoute.get(route) ?? 0;
+    if (instances >= this.opts.maxPerRoute) {
+      return false;
+    }
+    this.perRoute.set(route, instances + 1);
     return true;
   }
 

@@ -33,7 +33,7 @@ Lookover drives Chromium through Playwright. If Playwright's Chromium is not on 
 
 A form login reads its credentials from `LOOKOVER_USERNAME` and `LOOKOVER_PASSWORD`; the config stores only the names of those variables, never the values.
 
-To use a session you saved with Playwright instead, set `"auth": { "type": "storageState", "path": "state.json", "loginUrl": "/login" }` in `lookover.config.json`. A saved session cannot log in again, so if the app ends it during a run, Lookover stops with `E_AUTH_FAILED` and asks you to save it again. It can only tell from `loginUrl`: without it, a lost session goes unnoticed and the login page is mapped in place of every screen behind it.
+To use a session you saved with Playwright instead, set `"auth": { "type": "storageState", "path": "state.json", "loginUrl": "/login" }` in `lookover.config.json`. A saved session cannot log in again, so if the app ends it during a run, Lookover stops with `E_AUTH_FAILED` and asks you to save it again. It can only tell from `loginUrl`: without it, a lost session goes unnoticed. The login page is mapped once, under its own URL (the screen it was reached from is recorded as `redirectedFrom`), and every later screen that redirects to it is skipped as a duplicate; a login URL that differs by query each time is mapped at most as often as one dynamic route is (two by default).
 
 `lookover run` prints a line per screen and a summary. Against the bench app in this repository:
 

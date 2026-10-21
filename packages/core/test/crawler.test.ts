@@ -518,6 +518,11 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
       app = await serveFixture(REDIRECT_DIR, {
         '/': (_req, res) => redirect(res, '/home.html'),
         '/away': (_req, res) => redirect(res, `${elsewhere.url}/home.html?${SECRET_QUERY}`),
+        // A login redirect that remembers where it came from, as NextAuth's `callbackUrl` does.
+        '/private/:page': (req, res) => {
+          const page = new URL(req.url ?? '/', app.url).pathname.split('/').pop();
+          redirect(res, `/login.html?next=${page}`);
+        },
       });
     }, BROWSER_TIMEOUT_MS);
 
@@ -590,6 +595,39 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
       ]);
       expect(eventsOf(events, 'screen.discovered').map((event) => event.url)).toEqual([`${app.url}/`]);
     });
+
+    test.each([1, 2])(
+      'maps pages that redirect to a login URL carrying their own path at most maxPerRoute (%i) times',
+      async (maxPerRoute) => {
+        const pages = ['a', 'b', 'c'];
+
+        const { screens, events } = await crawlSite({
+          baseUrl: app.url,
+          seeds: pages.map((page) => `/private/${page}`),
+          maxScreens: 5,
+          maxPerRoute,
+        });
+
+        const mapped = pages.slice(0, maxPerRoute);
+        const skipped = pages.slice(maxPerRoute);
+        expect(screens.map((screen) => [screen.url, screen.route, screen.redirectedFrom])).toEqual(
+          mapped.map((page) => [
+            `${app.url}/login.html?next=${page}`,
+            '/login.html',
+            `${app.url}/private/${page}`,
+          ]),
+        );
+        expect(eventsOf(events, 'screen.skipped')).toEqual(
+          skipped.map((page) =>
+            expect.objectContaining({
+              url: `${app.url}/private/${page}`,
+              reason: 'redirected-duplicate',
+              landed: `${app.url}/login.html?next=${page}`,
+            }),
+          ),
+        );
+      },
+    );
 
     test('a redirect off the app is a failed screen without the foreign URL', async () => {
       const { screens, events } = await crawlApp(['/away']);

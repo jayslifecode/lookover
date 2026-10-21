@@ -77,9 +77,10 @@ const SCREEN_ID_LENGTH = 10;
  * each logged once as `screen.skipped`, checked in that order. A URL seen before is ignored.
  *
  * A page that redirects inside the app is recorded once, under the URL it landed on (`url`, `route`
- * and `id` are the landed ones, `redirectedFrom` the URL asked for). Landing on a screen captured
- * before records nothing and logs `screen.skipped` as `redirected-duplicate`, which a queued URL
- * that a redirect captured first gets too. A redirect off the app fails the screen.
+ * and `id` are the landed ones, `redirectedFrom` the URL asked for), and counts toward `maxPerRoute`
+ * for the route it landed on. Landing on a screen captured before, or on a route that is already
+ * full, records nothing and logs `screen.skipped` as `redirected-duplicate`, which a queued URL that
+ * a redirect captured first gets too. A redirect off the app fails the screen.
  *
  * Logs `screen.discovered` before each visit and `screen.captured` after it, then
  * `screen.truncated` when the screen had more controls than the extractor keeps. A navigation that
@@ -221,7 +222,7 @@ class Crawler {
       // Only the origin: the rest of the foreign URL may carry a token, and is not the app's to record.
       return this.failed(`redirected outside the app to ${landed.origin}`);
     }
-    if (!this.frontier.markCaptured(landed)) {
+    if (!this.frontier.markCaptured(landed, url)) {
       return { kind: 'duplicate', landed };
     }
     try {
