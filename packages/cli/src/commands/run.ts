@@ -22,6 +22,7 @@ import {
   collectRepeated,
   configForRun,
   createLens,
+  LENS_FLAG_HELP,
   parseRunFlags,
   type RunFlags,
   type RunOptions,
@@ -72,11 +73,7 @@ export function registerRun(program: Command): void {
       'never prompt: a backend not confirmed in the config or with --confirm-host stops the run',
     )
     .option('--map-only', 'only map the app: run no lenses and no observers, so there are no candidates')
-    .option(
-      '--lens <name>',
-      'inspect each screen with this lens (repeatable; available: interaction, which is the default)',
-      collectRepeated,
-    )
+    .option('--lens <name>', LENS_FLAG_HELP, collectRepeated)
     .action(runRun);
 }
 

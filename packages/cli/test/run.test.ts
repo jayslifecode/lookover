@@ -10,6 +10,7 @@ import {
   collectRepeated,
   configForRun,
   createLens,
+  LENS_FLAG_HELP,
   mergeHosts,
   parseRunFlags,
   saveConfirmedHosts,
@@ -148,6 +149,14 @@ describe('createLens', () => {
 
     expect(error.code).toBe('E_USAGE');
     expect(error.hint).toBe('Available lenses: interaction');
+  });
+});
+
+describe('LENS_FLAG_HELP', () => {
+  test('names the lenses --lens takes and the default, from the list the error hint names', () => {
+    expect(LENS_FLAG_HELP).toBe(
+      'inspect each screen with this lens (repeatable; available: interaction; default: interaction)',
+    );
   });
 });
 
@@ -313,6 +322,13 @@ describe('lookover run', () => {
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
+  });
+
+  test('--help describes --lens with the lenses there are', async () => {
+    const result = await runCli(dir, ['run', '--help']);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout.replace(/\s+/g, ' ')).toContain(LENS_FLAG_HELP);
   });
 
   test('exits 2 with E_CONFIG_NOT_FOUND when there is no lookover.config.json', async () => {

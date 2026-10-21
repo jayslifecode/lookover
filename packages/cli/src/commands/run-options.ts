@@ -62,8 +62,12 @@ const LENS_FACTORIES = {
 } as const satisfies Partial<Record<LensName, () => Lens>>;
 type AvailableLens = keyof typeof LENS_FACTORIES;
 
+/** The lenses `--lens` takes, in the order they are listed. */
+const AVAILABLE_LENSES = Object.keys(LENS_FACTORIES) as AvailableLens[];
 const DEFAULT_LENSES: readonly AvailableLens[] = ['interaction'];
-const LENS_HINT = `Available lenses: ${Object.keys(LENS_FACTORIES).join(', ')}`;
+const LENS_HINT = `Available lenses: ${AVAILABLE_LENSES.join(', ')}`;
+/** `--lens` in `lookover run --help`, from the same list as the hint of an unknown lens. */
+export const LENS_FLAG_HELP = `inspect each screen with this lens (repeatable; available: ${AVAILABLE_LENSES.join(', ')}; default: ${DEFAULT_LENSES.join(', ')})`;
 const POSITIVE_INTEGER = /^[1-9]\d*$/;
 /** A scheme, path, query, fragment, credentials or whitespace: what a URL has and a host name does not. */
 const NOT_IN_A_HOST = /[\s/?#@]/;
