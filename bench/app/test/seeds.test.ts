@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, sep } from 'node:path';
-import { RULE_IDS, SEVERITIES } from '@jayslifecode/lookover-rules';
+import { RULE_IDS, ruleById, SEVERITIES } from '@jayslifecode/lookover-rules';
 import { describe, expect, test } from 'vitest';
 import { z } from 'zod';
 
@@ -72,6 +72,18 @@ describe('bench/seeds.json', () => {
     const unknown = readSeeds().filter((seed) => !RULE_IDS.has(seed.rule));
 
     expect(unknown.map((seed) => `${seed.id}: ${seed.rule}`)).toEqual([]);
+  });
+
+  test("every expectedSeverity is the catalogue's severity for its rule", () => {
+    const known = readSeeds().filter((seed) => RULE_IDS.has(seed.rule));
+
+    const mismatched = known.filter((seed) => seed.expectedSeverity !== ruleById(seed.rule).severity);
+
+    expect(
+      mismatched.map(
+        (seed) => `${seed.id}: ${seed.expectedSeverity}, ${seed.rule} is ${ruleById(seed.rule).severity}`,
+      ),
+    ).toEqual([]);
   });
 });
 

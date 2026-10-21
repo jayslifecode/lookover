@@ -5,8 +5,8 @@ import { ICON_ACTION } from './styles';
 async function copyToClipboard(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
-  } catch (error) {
-    console.error('Could not copy the email address', error);
+  } catch {
+    // A denied or unfocused clipboard (headless browsers included) is not worth a console message.
   }
 }
 

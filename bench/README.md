@@ -71,7 +71,7 @@ each measured run.
 
 ## Seeds
 
-`bench/seeds.json` lists every seeded issue and control:
+`bench/seeds.json` lists every seeded issue and control; for example:
 
 ```json
 {
