@@ -1,4 +1,5 @@
 import { BUILD_SELECTOR_SOURCE, type SelectorCandidate } from '@jayslifecode/lookover-core';
+import { COLOUR_READER_SOURCE, type ColourReader, type Painted } from './colour-in-page.js';
 
 /*
  * Everything a lens measures inside the page. Each `*_SOURCE` is the source text of a function that
@@ -128,54 +129,6 @@ function styleSnapshot(this: Element, properties: readonly StateStyleProperty[])
  */
 export const STYLE_SNAPSHOT_SOURCE = `function () { return (${styleSnapshot.toString()}).call(this, ${JSON.stringify(STATE_STYLE_PROPERTIES)}); }`;
 
-/** A colour in sRGB as one pixel holds it: channels from 0 to 255, alpha from 0 to 1. */
-interface Painted {
-  r: number;
-  g: number;
-  b: number;
-  a: number;
-}
-
-/** How the in-page sources read a computed colour, whatever syntax Chromium computed it in. */
-interface ColourReader {
-  /** The colour as Chromium paints it into one pixel of an sRGB canvas, read back. */
-  paint(color: string): Painted;
-  /** The colour in sRGB, as `rgb(r, g, b)` or `rgba(r, g, b, a)`. */
-  asRgb(color: string): string;
-}
-
-/**
- * Reads colours through a 1×1 sRGB canvas. Computed styles keep the colour space a colour was written
- * in (Tailwind 4.3's palette computes to `lab()`, v4.0's to `oklch()`, `color-mix()` to `oklab()`),
- * and so does the canvas's own `fillStyle`; only a painted pixel is sRGB whatever came in. `asRgb`
- * keeps an sRGB colour with alpha as Chromium writes it back (`rgba(…)`, exact) and paints anything
- * else, so a colour in another space with alpha is as exact as the pixel's 8 bits.
- */
-function colourReader(): ColourReader {
-  const MAX_CHANNEL = 255;
-  const ALPHA_DECIMALS = 3;
-  const SRGB_WITH_ALPHA = 'rgba(';
-  const context = new OffscreenCanvas(1, 1).getContext('2d', { willReadFrequently: true });
-  if (context === null) {
-    throw new Error('colourReader: no 2D canvas to read colours with');
-  }
-  const paint = (color: string): Painted => {
-    context.clearRect(0, 0, 1, 1);
-    context.fillStyle = color;
-    context.fillRect(0, 0, 1, 1);
-    const [r = 0, g = 0, b = 0, a = 0] = context.getImageData(0, 0, 1, 1).data;
-    return { r, g, b, a: a / MAX_CHANNEL };
-  };
-  const asRgb = (color: string): string => {
-    context.fillStyle = color;
-    const written = String(context.fillStyle);
-    if (written.startsWith(SRGB_WITH_ALPHA)) return written;
-    const { r, g, b, a } = paint(color);
-    return a === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${Number(a.toFixed(ALPHA_DECIMALS))})`;
-  };
-  return { paint, asRgb };
-}
-
 function effectiveBackground(this: Element, colours: ColourReader): EffectiveBackground {
   const OPAQUE_ALPHA = 0.999;
   type Layer = Painted;
@@ -224,7 +177,7 @@ function effectiveBackground(this: Element, colours: ColourReader): EffectiveBac
  * change the colours of everything inside), or when no layer up to `<html>` makes it opaque
  * (`never-opaque`: the browser's canvas colour shows through, and that depends on the colour scheme).
  */
-export const EFFECTIVE_BACKGROUND_SOURCE = `function () { return (${effectiveBackground.toString()}).call(this, (${colourReader.toString()})()); }`;
+export const EFFECTIVE_BACKGROUND_SOURCE = `function () { return (${effectiveBackground.toString()}).call(this, (${COLOUR_READER_SOURCE})()); }`;
 
 function componentName(this: Element): string | null {
   const FIBER_KEY_PREFIX = '__reactFiber$';
@@ -309,7 +262,7 @@ function textSample(this: Element, colours: ColourReader): TextSample | null {
  * `background-image`, or an `opacity` below 1: the text is then painted in colours this sample does not
  * describe, and the caller should not judge it by them.
  */
-export const TEXT_SAMPLE_SOURCE = `function () { return (${textSample.toString()}).call(this, (${colourReader.toString()})()); }`;
+export const TEXT_SAMPLE_SOURCE = `function () { return (${textSample.toString()}).call(this, (${COLOUR_READER_SOURCE})()); }`;
 
 function isInlineInText(this: Element): boolean {
   if (!getComputedStyle(this).display.startsWith('inline')) return false;
