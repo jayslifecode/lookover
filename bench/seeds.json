@@ -9,6 +9,14 @@
       "selector": "[data-testid=\"settings-save\"]",
       "rule": "interaction.focus-visible-missing",
       "expectedSeverity": "high"
+    },
+    {
+      "id": "interaction-002",
+      "lens": "interaction",
+      "route": "/reports",
+      "selector": "[data-testid=\"export-csv\"]",
+      "rule": "interaction.text-contrast-fail",
+      "expectedSeverity": "high"
     }
   ]
 }
