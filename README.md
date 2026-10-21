@@ -37,7 +37,7 @@ To use a session you saved with Playwright instead, set `"auth": { "type": "stor
 `lookover run` prints a line per screen, a summary, and the candidates it found, one line per rule. Against the seeded bench app in this repository (`lookover run --max-screens 12`):
 
 ```text
-Mapping http://localhost:3123 (run 20261022-040704-24v6)
+Mapping http://localhost:3123 (run 20261022-054037-bayi)
 ✓ /  12 elements · 0 forms · 3 candidates
 ✓ /login  9 elements · 1 form · 0 candidates
 ✓ /organisations  43 elements · 0 forms · 25 candidates
@@ -52,11 +52,12 @@ Mapping http://localhost:3123 (run 20261022-040704-24v6)
   Forms             5
   Backend hosts     none
   Blocked requests  0
-  Run dir           .lookover/runs/20261022-040704-24v6
+  Run dir           .lookover/runs/20261022-054037-bayi
   App map           .lookover/app-map.json
   Duration          17.0 s
   Candidates        34
   Worth a look      0
+  Skipped           dev-overlay 2 · text-colour-uncertain:descendant 2
   Findings          .lookover/findings.json
 
   high    interaction.keyboard-unreachable    2  / button "Organisations 12"
@@ -73,7 +74,7 @@ Mapping http://localhost:3123 (run 20261022-040704-24v6)
 Candidates are measured but not yet judged or reproduced; the judge arrives in the next release.
 ```
 
-Each candidate line gives the severity, the rule, how many candidates there are, and where to look first. The bench's issues are seeded on purpose (they are listed in [bench/README.md](bench/README.md)); the 24 target-size candidates are the Edit and Copy email icons in the twelve rows of one table. Every candidate is in `.lookover/findings.json` with what was expected and measured, its evidence, and a fix prompt to paste into your coding agent ([the finding contract](docs/findings.md)).
+Each candidate line gives the severity, the rule, how many candidates there are, and where to look first. The `Skipped` row names the reasons the lenses most often left a measurement out for, with how many times (the full tally is `skipped` in `.lookover/findings.json`): a skip is a measurement that could not be trusted or was not reached, never a finding. The bench's issues are seeded on purpose (they are listed in [bench/README.md](bench/README.md)); the 24 target-size candidates are the Edit and Copy email icons in the twelve rows of one table. Every candidate is in `.lookover/findings.json` with what was expected and measured, its evidence, and a fix prompt to paste into your coding agent ([the finding contract](docs/findings.md)).
 
 | Flag                    | What it does                                                                                         |
 | ----------------------- | ---------------------------------------------------------------------------------------------------- |
