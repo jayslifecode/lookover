@@ -30,6 +30,8 @@ const VIEWPORT: Viewport = { name: 'desktop', width: 1280, height: 800 };
 const NOTHING_SEEN = { findings: [], worthALook: [], evidence: [] };
 const REFUSED = 'net::ERR_CONNECTION_REFUSED';
 const BLOCKED = /^net::ERR_BLOCKED_BY_CLIENT/;
+const ABORTED = 'net::ERR_ABORTED';
+const CHECKOUT = 'https://checkout.stripe.com/pay';
 const CUT_OFF_DELAY_MS = 150;
 const JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlMTIz';
 
@@ -147,6 +149,8 @@ describe('RequestObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
       '/gone.html': brokenPage(404),
       '/old': (_req, res) => redirect(res, '/broken.html'),
       '/partial.html': cutOffPage,
+      // Never answered: the page that asks for it cancels the request first.
+      '/api/slow': () => undefined,
     });
     session = await BrowserSession.launch({ viewport: VIEWPORT, allowHosts: [], onEvent: () => {} });
   }, BROWSER_TIMEOUT_MS);
@@ -325,6 +329,39 @@ describe('RequestObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(result.findings.map((finding) => finding.key)).toEqual([`GET ${host()}/broken.html → 500`]);
     const stored = await storedEvidence(result);
     expect(stored.entries.map((entry) => entry.status)).toEqual([500]);
+  });
+
+  test('a request the page cancels and a frame navigation Lookover aborts are no findings', async () => {
+    const failed = (part: string) =>
+      ipage.page.waitForEvent('requestfailed', (request) => request.url().includes(part));
+    await Promise.all([failed('/api/slow'), failed('checkout.stripe.com'), open('/aborts.html')]);
+
+    const result = await observer.collect(screenAt('screen-1', '/aborts.html'));
+
+    expect(result.findings).toEqual([]);
+    const stored = await storedEvidence(result);
+    // Both were seen, in whichever order they failed, and left out of the findings.
+    const failures = stored.entries.filter((entry) => entry.failure !== null);
+    expect(failures).toHaveLength(2);
+    expect(failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ url: url('/api/slow'), failure: ABORTED, resourceType: 'fetch' }),
+        expect.objectContaining({ url: CHECKOUT, failure: ABORTED, resourceType: 'document' }),
+      ]),
+    );
+  });
+
+  test('a navigation of the page itself that Lookover aborts is no finding, and the page stays', async () => {
+    await open('/console-clean.html');
+    await Promise.all([
+      ipage.page.waitForEvent('requestfailed', (request) => request.url() === CHECKOUT),
+      ipage.page.evaluate((target) => location.assign(target), CHECKOUT),
+    ]);
+
+    const result = await observer.collect(screenAt('screen-1', '/console-clean.html'));
+
+    expect(result.findings).toEqual([]);
+    expect(ipage.page.url()).toBe(url('/console-clean.html'));
   });
 
   test('a page that is not found itself is a client error', async () => {

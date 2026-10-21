@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cancelled requests fixture</title>
+  </head>
+  <body>
+    <main>Cancelled requests fixture</main>
+    <script>
+      // The page cancels its own request, as a search box does when the query changes before the answer.
+      const controller = new AbortController();
+      fetch('/api/slow', { signal: controller.signal }).catch(() => undefined);
+      setTimeout(() => controller.abort(), 100);
+      // A frame that would load a payment provider's checkout: Lookover aborts the navigation itself.
+      const checkout = document.createElement('iframe');
+      checkout.src = 'https://checkout.stripe.com/pay';
+      document.body.append(checkout);
+    </script>
+  </body>
+</html>
