@@ -79,6 +79,15 @@
       "route": "/",
       "rule": "observers.request-server-error",
       "expectedSeverity": "high"
+    },
+    {
+      "id": "control-001",
+      "lens": "interaction",
+      "route": "/login",
+      "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > form:nth-of-type(1) > button:nth-of-type(1)",
+      "rule": "interaction.focus-visible-missing",
+      "expectedSeverity": "high",
+      "control": true
     }
   ]
 }
