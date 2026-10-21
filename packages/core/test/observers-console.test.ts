@@ -66,6 +66,14 @@ describe('isIgnoredConsoleEntry', () => {
     expect(isIgnoredConsoleEntry({ text, location: null })).toBe(true);
   });
 
+  test.each([
+    'Failed to load resource: the server responded with a status of 404 (Not Found)',
+    'Failed to load resource: net::ERR_CONNECTION_REFUSED',
+    'Failed to load resource: net::ERR_BLOCKED_BY_CLIENT.Inspector',
+  ])("ignores the browser's line for a failed request, which the request observer reports: %s", (text) => {
+    expect(isIgnoredConsoleEntry({ text, location: 'http://localhost:3000/api/items/1:0:0' })).toBe(true);
+  });
+
   test('ignores whatever a browser extension logged', () => {
     expect(
       isIgnoredConsoleEntry({
@@ -80,6 +88,9 @@ describe('isIgnoredConsoleEntry', () => {
       isIgnoredConsoleEntry({ text: 'Failed to fetch', location: 'http://localhost:3000/app.js:1:1' }),
     ).toBe(false);
     expect(isIgnoredConsoleEntry({ text: 'The [HMR] socket closed', location: null })).toBe(false);
+    expect(
+      isIgnoredConsoleEntry({ text: 'Could not parse: Failed to load resource: x', location: null }),
+    ).toBe(false);
   });
 });
 
@@ -369,6 +380,19 @@ describe('ConsoleObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
     expect(result).toEqual(NOTHING_SEEN);
     expect(await ctx.evidence.list()).toEqual([]);
+  });
+
+  test("leaves the browser's line for a failed request to the request observer", async () => {
+    await open('/console-clean.html');
+    // Nothing is served at this path, and the browser logs an error for the 404.
+    await Promise.all([
+      ipage.page.waitForEvent('console', { predicate: (message) => message.type() === 'error' }),
+      ipage.page.evaluate(() => fetch('/no-such-file').then((response) => response.text())),
+    ]);
+
+    const result = await observer.collect(screenAt('screen-1', '/console-clean.html'));
+
+    expect(result).toEqual(NOTHING_SEEN);
   });
 
   test('reports what was seen once: the next collect starts empty', async () => {
