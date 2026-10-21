@@ -203,10 +203,12 @@ measurement is skipped with the first reason met on the way up (the walk's reaso
   layer that made the stack opaque: an element listed beneath it at its centre (a positioned sibling,
   a `next/image` hero, a portal), or a replaced element (`img`, `video`, `canvas`, `picture`, `svg`,
   `iframe`, `object`, `embed`) inside that layer, not inside the element itself, whose box meets the
-  element's (hit-testing passes over a decoration with `pointer-events: none`). Text on an opaque card
-  is still judged, whatever is painted under the card, and so is a control beside its own icon;
+  element's (hit-testing passes over a decoration with `pointer-events: none`). Text on an opaque card,
+  and a control with an opaque background of its own, are still judged whatever is painted under them,
+  and so is a control beside its own icon;
 - `off-viewport`: the element's centre is outside the viewport even once it is scrolled into view (a
-  `position: fixed` element placed off the page), so nothing can be listed under it.
+  `position: fixed` element placed off the page), or the element is no longer in the document, so
+  nothing can be listed under it.
 
 ### `interaction.text-contrast-fail` (high) and `interaction.text-contrast-low` (medium)
 

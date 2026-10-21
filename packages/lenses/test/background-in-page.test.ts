@@ -134,6 +134,10 @@ describe('EFFECTIVE_BACKGROUND_SOURCE', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(await background('#on-card')).toEqual({ color: 'rgb(30, 41, 59)', uncertain: null });
     });
 
+    test('judges a control with an opaque background of its own, whatever is painted under it', async () => {
+      expect(await background('#opaque-cta')).toEqual({ color: 'rgb(255, 255, 255)', uncertain: null });
+    });
+
     test('judges a control whose own icon sits beside its text', async () => {
       expect(await background('#icon-button')).toEqual({ color: 'rgb(249, 250, 251)', uncertain: null });
     });

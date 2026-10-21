@@ -96,9 +96,11 @@ function effectiveBackground(
   const isOverlapped = (stack: readonly Element[], top: Element): boolean => {
     const ancestors = ancestorsOf(this);
     const at = stack.indexOf(this);
+    // The element's own opaque background covers whatever hit-testing finds beneath it.
+    const isOwnBackground = top === this && at !== -1;
     const beneath = at === -1 ? stack.filter((element) => !this.contains(element)) : stack.slice(at + 1);
     const topAt = beneath.indexOf(top);
-    const between = topAt === -1 ? beneath : beneath.slice(0, topAt);
+    const between = isOwnBackground ? [] : beneath.slice(0, topAt === -1 ? beneath.length : topAt);
     if (between.some((element) => !ancestors.has(element))) return true;
     const box = this.getBoundingClientRect();
     return Array.from(top.querySelectorAll(REPLACED)).some(
