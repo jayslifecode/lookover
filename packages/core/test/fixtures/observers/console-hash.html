@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Console hash fixture</title>
+  </head>
+  <body>
+    <main>An app that moves to a tab right after logging</main>
+    <script>
+      console.error('Report locale missing for 3 rows');
+      // A hash change: a second main-frame `framenavigated`, with no document navigation.
+      location.hash = '#details';
+    </script>
+  </body>
+</html>

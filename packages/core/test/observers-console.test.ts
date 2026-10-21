@@ -8,8 +8,14 @@ import { configSchema } from '../src/config/schema.js';
 import { findingId, mergeFindings } from '../src/findings/id.js';
 import type { Finding, OccurrenceFinding } from '../src/findings/types.js';
 import type { Screen, Viewport } from '../src/map/types.js';
-import { ConsoleObserver, normaliseMessage } from '../src/observers/console.js';
+import {
+  ConsoleObserver,
+  MAX_CONSOLE_ENTRIES,
+  MAX_CONSOLE_TEXT_LENGTH,
+  normaliseMessage,
+} from '../src/observers/console.js';
 import { isIgnoredConsoleEntry } from '../src/observers/noise.js';
+import type { ObserverResult } from '../src/observers/types.js';
 import { createRun, type RunContext } from '../src/run/run-context.js';
 import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
@@ -24,6 +30,11 @@ const OBSERVED_MESSAGE_LENGTH = 120;
 const KEY_LENGTH = 200;
 
 type ConsoleMethod = 'error' | 'warn' | 'log';
+
+interface StoredConsoleEvidence {
+  dropped: number;
+  entries: { text: string }[];
+}
 
 function asOccurrence(finding: Finding | undefined): OccurrenceFinding {
   if (finding?.shape !== 'occurrence') throw new Error('expected an occurrence finding');
@@ -119,6 +130,23 @@ describe('ConsoleObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
       ipage.page.waitForEvent('console'),
       ipage.page.evaluate(({ name, message }) => console[name](message), { name: method, message: text }),
     ]);
+  }
+
+  /** Logs `count` distinct-looking errors from one page script, and waits until the observer has been told. */
+  async function logManyInPage(count: number, textOf: (index: number) => string): Promise<void> {
+    const messages = Array.from({ length: count }, (_, index) => textOf(index));
+    await Promise.all([
+      ipage.page.waitForEvent('console', { predicate: (message) => message.text() === 'logged them all' }),
+      ipage.page.evaluate((texts) => {
+        for (const text of texts) console.error(text);
+        console.log('logged them all');
+      }, messages),
+    ]);
+  }
+
+  /** Waits until every event the page has raised so far has reached the observer. */
+  async function settle(): Promise<void> {
+    await ipage.page.evaluate(() => undefined);
   }
 
   beforeAll(async () => {
@@ -286,6 +314,21 @@ describe('ConsoleObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(finding?.key).toBe('y'.repeat(KEY_LENGTH));
   });
 
+  test('puts a message on one line in the sentence, before shortening it', async () => {
+    await open('/console-clean.html');
+    await logInPage('error', 'Failed to render\n\n    at Chart (chart.js:10:5)\tin  main');
+    await logInPage('error', `   \n  ${'w'.repeat(OBSERVED_MESSAGE_LENGTH + 80)}`);
+
+    const { findings } = await observer.collect(screenAt('screen-1', '/console-clean.html'));
+
+    const [lines, padded] = findings.map(asOccurrence);
+    expect(lines?.observed).toBe('logged "Failed to render at Chart (chart.js:10:5) in main"');
+    expect(lines?.fixPrompt.split('\n')[0]).toBe(
+      `In /console-clean.html (${url('/console-clean.html')}), logged "Failed to render at Chart (chart.js:10:5) in main".`,
+    );
+    expect(padded?.observed).toBe(`logged "${'w'.repeat(OBSERVED_MESSAGE_LENGTH)}"`);
+  });
+
   test("writes the screen's console entries as redacted evidence", async () => {
     await open('/console-clean.html');
     await logInPage('error', 'Could not send the invoice to jay@example.com');
@@ -303,6 +346,7 @@ describe('ConsoleObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(onDisk).not.toContain('jay@example.com');
     expect(JSON.parse(onDisk)).toMatchObject({
       screenId: 'screen-1',
+      dropped: 0,
       entries: [{ type: 'error', text: 'Could not send the invoice to [email]', location: null }],
     });
   });
@@ -358,6 +402,28 @@ describe('ConsoleObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     ]);
   });
 
+  test.each([
+    ['/console-replace-state.html', 'replaces its own history entry'],
+    ['/console-hash.html', 'changes its own hash'],
+  ])('keeps what %s logged when the page %s, which is no new document', async (path) => {
+    await open(path);
+    await settle();
+
+    const { findings } = await observer.collect(screenAt('screen-1', path));
+
+    expect(findings.map((finding) => finding.key)).toEqual(['Report locale missing for # rows']);
+  });
+
+  test('still clears on a navigation that follows a same-document one', async () => {
+    await open('/console-hash.html');
+    await settle();
+    await open('/console-clean.html');
+
+    const result = await observer.collect(screenAt('screen-2', '/console-clean.html'));
+
+    expect(result).toEqual(NOTHING_SEEN);
+  });
+
   test("keeps the page's messages when one of its frames navigates", async () => {
     await open('/console-frame.html');
 
@@ -365,4 +431,48 @@ describe('ConsoleObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
     expect(findings.map((finding) => finding.key)).toEqual(['Logged before the frame loads']);
   });
+
+  test('keeps at most 500 entries a screen, counts the ones it dropped, and starts the next screen clean', async () => {
+    await open('/console-clean.html');
+    await logManyInPage(MAX_CONSOLE_ENTRIES + 100, (index) => `Row ${index} failed`);
+
+    const first = await observer.collect(screenAt('screen-1', '/console-clean.html'));
+
+    const [finding] = first.findings.map(asOccurrence);
+    expect(finding?.occurrences[0]?.measured.count).toBe(MAX_CONSOLE_ENTRIES);
+    const stored = await storedEvidence(first);
+    expect(stored.dropped).toBe(100);
+    expect(stored.entries).toHaveLength(MAX_CONSOLE_ENTRIES);
+
+    await logInPage('error', 'One more');
+    const second = await storedEvidence(await observer.collect(screenAt('screen-2', '/console-clean.html')));
+    expect(second.dropped).toBe(0);
+    expect(second.entries).toHaveLength(1);
+  });
+
+  test('does not let dev noise use up the 500 entries', async () => {
+    await open('/console-clean.html');
+    await logManyInPage(MAX_CONSOLE_ENTRIES + 50, (index) => `[HMR] update ${index}`);
+    await logInPage('error', 'A real error');
+
+    const { findings } = await observer.collect(screenAt('screen-1', '/console-clean.html'));
+
+    expect(findings.map((finding) => finding.key)).toEqual(['A real error']);
+  });
+
+  test('stores at most 2000 characters of a message', async () => {
+    await open('/console-clean.html');
+    await logInPage('error', 'z'.repeat(MAX_CONSOLE_TEXT_LENGTH + 500));
+
+    const result = await observer.collect(screenAt('screen-1', '/console-clean.html'));
+
+    const stored = await storedEvidence(result);
+    expect(stored.entries.map((entry) => entry.text.length)).toEqual([MAX_CONSOLE_TEXT_LENGTH]);
+  });
+
+  async function storedEvidence(result: ObserverResult): Promise<StoredConsoleEvidence> {
+    const [item] = result.evidence;
+    if (item === undefined) throw new Error('expected a piece of evidence');
+    return JSON.parse(await readFile(ctx.evidence.resolve(item.ref), 'utf8')) as StoredConsoleEvidence;
+  }
 });

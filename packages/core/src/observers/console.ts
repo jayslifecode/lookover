@@ -1,5 +1,5 @@
 import { ruleById } from '@jayslifecode/lookover-rules';
-import type { ConsoleMessage, Frame } from 'playwright';
+import type { ConsoleMessage, Frame, Request } from 'playwright';
 import type { InstrumentedPage } from '../browser/session.js';
 import { occurrenceFinding } from '../findings/build.js';
 import type { EvidenceItem, Finding } from '../findings/types.js';
@@ -8,6 +8,10 @@ import type { RunContext } from '../run/run-context.js';
 import { isIgnoredConsoleEntry } from './noise.js';
 import type { Observer, ObserverResult } from './types.js';
 
+/** Entries kept per screen; further ones are dropped and counted in the evidence. */
+export const MAX_CONSOLE_ENTRIES = 500;
+/** Characters kept of each message; a stack-laden log can be far longer than anyone reads. */
+export const MAX_CONSOLE_TEXT_LENGTH = 2000;
 const KEY_LENGTH = 200;
 const MEASURED_MESSAGE_LENGTH = 300;
 const OBSERVED_MESSAGE_LENGTH = 120;
@@ -46,12 +50,15 @@ const RULE_ID_OF: Readonly<Record<EntryType, string>> = {
  * `Failed 3 rows at https://a.b/c?x=1` and `Failed 12 rows at https://a.b/d` are the same message.
  */
 export function normaliseMessage(text: string): string {
-  return text
-    .replace(URL_PATTERN, '<url>')
-    .replace(NUMBER_PATTERN, '#')
-    .replace(WHITESPACE_PATTERN, ' ')
-    .trim()
-    .slice(0, KEY_LENGTH);
+  return collapseWhitespace(text.replace(URL_PATTERN, '<url>').replace(NUMBER_PATTERN, '#')).slice(
+    0,
+    KEY_LENGTH,
+  );
+}
+
+/** Runs of whitespace (newlines included) become one space, and the ends are trimmed. */
+function collapseWhitespace(text: string): string {
+  return text.replace(WHITESPACE_PATTERN, ' ').trim();
 }
 
 /**
@@ -64,35 +71,44 @@ export class ConsoleObserver implements Observer {
   readonly name = 'console';
 
   /**
-   * Filled by the page listeners one entry at a time, so a page that logs in a loop costs a push each
-   * rather than a copy of everything logged so far. It is never handed out: `drain` and the main
-   * frame's navigation swap in a fresh array.
+   * Filled by the page listeners one entry at a time (at most `MAX_CONSOLE_ENTRIES`, noise never in
+   * it), so a page that logs in a loop costs a push each rather than a copy of everything logged so far.
+   * It is never handed out: `drain` swaps in a fresh array.
    */
   private entries: ConsoleEntry[] = [];
+  /** How many entries arrived after the buffer was full. */
+  private dropped = 0;
+  /** True from a main-frame navigation request until the navigation commits. */
+  private isLoadingDocument = false;
 
   constructor(private readonly ctx: RunContext) {}
 
   /**
-   * The listeners only read the event and record it, so none of them can throw. A main-frame navigation
-   * empties the buffer: what was logged before it belongs to a page that is gone (a lens reload, a
-   * redirect that landed elsewhere), and what the new page logs arrives only after the navigation commits.
+   * The listeners only read the event and record it, so none of them can throw. A main-frame document
+   * navigation (a request that loads a document, then its commit) empties the buffer: what was logged
+   * before it belongs to a page that is gone (a lens reload, a redirect that landed elsewhere), and what
+   * the new page logs arrives only after the commit. A same-document navigation (`pushState`,
+   * `replaceState`, a hash change) also raises `framenavigated` but sends no request, so the page's
+   * messages stay.
    */
   attach({ page }: InstrumentedPage): void {
     page.on('console', (message) => this.recordConsole(message));
     page.on('pageerror', (error) => this.record('pageerror', describePageError(error), null));
+    page.on('request', (request) => this.noteRequest(request));
     page.on('framenavigated', (frame) => this.forgetOnNavigation(frame));
   }
 
   async collect(screen: Screen): Promise<ObserverResult> {
-    const kept = this.drain().filter((entry) => !isIgnoredConsoleEntry(entry));
-    if (kept.length === 0) return { findings: [], worthALook: [], evidence: [] };
+    const { entries, dropped } = this.drain();
+    if (entries.length === 0) return { findings: [], worthALook: [], evidence: [] };
     const ref = await this.ctx.evidence.putJson(`console-${screen.id}`, {
       screenId: screen.id,
       url: screen.url,
-      entries: kept,
+      dropped,
+      entries,
     });
     const evidence: EvidenceItem = { kind: 'console', label: `Console output on ${screen.route}`, ref };
-    const groups = groupEntries(kept);
+    const groups = groupEntries(entries);
     return {
       findings: groups
         .filter(({ type }) => type !== 'warning')
@@ -110,17 +126,42 @@ export class ConsoleObserver implements Observer {
     this.record(type, message.text(), locationOf(message.location()));
   }
 
+  /** Dev noise is dropped here, so a chatty dev server cannot fill the buffer ahead of a real error. */
   private record(type: EntryType, text: string, location: string | null): void {
-    this.entries.push({ at: new Date().toISOString(), type, text, location });
+    const entry: ConsoleEntry = {
+      at: new Date().toISOString(),
+      type,
+      text: text.slice(0, MAX_CONSOLE_TEXT_LENGTH),
+      location,
+    };
+    if (isIgnoredConsoleEntry(entry)) return;
+    if (this.entries.length >= MAX_CONSOLE_ENTRIES) {
+      this.dropped += 1;
+      return;
+    }
+    this.entries.push(entry);
+  }
+
+  /**
+   * `isNavigationRequest` comes first: `frame()` throws for a service worker's request, which is not
+   * one. A page's own `request` events always have their frame.
+   */
+  private noteRequest(request: Request): void {
+    if (request.isNavigationRequest() && request.frame().parentFrame() === null) {
+      this.isLoadingDocument = true;
+    }
   }
 
   private forgetOnNavigation(frame: Frame): void {
-    if (frame.parentFrame() === null) this.entries = [];
+    if (frame.parentFrame() !== null || !this.isLoadingDocument) return;
+    this.isLoadingDocument = false;
+    this.drain();
   }
 
-  private drain(): ConsoleEntry[] {
-    const seen = this.entries;
+  private drain(): { entries: ConsoleEntry[]; dropped: number } {
+    const seen = { entries: this.entries, dropped: this.dropped };
     this.entries = [];
+    this.dropped = 0;
     return seen;
   }
 }
@@ -186,7 +227,7 @@ function findingOf(
         },
       },
     ],
-    observed: `${verb} "${first.text.slice(0, OBSERVED_MESSAGE_LENGTH)}"`,
+    observed: `${verb} "${collapseWhitespace(first.text).slice(0, OBSERVED_MESSAGE_LENGTH)}"`,
     evidence: [evidence],
   });
 }

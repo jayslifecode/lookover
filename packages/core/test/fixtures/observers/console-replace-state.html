@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Console replaceState fixture</title>
+  </head>
+  <body>
+    <main>An app that tidies its own address right after logging</main>
+    <script>
+      console.error('Report locale missing for 3 rows');
+      // A router normalising the URL: a second main-frame `framenavigated`, with no document navigation.
+      history.replaceState({}, '', location.pathname);
+    </script>
+  </body>
+</html>
