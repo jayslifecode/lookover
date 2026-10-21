@@ -12,6 +12,7 @@ import { type CrawlOptions, crawl } from '../map/crawler.js';
 import { discoverNextRoutes, staticRoutePatterns } from '../map/next-routes.js';
 import { writeAppMap } from '../map/persist.js';
 import type { AppMap, RouteInfo, Screen, Viewport } from '../map/types.js';
+import { defaultObservers } from '../observers/index.js';
 import type { Observer } from '../observers/types.js';
 import { redactDeep } from '../util/redact.js';
 import { type ConfirmHosts, confirmBackends } from './backend-probe.js';
@@ -42,7 +43,10 @@ export interface ReviewOptions {
   hooks?: ReviewHooks;
   /** Run on every captured screen, in order, after the observers (see `Inspection`). Default none. */
   lenses?: readonly Lens[];
-  /** Watch the crawl page and report on every captured screen (see `Inspection`). Default none. */
+  /**
+   * Watch the crawl page and report on every captured screen (see `Inspection`). Default
+   * `defaultObservers`: console, requests and rendered text. An empty list means none.
+   */
   observers?: readonly Observer[];
 }
 
@@ -138,7 +142,7 @@ async function review(
   const routes = await discoverRoutes(ctx, opts.cwd);
   const inspection = new Inspection(ctx, {
     lenses: opts.lenses ?? [],
-    observers: opts.observers ?? [],
+    observers: opts.observers ?? defaultObservers(ctx),
     viewports: config.viewports,
     interaction: config.interaction,
   });

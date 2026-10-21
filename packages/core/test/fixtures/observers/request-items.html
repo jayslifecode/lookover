@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Request items fixture</title>
+  </head>
+  <body>
+    <main>Request items fixture</main>
+    <script>
+      // `?id=<n>` picks the item, so two screens ask for two different ones.
+      const id = new URLSearchParams(location.search).get('id');
+      fetch(`/api/items/${id}`).then((response) => response.text()).catch(() => undefined);
+    </script>
+  </body>
+</html>

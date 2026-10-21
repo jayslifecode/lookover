@@ -289,7 +289,8 @@ describe('runReview', { timeout: BROWSER_TIMEOUT_MS }, () => {
         },
       };
 
-      const result = await runReview(ctx, { cwd, env: DEMO_ENV, hooks });
+      // No observers: the default ones would report the backend the test makes unresolvable.
+      const result = await runReview(ctx, { cwd, env: DEMO_ENV, hooks, observers: [] });
 
       expect(asked).toEqual([[SUPABASE_HOST]]);
       expect(loginsBeforeQuestion).toBe(0);
@@ -300,7 +301,7 @@ describe('runReview', { timeout: BROWSER_TIMEOUT_MS }, () => {
         [url('/home.html'), 'Home'],
         [url('/settings.html'), 'Settings'],
       ]);
-      // No lenses and no observers by default, so nothing is found.
+      // No lenses and no observers, so nothing is found.
       expect(result.findings).toMatchObject({ runId: ctx.runId, findings: [], worthALook: [] });
       for (const path of [join(ctx.dir, APP_MAP_FILE), join(ctx.lookoverDir, APP_MAP_FILE)]) {
         const saved = JSON.parse(await readFile(path, 'utf8')) as AppMap;

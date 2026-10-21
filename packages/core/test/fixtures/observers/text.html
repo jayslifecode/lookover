@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Text fixture</title>
+    <style>
+      .invisible {
+        visibility: hidden;
+      }
+      .transparent {
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Settings</h1>
+
+      <!-- The five texts that leaked: three raw values, a translation key and a placeholder. -->
+      <p id="edited">Last edited by undefined</p>
+      <p>NaN</p>
+      <p>[object Object]</p>
+      <p data-testid="timezone">settings.timezone.label</p>
+      <p>Hello {{name}}</p>
+
+      <!-- Text that only looks like one of them. -->
+      <p>Use <code>{count}</code> to show the number.</p>
+      <p>www.example.com</p>
+      <p>v1.2.3</p>
+      <p>index.test.ts</p>
+      <p>The report covers an undefined period.</p>
+
+      <!-- Leaked values nobody can see, or that are code on purpose. -->
+      <pre>[object Object]</pre>
+      <textarea>Hello {{name}}</textarea>
+      <select>
+        <option>undefined</option>
+      </select>
+      <p hidden>NaN</p>
+      <p style="display: none">NaN</p>
+      <p class="invisible">NaN</p>
+      <p class="transparent">NaN</p>
+      <template><p>NaN</p></template>
+      <noscript>NaN</noscript>
+      <script>
+        // undefined NaN {{name}}
+      </script>
+    </main>
+  </body>
+</html>

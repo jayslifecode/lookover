@@ -1,7 +1,13 @@
 import { copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type AppMap, isFailedScreen, loadConfig, RunLog } from '@jayslifecode/lookover-core';
+import {
+  type AppMap,
+  type FindingsFile,
+  isFailedScreen,
+  loadConfig,
+  RunLog,
+} from '@jayslifecode/lookover-core';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { type CliResult, runCli } from '../run-cli.js';
 import { BENCH_APP_DIR, BENCH_DATA_FILES, BENCH_URL, E2E_OUTPUT_DIR } from './bench-env.js';
@@ -51,6 +57,10 @@ async function onlyRunDir(project: string): Promise<string> {
 
 async function readAppMap(project: string): Promise<AppMap> {
   return JSON.parse(await readFile(join(project, '.lookover', 'app-map.json'), 'utf8')) as AppMap;
+}
+
+async function readFindings(project: string): Promise<FindingsFile> {
+  return JSON.parse(await readFile(join(project, '.lookover', 'findings.json'), 'utf8')) as FindingsFile;
 }
 
 /** Keeps what the run printed and logged next to the bench server's log, for a failed CI run. */
@@ -156,6 +166,13 @@ describe('lookover run against the bench app', () => {
 
     expect(map.screens.filter((screen) => new URL(screen.url).pathname === LOGOUT_PATH)).toEqual([]);
     expect(map.screens.filter((screen) => screen.route === LOGOUT_PATH)).toEqual([]);
+  });
+
+  // The bench app is built clean. Task 15 replaces this with the findings of its seeded defects.
+  test('finds nothing wrong with the bench app: no candidates and nothing worth a look', async () => {
+    const { findings, worthALook } = await readFindings(project);
+
+    expect({ findings, worthALook }).toEqual({ findings: [], worthALook: [] });
   });
 
   test('ends the run log with run.finished', async () => {

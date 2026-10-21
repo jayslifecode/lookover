@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Requests fixture</title>
+  </head>
+  <body>
+    <main>Requests fixture</main>
+    <script>
+      // A port nothing listens on, handed in by the test: `?dead=<port>`.
+      const dead = new URLSearchParams(location.search).get('dead');
+      const calls = [
+        '/api/ok',
+        '/api/missing',
+        '/api/boom',
+        // The browser asks for the favicon and tooling for /.well-known/ on its own, and a page cannot
+        // fix them: a 404 for either is no finding. (Chromium never sends a bare fetch of /favicon.ico,
+        // so this one carries a version, as cache-busted favicon links do.)
+        '/favicon.ico?v=2',
+        '/.well-known/security.txt',
+        // A payment provider: Lookover blocks the call itself, so it is no finding either.
+        'https://api.stripe.com/v1/charges',
+      ];
+      if (dead) calls.push(`http://127.0.0.1:${dead}/api/dead`);
+      // The body is read, or the browser aborts it later and reports a second, unrelated event.
+      for (const call of calls) fetch(call).then((response) => response.text()).catch(() => undefined);
+    </script>
+  </body>
+</html>

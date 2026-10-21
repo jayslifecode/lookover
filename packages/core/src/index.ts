@@ -76,6 +76,9 @@ export type {
 } from './map/types.js';
 export { isFailedScreen } from './map/types.js';
 export { ConsoleObserver } from './observers/console.js';
+export { defaultObservers } from './observers/index.js';
+export { RequestObserver } from './observers/requests.js';
+export { TextObserver } from './observers/text.js';
 export type { Observer, ObserverResult } from './observers/types.js';
 export type { ConfirmHosts } from './run/backend-probe.js';
 export { confirmHostCommand } from './run/backend-probe.js';
