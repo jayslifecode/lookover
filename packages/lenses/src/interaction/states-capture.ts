@@ -9,14 +9,9 @@ import {
 import type { CDPSession } from 'playwright';
 import type { StyleSnapshot } from './in-page.js';
 import { measureOn } from './measure.js';
+import { PLACE_IN_VIEW_SOURCE, type Placement } from './place-in-page.js';
 import type { FocusMarkOn, ForcibleElement } from './states.js';
-import {
-  ANCESTOR_SNAPSHOTS_SOURCE,
-  BLUR_SELF_SOURCE,
-  PLACE_IN_VIEW_SOURCE,
-  type Placement,
-  SETTLED_SNAPSHOT_SOURCE,
-} from './states-in-page.js';
+import { ANCESTOR_SNAPSHOTS_SOURCE, BLUR_SELF_SOURCE, SETTLED_SNAPSHOT_SOURCE } from './states-in-page.js';
 import { type FocusLook, focusMarkOf } from './states-rules.js';
 
 /*

@@ -1,3 +1,5 @@
+export type { BackgroundUncertainty, EffectiveBackground } from './interaction/background-in-page.js';
+export { EFFECTIVE_BACKGROUND_SOURCE } from './interaction/background-in-page.js';
 export type { Rgba } from './interaction/contrast.js';
 export {
   blendOver,
@@ -10,9 +12,7 @@ export {
   roundedContrastRatio,
 } from './interaction/contrast.js';
 export type {
-  BackgroundUncertainty,
   ClippedText,
-  EffectiveBackground,
   OverflowMeasure,
   OverflowOffender,
   PositiveTabindex,
@@ -23,7 +23,6 @@ export type {
 } from './interaction/in-page.js';
 export {
   COMPONENT_NAME_SOURCE,
-  EFFECTIVE_BACKGROUND_SOURCE,
   IN_ACTIVEDESCENDANT_WIDGET_SOURCE,
   IS_INLINE_IN_TEXT_SOURCE,
   MEASURE_OVERFLOW_SOURCE,

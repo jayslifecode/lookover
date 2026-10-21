@@ -9,10 +9,9 @@ import {
   stepFinding,
 } from '@jayslifecode/lookover-core';
 import { type Rule, ruleById } from '@jayslifecode/lookover-rules';
+import { EFFECTIVE_BACKGROUND_SOURCE, type EffectiveBackground } from './background-in-page.js';
 import { blendOver, parseCssColor, RATIO_DECIMALS, roundedContrastRatio } from './contrast.js';
 import {
-  EFFECTIVE_BACKGROUND_SOURCE,
-  type EffectiveBackground,
   STATE_STYLE_PROPERTIES,
   type StateStyleProperty,
   type StyleSnapshot,

@@ -11,8 +11,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { parseCssColor, type Rgba } from '../src/interaction/contrast.js';
 import {
   COMPONENT_NAME_SOURCE,
-  EFFECTIVE_BACKGROUND_SOURCE,
-  type EffectiveBackground,
   IN_ACTIVEDESCENDANT_WIDGET_SOURCE,
   IS_INLINE_IN_TEXT_SOURCE,
   MEASURE_OVERFLOW_SOURCE,
@@ -79,55 +77,6 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
     if (result === null) throw new Error(`no element matches ${selector}`);
     return result;
   }
-
-  describe('EFFECTIVE_BACKGROUND_SOURCE', () => {
-    beforeEach(() => open('backgrounds.html'));
-
-    const background = (selector: string) =>
-      measure<EffectiveBackground>(selector, EFFECTIVE_BACKGROUND_SOURCE);
-
-    test('reports the colour of the opaque card under the text', async () => {
-      expect(await background('#on-card')).toEqual({ color: 'rgb(30, 41, 59)', uncertain: null });
-    });
-
-    test('converts a Tailwind v4 oklch() background to the rgb() Chromium paints, as parseCssColor does', async () => {
-      const { color, uncertain } = await background('#on-oklch-card');
-      const computed = await ipage.page.evaluate(
-        () => getComputedStyle(document.querySelector('#oklch-card') ?? document.body).backgroundColor,
-      );
-      const parsed = parseCssColor(computed);
-      if (parsed === null) throw new Error(`parseCssColor could not read ${computed}`);
-
-      expect(computed).toBe('oklch(0.488 0.243 264.376)');
-      expect(uncertain).toBeNull();
-      expectNear(color, { r: 20, g: 71, b: 230 });
-      expectNear(color, parsed);
-    });
-
-    test('composites a half-transparent layer over the white beneath it', async () => {
-      const { color, uncertain } = await background('#on-veil');
-
-      expect(uncertain).toBeNull();
-      expectNear(color, { r: 128, g: 128, b: 128 });
-    });
-
-    test('ignores a gradient that an opaque card covers', async () => {
-      expect(await background('#card-over-image')).toEqual({ color: 'rgb(255, 255, 255)', uncertain: null });
-    });
-
-    test.each([
-      ['#on-image', 'background-image'],
-      ['#faded', 'opacity'],
-      ['#faded-card', 'opacity'],
-      ['#image-in-faded', 'background-image'],
-      ['#blended', 'mix-blend-mode'],
-      ['#filtered', 'filter'],
-      ['#frosted', 'backdrop-filter'],
-      ['#bare', 'never-opaque'],
-    ])('gives no colour for %s, naming the first reason on the way up: %s', async (selector, reason) => {
-      expect(await background(selector)).toEqual({ color: null, uncertain: reason });
-    });
-  });
 
   describe('IS_INLINE_IN_TEXT_SOURCE', () => {
     beforeEach(() => open('inline.html'));

@@ -12,6 +12,7 @@ import {
   stepFinding,
 } from '@jayslifecode/lookover-core';
 import { type Rule, ruleById } from '@jayslifecode/lookover-rules';
+import { EFFECTIVE_BACKGROUND_SOURCE, type EffectiveBackground } from './background-in-page.js';
 import {
   blendOver,
   isLargeText,
@@ -22,8 +23,6 @@ import {
 } from './contrast.js';
 import { targetIdentityOf } from './identity.js';
 import {
-  EFFECTIVE_BACKGROUND_SOURCE,
-  type EffectiveBackground,
   IN_ACTIVEDESCENDANT_WIDGET_SOURCE,
   IS_INLINE_IN_TEXT_SOURCE,
   POSITIVE_TABINDEX_SOURCE,

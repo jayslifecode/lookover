@@ -1,5 +1,5 @@
 import { BUILD_SELECTOR_SOURCE, type SelectorCandidate } from '@jayslifecode/lookover-core';
-import { COLOUR_READER_SOURCE, type ColourReader, type Painted } from './colour-in-page.js';
+import { COLOUR_READER_SOURCE, type ColourReader } from './colour-in-page.js';
 
 /*
  * Everything a lens measures inside the page. Each `*_SOURCE` is the source text of a function that
@@ -55,22 +55,6 @@ export interface StyleSnapshot {
   /** The `::before` and `::after` pseudo-elements, which hold many focus rings; read even when absent. */
   before: StyleValues;
   after: StyleValues;
-}
-
-/** Why a background cannot be trusted; see `EFFECTIVE_BACKGROUND_SOURCE`. */
-export type BackgroundUncertainty =
-  | 'background-image'
-  | 'opacity'
-  | 'mix-blend-mode'
-  | 'filter'
-  | 'backdrop-filter'
-  | 'never-opaque'
-  | 'colour-unparseable';
-
-export interface EffectiveBackground {
-  /** `rgb(r, g, b)`, opaque; `null` exactly when `uncertain` is set. */
-  color: string | null;
-  uncertain: BackgroundUncertainty | null;
 }
 
 export interface TextSample {
@@ -129,60 +113,6 @@ function styleSnapshot(this: Element, properties: readonly StateStyleProperty[])
  * (`StyleSnapshot`). Compare a snapshot taken at rest with one taken in a forced state.
  */
 export const STYLE_SNAPSHOT_SOURCE = `function () { return (${styleSnapshot.toString()}).call(this, ${JSON.stringify(STATE_STYLE_PROPERTIES)}); }`;
-
-function effectiveBackground(this: Element, colours: ColourReader): EffectiveBackground {
-  const OPAQUE_ALPHA = 0.999;
-  type Layer = Painted;
-  /** `bottom` under `top`, source-over. */
-  const under = (top: Layer, bottom: Layer): Layer => {
-    const a = top.a + bottom.a * (1 - top.a);
-    const mix = (t: number, u: number): number =>
-      a === 0 ? 0 : (t * top.a + u * bottom.a * (1 - top.a)) / a;
-    return { r: mix(top.r, bottom.r), g: mix(top.g, bottom.g), b: mix(top.b, bottom.b), a };
-  };
-  /**
-   * Opacity, blending and filters change everything inside the box, so they count all the way up;
-   * an image or a backdrop filter only matters until an opaque layer covers it.
-   */
-  const reasonAt = (style: CSSStyleDeclaration, isCovered: boolean): BackgroundUncertainty | null => {
-    if (!isCovered && style.backgroundImage !== 'none') return 'background-image';
-    if (Number.parseFloat(style.opacity) < 1) return 'opacity';
-    if (style.mixBlendMode !== 'normal') return 'mix-blend-mode';
-    if (style.filter !== 'none') return 'filter';
-    if (!isCovered && style.getPropertyValue('backdrop-filter') !== 'none') return 'backdrop-filter';
-    return null;
-  };
-
-  let color: Layer = { r: 0, g: 0, b: 0, a: 0 };
-  for (let node: Element | null = this; node !== null; node = node.parentElement) {
-    const style = getComputedStyle(node);
-    const isCovered = color.a >= OPAQUE_ALPHA;
-    const reason = reasonAt(style, isCovered);
-    if (reason !== null) return { color: null, uncertain: reason };
-    if (isCovered) continue;
-    const painted = colours.paint(style.backgroundColor);
-    if (painted === null) return { color: null, uncertain: 'colour-unparseable' };
-    color = under(color, painted);
-  }
-  if (color.a < OPAQUE_ALPHA) return { color: null, uncertain: 'never-opaque' };
-  const channel = (value: number): number => Math.round(value);
-  return { color: `rgb(${channel(color.r)}, ${channel(color.g)}, ${channel(color.b)})`, uncertain: null };
-}
-
-/**
- * The colour behind the element's text (`EffectiveBackground`): from the element up through its
- * ancestors to `<html>`, each `background-color` is composited under the ones above it (source-over)
- * until the stack is opaque (alpha ≥ 0.999). Colours are read as Chromium paints them (see
- * `colourReader`), so `lab()`, `oklch()` and every other computed syntax come back as `rgb()`.
- *
- * The colour is not trusted, and `uncertain` names the first reason met on the way up, when a layer
- * has a `background-image` (an image or a gradient) or a `backdrop-filter` before the stack is opaque,
- * when the element or any ancestor has `opacity` below 1, a `mix-blend-mode` or a `filter` (they
- * change the colours of everything inside), or when no layer up to `<html>` makes it opaque
- * (`never-opaque`: the browser's canvas colour shows through, and that depends on the colour scheme).
- * A background colour the canvas cannot read is `colour-unparseable`.
- */
-export const EFFECTIVE_BACKGROUND_SOURCE = `function () { return (${effectiveBackground.toString()}).call(this, (${COLOUR_READER_SOURCE})()); }`;
 
 function componentName(this: Element): string | null {
   const FIBER_KEY_PREFIX = '__reactFiber$';
