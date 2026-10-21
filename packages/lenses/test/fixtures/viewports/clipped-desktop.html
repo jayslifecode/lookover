@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Viewport clipped-at-desktop fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font: 16px/1.5 sans-serif;
+      }
+      /* On a narrow screen the caption wraps; on a wide one it sits in a 200 px column, cut off. */
+      @media (min-width: 800px) {
+        #caption {
+          width: 200px;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <p id="caption">A caption far too long to fit in two hundred pixels on one line</p>
+  </body>
+</html>

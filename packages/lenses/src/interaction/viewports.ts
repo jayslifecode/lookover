@@ -42,12 +42,19 @@ export interface SweepResult {
 type Draft = Omit<OccurrenceFindingInput, 'evidence'>;
 
 const NOTHING: SweepResult = { findings: [], screenshots: [], skipped: [] };
-const REDIRECTED: SweepResult = { ...NOTHING, skipped: [{ reason: SKIP_REDIRECTED, count: 1 }] };
+
+/** What putting the first viewport back takes once the sweep is over. */
+type Restore = 'nothing' | 'resize' | 'reload';
+
+interface Swept {
+  result: SweepResult;
+  restore: Restore;
+}
 
 /**
- * Reloads the screen at each viewport after the first (the one it was captured at) and measures its
- * horizontal overflow there (`MEASURE_OVERFLOW_SOURCE`), once its fonts are ready (at most 2 s) and its
- * transitions have finished:
+ * Measures the screen's horizontal overflow (`MEASURE_OVERFLOW_SOURCE`) at each viewport: at the first
+ * (the one it was captured at) as the page is, at each further one reloaded at that size; each time once
+ * its fonts are ready (at most 2 s) and its transitions have finished:
  *
  * - `interaction.horizontal-overflow` when the page is wider than the viewport (`scrollWidth >
  *   clientWidth + 1`): one finding for the viewport (key `${route}|${viewport.name}`), with an
@@ -57,40 +64,48 @@ const REDIRECTED: SweepResult = { ...NOTHING, skipped: [{ reason: SKIP_REDIRECTE
  *   with an occurrence for each element that cuts its own text off without an ellipsis.
  *
  * Both carry a full-page screenshot taken at that viewport. `context.deadline` is checked before each
- * viewport; the ones not reached are counted (`time-budget`). When any viewport was swept, the first one
- * is restored and the page reloaded at it, so whatever measures next finds it as it was captured. The
- * page only ever reloads its own URL.
+ * viewport; the ones not reached are counted (`time-budget`). When the page was reloaded at a further
+ * viewport, the first one is restored and the page reloaded at it, so whatever measures next finds it as
+ * it was captured.
  *
- * A reload that lands on another URL (a redirect: the session expired, the screen moved) is never
- * measured, whatever it shows: the viewport counts as `viewport-reload-redirected`, the first viewport is
- * restored and the sweep goes on. The reload back at the first viewport is checked the same way.
+ * The page is only ever measured, and reloaded, at the screen's own URL. Once it is not there any more,
+ * after a reload (a redirect: the session expired, the screen moved) or by the end of a measurement (a
+ * client-side route change), what it shows is dropped, and that viewport and every one after it count as
+ * `viewport-reload-redirected`; only the first viewport's size is put back, and the page is not reloaded
+ * again. The reload back at the first viewport is checked the same way.
  */
 export async function sweepViewports(context: LensContext): Promise<SweepResult> {
-  const [first, ...others] = context.viewports;
+  const [first] = context.viewports;
   if (first === undefined) return NOTHING;
+  const { result, restore } = await sweepEach(context);
+  const restored = await restoreFirst(context, first, restore);
+  return { ...result, skipped: tally([...result.skipped, ...restored]) };
+}
+
+async function sweepEach(context: LensContext): Promise<Swept> {
+  const { viewports } = context;
   let result = NOTHING;
-  let swept = 0;
-  for (const viewport of others) {
-    if (performance.now() >= context.deadline) break;
-    result = merge(result, await sweepAt(context, viewport, first));
-    swept += 1;
+  for (const [index, viewport] of viewports.entries()) {
+    const left = viewports.length - index;
+    if (performance.now() >= context.deadline) {
+      return { result: withSkip(result, SKIP_TIME_BUDGET, left), restore: index > 1 ? 'reload' : 'nothing' };
+    }
+    const isOnScreen = index === 0 || (await reloadAt(context, viewport));
+    const measured = isOnScreen ? await measureAt(context, viewport) : null;
+    if (measured === null) return { result: withSkip(result, SKIP_REDIRECTED, left), restore: 'resize' };
+    result = merge(result, measured);
   }
-  if (swept > 0) result = merge(result, await restore(context, first));
-  const left = others.length - swept;
-  const late: LensSkip[] = left > 0 ? [{ reason: SKIP_TIME_BUDGET, count: left }] : [];
-  return { ...result, skipped: tally([...result.skipped, ...late]) };
+  return { result, restore: viewports.length > 1 ? 'reload' : 'nothing' };
 }
 
-/** Measures the screen reloaded at `viewport`, unless the reload landed elsewhere. */
-async function sweepAt(context: LensContext, viewport: Viewport, first: Viewport): Promise<SweepResult> {
-  if (await reloadAt(context, viewport)) return measureAt(context, viewport);
-  await context.ipage.page.setViewportSize(sizeOf(first));
-  return REDIRECTED;
-}
-
-/** The first viewport again, and the screen reloaded at it. */
-async function restore(context: LensContext, first: Viewport): Promise<SweepResult> {
-  return (await reloadAt(context, first)) ? NOTHING : REDIRECTED;
+/** Puts the first viewport back; the skip of a reload back that landed elsewhere. */
+async function restoreFirst(context: LensContext, first: Viewport, restore: Restore): Promise<LensSkip[]> {
+  if (restore === 'nothing') return [];
+  if (restore === 'resize') {
+    await context.ipage.page.setViewportSize(sizeOf(first));
+    return [];
+  }
+  return (await reloadAt(context, first)) ? [] : [{ reason: SKIP_REDIRECTED, count: 1 }];
 }
 
 /** Resizes the page and reloads it; `false` when the reload landed on a URL other than the screen's. */
@@ -112,11 +127,13 @@ function sizeOf({ width, height }: Viewport): { width: number; height: number } 
   return { width, height };
 }
 
-async function measureAt(context: LensContext, viewport: Viewport): Promise<SweepResult> {
+/** The findings at `viewport` as the page is now; `null` when, measured, it is not at the screen's URL. */
+async function measureAt(context: LensContext, viewport: Viewport): Promise<SweepResult | null> {
   const { page } = context.ipage;
   await atMost(FONTS_READY_TIMEOUT_MS, evaluateSource(page, FONTS_READY_SOURCE));
   await evaluateSource(page, FINISH_ALL_TRANSITIONS_SOURCE);
   const measure = await evaluateSource<OverflowMeasure>(page, MEASURE_OVERFLOW_SOURCE);
+  if (!isSameScreenUrl(page.url(), context.screen.url)) return null;
   const drafts = [overflowDraft(context, viewport, measure), clippedDraft(context, viewport, measure)].filter(
     (draft): draft is Draft => draft !== null,
   );
@@ -199,6 +216,10 @@ async function atMost(ms: number, task: Promise<unknown>): Promise<void> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function withSkip(result: SweepResult, reason: string, count: number): SweepResult {
+  return { ...result, skipped: [...result.skipped, { reason, count }] };
 }
 
 function merge(a: SweepResult, b: SweepResult): SweepResult {

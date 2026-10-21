@@ -32,8 +32,8 @@ const RESET_FOCUS_AND_SCROLL_SOURCE = `() => { (${BLUR_SOURCE})(); window.scroll
 /**
  * Measures how a screen's controls look and behave: their forced hover, focus and active states
  * (`captureStates`), their text contrast, size and keyboard reach (`measureStatic`), the Tab order
- * (`tabWalk`) and, at each further viewport, horizontal overflow and clipped text (`sweepViewports`),
- * in that order. A step that would start after `context.deadline` is skipped whole
+ * (`tabWalk`) and, at each viewport, horizontal overflow and clipped text (`sweepViewports`), in that
+ * order. A step that would start after `context.deadline` is skipped whole
  * (`time-budget:<step>`); one that has started stops itself at the deadline. The states and the focus
  * order are written as the screen's gallery (`gallery-<screenId>.json`). Missing hover states are
  * lower-confidence and go to `worthALook`; everything else is a finding.
