@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Forms fixture: test ids that redaction rewrites</title>
+  </head>
+  <body>
+    <!-- Test ids of the form `key=value` are rewritten by redaction, so these controls get their body path. -->
+    <form data-testid="token=form1" action="/join" method="post">
+      <input data-testid="secret=field1" aria-label="Invite code" />
+      <input name="email" aria-label="Email" />
+      <button type="submit" data-testid="api_key=submit1">Join</button>
+    </form>
+  </body>
+</html>

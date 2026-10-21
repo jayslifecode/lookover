@@ -26,10 +26,11 @@ interface ScreenOptions {
   id?: string;
   viewport?: string;
   title?: string;
+  redirectedFrom?: string | null;
 }
 
 function screen(route: string, selectors: readonly string[], options: ScreenOptions = {}): Screen {
-  const { id = `${route}-screen`, viewport = 'desktop', title = 'Page' } = options;
+  const { id = `${route}-screen`, viewport = 'desktop', title = 'Page', redirectedFrom = null } = options;
   return {
     id,
     url: `http://localhost:3000${route}`,
@@ -43,6 +44,7 @@ function screen(route: string, selectors: readonly string[], options: ScreenOpti
     forms: [],
     tokens: [{ property: 'color', value: 'rgb(0, 0, 0)', count: 3 }],
     links: ['/about'],
+    redirectedFrom,
     discoveredFrom: null,
     capturedAt: '2026-10-20T12:00:00.000Z',
   };
@@ -149,6 +151,21 @@ describe('persistence', () => {
         expect(written).toContain('token=[redacted] for [email]');
       }
       expect(map.screens[0]?.title).toBe('Session token=abc123secret for jay@example.com');
+    });
+
+    test('keeps where a redirected screen was requested, redacted like the rest of the map', async () => {
+      const ctx = await createRun({ cwd, config });
+      const redirected = screen('/home', ['#a'], {
+        redirectedFrom: 'http://localhost:3000/old?token=abc123secret',
+      });
+
+      await writeAppMap(ctx, appMap([redirected, screen('/', ['#b'])], ctx.runId));
+
+      const saved = await readLatestAppMap(ctx.lookoverDir);
+      expect(saved?.screens.map((entry) => entry.redirectedFrom)).toEqual([
+        'http://localhost:3000/old?token=[redacted]',
+        null,
+      ]);
     });
 
     test('replaces the latest map of an earlier run and leaves that run file alone', async () => {
@@ -278,6 +295,22 @@ describe('diffAppMaps', () => {
     const original = appMap([screen('/', ['#a', '#b', '#c'])]);
 
     expect(diffAppMaps(original, reordered).changedScreens).toEqual([]);
+  });
+
+  test('does not count a screen that began to redirect as a change', () => {
+    const direct = appMap([screen('/home', ['#a', '#b'])]);
+    const redirected = appMap([screen('/home', ['#a', '#b'], { redirectedFrom: 'http://localhost:3000/' })]);
+
+    expect(diffAppMaps(direct, redirected)).toEqual({
+      addedScreens: [],
+      removedScreens: [],
+      changedScreens: [],
+    });
+    expect(diffAppMaps(redirected, direct)).toEqual({
+      addedScreens: [],
+      removedScreens: [],
+      changedScreens: [],
+    });
   });
 
   test('keys screens by route and viewport name', () => {

@@ -51,6 +51,16 @@ export function routeKey(url: URL): string {
 }
 
 /**
+ * The part of a same-app URL's path that belongs to the app: the path below the base URL's path,
+ * `/` for the app's root; no query. `url` must be in the app (`isSameApp`).
+ */
+export function appRelativePath(url: URL, base: URL): string {
+  const basePath = base.pathname.replace(/\/+$/, '');
+  const path = url.pathname.slice(basePath.length);
+  return path === '' ? '/' : path;
+}
+
+/**
  * Resolves a crawl seed against the app, normalised like every other crawl URL. Seeds are
  * app-relative: a leading `/` means the app's root, so the base URL's path is kept (`/orgs` under
  * `http://host/sub/` is `http://host/sub/orgs`); with a base URL at the origin's root nothing

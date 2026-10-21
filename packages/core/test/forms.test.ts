@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { extractForms } from '../src/map/forms.js';
 import type { Box, FieldInfo, FormInfo } from '../src/map/types.js';
+import { redact } from '../src/util/redact.js';
 import { type FixtureServer, serveFixture } from './fixtures/serve.js';
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures/forms', import.meta.url));
@@ -283,6 +284,40 @@ describe('extractForms', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
       expect(defined(compose, 'the compose form').fields.map((field) => field.name)).toContain('remote');
       expect(compose?.submit).toMatchObject({ selector: '#send', name: 'Send' });
+    });
+  });
+
+  describe('on a form whose test ids redaction would rewrite', () => {
+    let forms: FormInfo[];
+
+    beforeAll(async () => {
+      await open('token.html');
+      forms = await extractForms(ipage);
+    }, BROWSER_TIMEOUT_MS);
+
+    test('gives the form, a field and the submit button their body path, and leaves a plain selector alone', () => {
+      const [form] = forms;
+
+      expect(forms).toHaveLength(1);
+      expect(defined(form, 'the form').selector).toBe('body > form:nth-of-type(1)');
+      expect(form?.fields.map((field) => field.selector)).toEqual([
+        'body > form:nth-of-type(1) > input:nth-of-type(1)',
+        'input[name="email"]',
+      ]);
+      expect(form?.submit?.selector).toBe('body > form:nth-of-type(1) > button:nth-of-type(1)');
+    });
+
+    test('stores only selectors that redaction leaves as they are, each resolving to one element', async () => {
+      const selectors = forms.flatMap((form) => [
+        form.selector,
+        ...form.fields.map((field) => field.selector),
+        ...(form.submit === null ? [] : [form.submit.selector]),
+      ]);
+
+      const counts = await Promise.all(selectors.map((selector) => ipage.page.locator(selector).count()));
+
+      expect(selectors.map((selector) => redact(selector))).toEqual(selectors);
+      expect(counts).toEqual(selectors.map(() => 1));
     });
   });
 

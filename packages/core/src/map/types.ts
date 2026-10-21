@@ -21,6 +21,7 @@ export interface RouteInfo {
 }
 
 export interface ElementRef {
+  /** Finds exactly this element in the live page, and is the same after redaction (`stableSelector`). */
   selector: string;
   role: string;
   name: string;
@@ -75,7 +76,9 @@ export type ScreenStatus = 'captured' | 'navigation-failed';
 
 export interface Screen {
   id: string;
+  /** Where the page landed: the requested URL, or the one a redirect inside the app led to. */
   url: string;
+  /** The route of `url`, matched on its path below the base path. */
   route: string;
   /** The page's title; `(navigation failed: <error>)` for a failed navigation, for people to read. */
   title: string;
@@ -89,6 +92,8 @@ export interface Screen {
   forms: FormInfo[];
   tokens: TokenSample[];
   links: string[];
+  /** The URL that was requested when the page landed somewhere else in the app; `null` otherwise. */
+  redirectedFrom: string | null;
   discoveredFrom: string | null;
   capturedAt: string;
 }

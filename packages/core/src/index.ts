@@ -34,7 +34,8 @@ export {
 } from './map/next-routes.js';
 export type { AppMapDiff } from './map/persist.js';
 export { APP_MAP_FILE, diffAppMaps, readLatestAppMap, writeAppMap } from './map/persist.js';
-export { BUILD_SELECTOR_SOURCE } from './map/selectors.js';
+export type { SelectorCandidate } from './map/selectors.js';
+export { BUILD_SELECTOR_SOURCE, stableSelector } from './map/selectors.js';
 export { collectTokens } from './map/tokens.js';
 export type {
   AppMap,

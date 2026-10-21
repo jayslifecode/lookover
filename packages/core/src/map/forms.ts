@@ -1,10 +1,18 @@
 import type { InstrumentedPage } from '../browser/session.js';
-import { BUILD_SELECTOR_SOURCE } from './selectors.js';
+import { BUILD_SELECTOR_SOURCE, type SelectorCandidate, stableSelector } from './selectors.js';
 import type { ElementRef, FieldInfo, FormInfo } from './types.js';
 
-type SelectorBuilder = (el: Element) => string;
+type SelectorBuilder = (el: Element) => SelectorCandidate;
 type SubmitControl = HTMLButtonElement | HTMLInputElement;
 type LabelSource = NonNullable<FieldInfo['labelSource']>;
+
+/** A `T` as the page reports it: its selector is still the pair `stableSelector` chooses from. */
+type InPage<T extends { selector: string }> = Omit<T, 'selector'> & { selector: SelectorCandidate };
+interface InPageForm extends Omit<FormInfo, 'selector' | 'fields' | 'submit'> {
+  selector: SelectorCandidate;
+  fields: InPage<FieldInfo>[];
+  submit: InPage<ElementRef> | null;
+}
 
 /*
  * Everything from here to `FORMS_SOURCE` runs in the page, not in Node. The functions are plain
@@ -118,7 +126,7 @@ function ownerForm(el: Element): HTMLFormElement | null {
   return el.closest('form');
 }
 
-function describeField(el: Element, selectorOf: SelectorBuilder): FieldInfo {
+function describeField(el: Element, selectorOf: SelectorBuilder): InPage<FieldInfo> {
   return {
     selector: selectorOf(el),
     name: attr(el, 'name'),
@@ -135,7 +143,7 @@ function describeField(el: Element, selectorOf: SelectorBuilder): FieldInfo {
 }
 
 /** The box is in document coordinates (viewport rect plus scroll offset), as in `ElementRef` elsewhere. */
-function describeSubmit(control: SubmitControl, selectorOf: SelectorBuilder): ElementRef {
+function describeSubmit(control: SubmitControl, selectorOf: SelectorBuilder): InPage<ElementRef> {
   const rect = control.getBoundingClientRect();
   return {
     selector: selectorOf(control),
@@ -152,7 +160,7 @@ function describeSubmit(control: SubmitControl, selectorOf: SelectorBuilder): El
   };
 }
 
-function collectForms(selectorOf: SelectorBuilder): FormInfo[] {
+function collectForms(selectorOf: SelectorBuilder): InPageForm[] {
   const owned = Array.from(
     document.querySelectorAll('input, select, textarea, [role="textbox"], [role="combobox"]'),
   )
@@ -161,10 +169,10 @@ function collectForms(selectorOf: SelectorBuilder): FormInfo[] {
   const submitControls = Array.from(
     document.querySelectorAll<SubmitControl>('button[type=submit], input[type=submit], button:not([type])'),
   );
-  const fieldsOf = (owner: HTMLFormElement | null): FieldInfo[] =>
+  const fieldsOf = (owner: HTMLFormElement | null): InPage<FieldInfo>[] =>
     owned.filter((field) => field.owner === owner).map(({ el }) => describeField(el, selectorOf));
 
-  const forms: FormInfo[] = Array.from(document.querySelectorAll('form'), (form) => {
+  const forms: InPageForm[] = Array.from(document.querySelectorAll('form'), (form) => {
     const submit = submitControls.find((control) => control.form === form);
     return {
       selector: selectorOf(form),
@@ -177,7 +185,16 @@ function collectForms(selectorOf: SelectorBuilder): FormInfo[] {
   const looseFields = fieldsOf(null);
   return looseFields.length === 0
     ? forms
-    : [...forms, { selector: 'body', action: null, method: 'none', fields: looseFields, submit: null }];
+    : [
+        ...forms,
+        {
+          selector: { selector: 'body', path: 'body' },
+          action: null,
+          method: 'none',
+          fields: looseFields,
+          submit: null,
+        },
+      ];
 }
 
 const IN_PAGE_FUNCTIONS: readonly ((...args: never[]) => unknown)[] = [
@@ -216,9 +233,27 @@ return collectForms(${BUILD_SELECTOR_SOURCE});
  * or its `form` attribute; the submit control is the first `button[type=submit]`,
  * `input[type=submit]` or `button` without a type that belongs to the form.
  *
+ * A selector is the one `stableSelector` picks, which redaction leaves as it is. A control is never
+ * left out for want of one: when neither candidate qualifies (only a tag name that redaction rewrites
+ * can cause that), it keeps its body path, which holds nothing but tags and positions.
+ *
  * One in-page evaluation, so the cost does not grow with the number of fields. Fields in shadow
  * trees and other frames are not reached.
  */
 export async function extractForms(ipage: InstrumentedPage): Promise<FormInfo[]> {
-  return ipage.page.evaluate<FormInfo[]>(FORMS_SOURCE);
+  const forms = await ipage.page.evaluate<InPageForm[]>(FORMS_SOURCE);
+  return forms.map(withStoredSelectors);
+}
+
+function storedSelector(candidate: SelectorCandidate): string {
+  return stableSelector(candidate) ?? candidate.path;
+}
+
+function withStoredSelectors(form: InPageForm): FormInfo {
+  return {
+    ...form,
+    selector: storedSelector(form.selector),
+    fields: form.fields.map((field) => ({ ...field, selector: storedSelector(field.selector) })),
+    submit: form.submit === null ? null : { ...form.submit, selector: storedSelector(form.submit.selector) },
+  };
 }

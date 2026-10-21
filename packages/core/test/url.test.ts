@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { isSameApp, normaliseUrl, resolveSeed, routeKey } from '../src/util/url.js';
+import { appRelativePath, isSameApp, normaliseUrl, resolveSeed, routeKey } from '../src/util/url.js';
 
 const base = new URL('http://localhost:3000/app');
 
@@ -88,6 +88,27 @@ describe('isSameApp', () => {
 
     expect(isSameApp(new URL('http://localhost:3000/anything/at/all'), rootBase)).toBe(true);
     expect(isSameApp(new URL('http://localhost:3001/anything'), rootBase)).toBe(false);
+  });
+});
+
+describe('appRelativePath', () => {
+  test.each([
+    ['the base path itself', 'http://localhost:3000/app', '/'],
+    ['the base path with a trailing slash', 'http://localhost:3000/app/', '/'],
+    ['a path under the base', 'http://localhost:3000/app/organisations/1', '/organisations/1'],
+  ])('is the path below the base path for %s', (_name, href, expected) => {
+    expect(appRelativePath(new URL(href), base)).toBe(expected);
+  });
+
+  test('leaves out the query and the hash', () => {
+    expect(appRelativePath(new URL('http://localhost:3000/app/orgs?a=1#members'), base)).toBe('/orgs');
+  });
+
+  test('is the whole path when the base path is the root', () => {
+    const rootBase = new URL('http://localhost:3000/');
+
+    expect(appRelativePath(new URL('http://localhost:3000/orgs/1'), rootBase)).toBe('/orgs/1');
+    expect(appRelativePath(new URL('http://localhost:3000/'), rootBase)).toBe('/');
   });
 });
 

@@ -67,6 +67,7 @@ function screen(overrides: Partial<Screen> = {}): Screen {
     forms: [],
     tokens: [],
     links: [],
+    redirectedFrom: null,
     discoveredFrom: null,
     capturedAt: '2026-10-21T00:00:00.000Z',
     ...overrides,
@@ -338,6 +339,17 @@ describe('progressLine', () => {
 
   test('uses the singular for one element and the plural for no forms', () => {
     expect(progressLine(screen({ elements: [element('only')] }))).toBe('✓ /  1 element · 0 forms');
+  });
+
+  test('shows where a redirected screen landed, after the path that was requested', () => {
+    const redirected = screen({
+      url: 'http://localhost:3000/home.html?tab=2',
+      route: '/home.html',
+      redirectedFrom: 'http://localhost:3000/',
+      elements: [element('a'), element('b'), element('c')],
+    });
+
+    expect(progressLine(redirected)).toBe('✓ /  → /home.html  3 elements · 0 forms');
   });
 
   test('flags a screen whose navigation failed', () => {

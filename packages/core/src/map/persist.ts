@@ -97,6 +97,7 @@ function indexScreens(map: AppMap): ReadonlyMap<string, ScreenSummary> {
   return index;
 }
 
+/** A screen is identified by where it landed; `redirectedFrom` is how the crawl got there, not part of it. */
 function screenKey(screen: Screen): string {
   return `${screen.route}|${screen.viewport.name}`;
 }

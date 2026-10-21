@@ -6,7 +6,7 @@ import { shortId } from '../util/hash.js';
 import { isSameApp, normaliseUrl, resolveSeed, routeKey } from '../util/url.js';
 import { extractElements, MAX_ELEMENTS_PER_SCREEN } from './elements.js';
 import { extractForms } from './forms.js';
-import { Frontier, type QueuedScreen } from './frontier.js';
+import { Frontier, type QueuedScreen, routeOf } from './frontier.js';
 import { describeError, navigate, settleOnBlankPage, type Timing } from './navigation.js';
 import { collectTokens } from './tokens.js';
 import type { ElementRef, FormInfo, RouteInfo, Screen, TokenSample, Viewport } from './types.js';
@@ -52,7 +52,16 @@ interface PageCapture {
   hrefs: string[];
 }
 
-type LoadResult = { kind: 'captured'; capture: PageCapture } | { kind: 'failed'; reason: string };
+/** Where a screen is recorded: the URL the page landed on, and whether it was sent there. */
+interface Placement extends QueuedScreen {
+  redirectedFrom: string | null;
+}
+
+type LoadResult =
+  | { kind: 'captured'; landed: URL; capture: PageCapture }
+  /** The page landed on a screen captured before. */
+  | { kind: 'duplicate'; landed: URL }
+  | { kind: 'failed'; reason: string };
 
 const DEFAULT_SETTLE_MS = 800;
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 15_000;
@@ -66,6 +75,11 @@ const SCREEN_ID_LENGTH = 10;
  * Bounds: a URL is visited once per route key; links off the app, destructive links, route
  * patterns already queued `maxPerRoute` times and links past the `maxScreens` budget are skipped,
  * each logged once as `screen.skipped`, checked in that order. A URL seen before is ignored.
+ *
+ * A page that redirects inside the app is recorded once, under the URL it landed on (`url`, `route`
+ * and `id` are the landed ones, `redirectedFrom` the URL asked for). Landing on a screen captured
+ * before records nothing and logs `screen.skipped` as `redirected-duplicate`, which a queued URL
+ * that a redirect captured first gets too. A redirect off the app fails the screen.
  *
  * Logs `screen.discovered` before each visit and `screen.captured` after it, then
  * `screen.truncated` when the screen had more controls than the extractor keeps. A navigation that
@@ -116,24 +130,48 @@ class Crawler {
       null,
     );
     let screens: Screen[] = [];
-    for (let next = this.frontier.next(); next !== undefined; next = this.frontier.next()) {
-      screens = [...screens, await this.visit(next)];
+    for (let next = await this.takeNext(); next !== undefined; next = await this.takeNext()) {
+      const screen = await this.visit(next);
+      screens = screen === undefined ? screens : [...screens, screen];
     }
     return screens;
   }
 
-  private async visit(item: QueuedScreen): Promise<Screen> {
+  /** The next screen to visit, after reporting the queued ones a redirect has already captured. */
+  private async takeNext(): Promise<QueuedScreen | undefined> {
+    const { item, duplicates } = this.frontier.next();
+    for (const duplicate of duplicates) {
+      await this.skipRedirected(duplicate.url, duplicate.url);
+    }
+    return item;
+  }
+
+  private async skipRedirected(requested: URL, landed: URL): Promise<void> {
+    await this.ctx.log.append({
+      type: 'screen.skipped',
+      url: requested.href,
+      reason: 'redirected-duplicate',
+      landed: landed.href,
+    });
+  }
+
+  /** The screen captured at `item`, or `undefined` when the page landed on one captured before. */
+  private async visit(item: QueuedScreen): Promise<Screen | undefined> {
     await this.ctx.log.append({ type: 'screen.discovered', url: item.url.href, from: item.from });
     const loaded = await this.load(item.url);
     if (loaded.kind === 'failed') {
-      const screen = this.screenOf(item, failedContent(loaded.reason));
+      const screen = this.screenOf({ ...item, redirectedFrom: null }, failedContent(loaded.reason));
       await this.ctx.log.append({ type: 'screen.captured', screen });
       return screen;
+    }
+    if (loaded.kind === 'duplicate') {
+      await this.skipRedirected(item.url, loaded.landed);
+      return undefined;
     }
 
     const { capture } = loaded;
     const links = normaliseLinks(capture.hrefs, this.base);
-    const screen = this.screenOf(item, {
+    const screen = this.screenOf(this.placementOf(item, loaded.landed), {
       title: capture.title,
       status: 'captured',
       error: null,
@@ -156,6 +194,19 @@ class Crawler {
     return screen;
   }
 
+  /** `item` as recorded when the page landed on `landed`: itself, unless a redirect sent it elsewhere. */
+  private placementOf(item: QueuedScreen, landed: URL): Placement {
+    if (routeKey(landed) === routeKey(item.url)) {
+      return { ...item, redirectedFrom: null };
+    }
+    return {
+      url: landed,
+      route: routeOf(landed, this.base, this.opts.routes),
+      from: item.from,
+      redirectedFrom: item.url.href,
+    };
+  }
+
   /**
    * Opens `url` and reads the page. What the page or the browser throws becomes the reason the
    * screen failed; a `LookoverError` is the run's failure, not the page's, and is rethrown.
@@ -165,8 +216,16 @@ class Crawler {
     if (failure !== null) {
       return this.failed(failure);
     }
+    const landed = landedUrl(this.ipage.page, this.base);
+    if (!isSameApp(landed, this.base)) {
+      // Only the origin: the rest of the foreign URL may carry a token, and is not the app's to record.
+      return this.failed(`redirected outside the app to ${landed.origin}`);
+    }
+    if (!this.frontier.markCaptured(landed)) {
+      return { kind: 'duplicate', landed };
+    }
     try {
-      return { kind: 'captured', capture: await capturePage(this.ipage) };
+      return { kind: 'captured', landed, capture: await capturePage(this.ipage) };
     } catch (error) {
       if (error instanceof LookoverError) {
         throw error;
@@ -220,12 +279,12 @@ class Crawler {
     }
   }
 
-  private screenOf(item: QueuedScreen, content: ScreenContent): Screen {
+  private screenOf(placement: Placement, content: ScreenContent): Screen {
     const { viewport } = this.opts;
     return {
-      id: shortId(`${item.route}|${routeKey(item.url)}|${viewport.name}`, SCREEN_ID_LENGTH),
-      url: item.url.href,
-      route: item.route,
+      id: shortId(`${placement.route}|${routeKey(placement.url)}|${viewport.name}`, SCREEN_ID_LENGTH),
+      url: placement.url.href,
+      route: placement.route,
       title: content.title,
       status: content.status,
       error: content.error,
@@ -235,10 +294,17 @@ class Crawler {
       forms: content.forms,
       tokens: content.tokens,
       links: content.links,
-      discoveredFrom: item.from,
+      redirectedFrom: placement.redirectedFrom,
+      discoveredFrom: placement.from,
       capturedAt: new Date().toISOString(),
     };
   }
+}
+
+/** Where the page is now, normalised like every crawl URL so its route key compares with the queue's. */
+function landedUrl(page: Page, base: URL): URL {
+  const href = page.url();
+  return normaliseUrl(href, base) ?? new URL(href);
 }
 
 function isSessionLost(auth: CrawlAuth, page: Page, requested: URL): boolean {

@@ -644,10 +644,11 @@ describe('runDiscovery', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
       expect(vi.mocked(crawl)).toHaveBeenCalledTimes(1);
       expect(vi.mocked(crawl).mock.calls[0]?.[2]).not.toHaveProperty('auth');
-      // The documented limitation: `/home.html` is the login page now, and nothing notices.
-      expect(result.map.screens.map((screen) => [screen.url, screen.title])).toEqual([
-        [url('/'), 'Dashboard'],
-        [url('/home.html'), 'Sign in'],
+      // The documented limitation: `/home.html` redirects to the login page now, and nothing notices.
+      // The screen is the login page, under its own URL, with the page that was asked for.
+      expect(result.map.screens.map((screen) => [screen.url, screen.title, screen.redirectedFrom])).toEqual([
+        [url('/'), 'Dashboard', null],
+        [url(LOGIN_PATH), 'Sign in', url('/home.html')],
       ]);
       expect(eventsOf(await logOf(ctx), 'auth.lost')).toEqual([]);
     });

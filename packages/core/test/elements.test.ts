@@ -93,10 +93,10 @@ describe('extractElements', { timeout: BROWSER_TIMEOUT_MS }, () => {
     }, selector);
   }
 
-  /** Runs `BUILD_SELECTOR_SOURCE` through `page.evaluate` on every element matching `css`. */
+  /** Runs `BUILD_SELECTOR_SOURCE` through `page.evaluate` on every element matching `css`; the selector it prefers. */
   function buildSelectorsFor(css: string): Promise<string[]> {
     return ipage.page.evaluate<string[]>(
-      `Array.from(document.querySelectorAll(${JSON.stringify(css)}), (el) => (${BUILD_SELECTOR_SOURCE})(el))`,
+      `Array.from(document.querySelectorAll(${JSON.stringify(css)}), (el) => (${BUILD_SELECTOR_SOURCE})(el).selector)`,
     );
   }
 
@@ -345,6 +345,28 @@ describe('extractElements', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(elements.map((element) => element.name)).toEqual(before.elements.map((element) => element.name));
     expect(total).toBe(before.total + 2);
     expect(backendIds).toEqual(elements.map((element) => element.backendNodeId));
+  });
+
+  test('leaves out a control that has no selector redaction leaves alone, and still counts it', async () => {
+    await open('index.html');
+    const before = await extractElements(ipage);
+    await ipage.page.evaluate(() => {
+      // A tag name redaction rewrites as an API key: with no attribute to build a selector on, the
+      // control's selector is its path, and the path changes too.
+      const control = document.createElement('sk_live_abcdefgh1234');
+      control.setAttribute('role', 'button');
+      control.tabIndex = 0;
+      control.textContent = 'Pay';
+      document.body.append(control);
+    });
+
+    const { elements, total } = await extractElements(ipage);
+
+    expect(elements.map((element) => element.name)).toEqual(before.elements.map((element) => element.name));
+    expect(total).toBe(before.total + 1);
+    for (const { selector } of elements) {
+      expect(redact(selector)).toBe(selector);
+    }
   });
 
   test('skips the options of a collapsed select and keeps those of a multiple select', async () => {

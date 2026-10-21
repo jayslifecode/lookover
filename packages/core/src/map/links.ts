@@ -1,3 +1,5 @@
+import { appRelativePath } from '../util/url.js';
+
 /**
  * Links discovery never follows: logging out or deleting something would change what the rest of
  * the crawl sees. Tested against a URL's app-relative path (below the base URL's path) and its
@@ -14,12 +16,7 @@ export function isDestructiveLink(url: URL, base: URL): boolean {
   return DESTRUCTIVE_LINK_PATTERN.test(appRelativeKey(url, base));
 }
 
-/**
- * The part of a same-app URL that belongs to the app: its path below the base URL's path (`/` for
- * the app's root), then its query.
- */
+/** The part of a same-app URL that belongs to the app: its app-relative path, then its query. */
 function appRelativeKey(url: URL, base: URL): string {
-  const basePath = base.pathname.replace(/\/+$/, '');
-  const path = url.pathname.slice(basePath.length);
-  return `${path === '' ? '/' : path}${url.search}`;
+  return `${appRelativePath(url, base)}${url.search}`;
 }

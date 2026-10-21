@@ -18,14 +18,27 @@ const MS_PER_SECOND = 1_000;
 const SECONDS_PER_MINUTE = 60;
 const TENTHS_PER_SECOND = 10;
 
-/** One line per captured screen: `✓ /organisations/[id]  18 elements · 1 form`. */
+/**
+ * One line per captured screen: `✓ /organisations/[id]  18 elements · 1 form`. A screen the page
+ * was redirected to shows the path asked for, then where it landed:
+ * `✓ /  → /home.html  18 elements · 1 form`.
+ */
 export function progressLine(screen: Screen): string {
   if (isFailedScreen(screen)) {
     return `! ${screen.route}  navigation failed`;
   }
   const elements = count(screen.elements.length, 'element');
   const forms = count(screen.forms.length, 'form');
-  return `✓ ${screen.route}  ${elements} · ${forms}`;
+  const where =
+    screen.redirectedFrom === null
+      ? screen.route
+      : `${pathOf(screen.redirectedFrom)}  → ${pathOf(screen.url)}`;
+  return `✓ ${where}  ${elements} · ${forms}`;
+}
+
+/** The path of `href`, without the query a token may be in; `href` itself when it is not a URL. */
+function pathOf(href: string): string {
+  return URL.canParse(href) ? new URL(href).pathname : href;
 }
 
 export function summaryRows(summary: RunSummary): [string, string][] {

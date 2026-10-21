@@ -1,7 +1,7 @@
 import type { CDPSession } from 'playwright';
 import { type AXNode, callOnNode, getAXTree, resolveBackendNode } from '../browser/cdp.js';
 import type { InstrumentedPage } from '../browser/session.js';
-import { BUILD_SELECTOR_SOURCE } from './selectors.js';
+import { BUILD_SELECTOR_SOURCE, type SelectorCandidate, stableSelector } from './selectors.js';
 import type { Box, ElementRef } from './types.js';
 
 /**
@@ -52,8 +52,7 @@ const CONCURRENT_ELEMENTS = 50;
 type InteractiveAXNode = AXNode & { backendDOMNodeId: number };
 
 /** What the page reports about one element (see `measureElement`). */
-interface MeasuredElement {
-  selector: string;
+interface MeasuredElement extends SelectorCandidate {
   tag: string;
   box: Box;
   disabled: boolean;
@@ -65,19 +64,24 @@ interface MeasuredElement {
  * is `BUILD_SELECTOR_SOURCE`, passed in by `MEASURE_ELEMENT_SOURCE`.
  *
  * The box is the border box in document coordinates (viewport rect plus scroll offset), so it lands
- * on full-page screenshots. An element whose selector does not resolve to it (one inside a shadow
- * tree) is reported as `null`: a replay could never find it again.
+ * on full-page screenshots. An element whose selectors do not resolve to it (one inside a shadow
+ * tree) is reported as `null`: a replay could never find it again. Both are checked, because either
+ * can end up stored (see `stableSelector`).
  */
-function measureElement(this: Element, buildSelector: (el: Element) => string): MeasuredElement | null {
-  const selector = buildSelector(this);
-  if (document.querySelector(selector) !== this) {
+function measureElement(
+  this: Element,
+  buildSelector: (el: Element) => SelectorCandidate,
+): MeasuredElement | null {
+  const candidate = buildSelector(this);
+  const resolvesToThis = (selector: string): boolean => document.querySelector(selector) === this;
+  if (!resolvesToThis(candidate.selector) || !resolvesToThis(candidate.path)) {
     return null;
   }
   const rect = this.getBoundingClientRect();
   const disabled = this.matches(':disabled') || this.getAttribute('aria-disabled') === 'true';
   const tabIndex = (this as Element & Partial<HTMLOrSVGElement>).tabIndex ?? -1;
   return {
-    selector,
+    ...candidate,
     tag: this.localName,
     box: { x: rect.x + window.scrollX, y: rect.y + window.scrollY, width: rect.width, height: rect.height },
     disabled,
@@ -90,14 +94,15 @@ const MEASURE_ELEMENT_SOURCE = `function () { return (${measureElement.toString(
 /**
  * The interactive elements of the page as assistive technology sees them: non-ignored nodes of the
  * accessibility tree with an interactive role, in reading order. Each gets a selector that resolves
- * to exactly that element and its box in document coordinates.
+ * to exactly that element and that redaction leaves as it is, and its box in document coordinates.
  *
  * Only the first `MAX_ELEMENTS_PER_SCREEN` candidates are measured; `total` counts all of them, so
  * the screen was truncated exactly when `total > MAX_ELEMENTS_PER_SCREEN`. Candidates without area
- * (hidden, collapsed), whose DOM node can no longer be resolved, or that a document selector cannot
- * reach (shadow trees) are left out of `elements`, so `total > elements.length` alone does not mean
- * truncation. The options of a closed `<select>` are not candidates at all. Elements in other frames
- * are not in the main frame's tree.
+ * (hidden, collapsed), whose DOM node can no longer be resolved, that a document selector cannot
+ * reach (shadow trees) or that have no selector redaction leaves alone (`stableSelector`) are left
+ * out of `elements`, so `total > elements.length` alone does not mean truncation. The options of a
+ * closed `<select>` are not candidates at all. Elements in other frames are not in the main frame's
+ * tree.
  */
 export async function extractElements(
   ipage: InstrumentedPage,
@@ -153,8 +158,13 @@ async function measureNode(cdp: CDPSession, node: InteractiveAXNode): Promise<El
     if (measured === null || !hasArea(measured.box)) {
       return null;
     }
+    const selector = stableSelector(measured);
+    if (selector === null) {
+      // Neither selector survives redaction: the stored map could not find the element again.
+      return null;
+    }
     return {
-      selector: measured.selector,
+      selector,
       role: node.role,
       name: node.name,
       tag: measured.tag,

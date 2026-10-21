@@ -34,6 +34,7 @@ vi.mock('../src/map/forms.js', async (importOriginal) => {
 });
 
 const SITE_DIR = fileURLToPath(new URL('./fixtures/site', import.meta.url));
+const REDIRECT_DIR = fileURLToPath(new URL('./fixtures/site/redirect', import.meta.url));
 const BROWSER_TIMEOUT_MS = 30_000;
 const VIEWPORT = { name: 'desktop', width: 1280, height: 800 };
 const SSE_SETTLE_MS = 800;
@@ -346,6 +347,19 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
     ]);
   });
 
+  test('matches routes below a base path', async () => {
+    const { screens } = await crawlSite({
+      baseUrl: `${fixture.url}/sub/`,
+      seeds: ['/', '/page.html'],
+      routes: [{ pattern: '/[name]', source: 'filesystem' }],
+    });
+
+    expect(screens.map((screen) => [screen.url, screen.route])).toEqual([
+      [url('/sub'), '/'],
+      [url('/sub/page.html'), '/[name]'],
+    ]);
+  });
+
   test('never visits a destructive seed', async () => {
     const { screens, events } = await crawlSite({
       seeds: ['/logout', '/orgs.html?action=delete', '/users/sign_out', '/logoff'],
@@ -491,6 +505,112 @@ describe('crawl', { timeout: BROWSER_TIMEOUT_MS }, () => {
       const { screens } = await crawlSite({ seeds: ['/away'], maxScreens: 1 });
 
       expectFailedNavigation(screens[0], /about:blank|interrupted|ERR_/);
+    });
+  });
+
+  describe('when a page redirects', () => {
+    const SECRET_QUERY = 'token=abc123secret';
+    let app: FixtureServer;
+    let elsewhere: FixtureServer;
+
+    beforeAll(async () => {
+      elsewhere = await serveFixture(REDIRECT_DIR);
+      app = await serveFixture(REDIRECT_DIR, {
+        '/': (_req, res) => redirect(res, '/home.html'),
+        '/away': (_req, res) => redirect(res, `${elsewhere.url}/home.html?${SECRET_QUERY}`),
+      });
+    }, BROWSER_TIMEOUT_MS);
+
+    afterAll(async () => {
+      await app.close();
+      await elsewhere.close();
+    }, BROWSER_TIMEOUT_MS);
+
+    const crawlApp = (seeds: string[]): Promise<CrawlResult> =>
+      crawlSite({ baseUrl: app.url, seeds, maxScreens: 5 });
+
+    test('records a redirected screen under the URL it landed on', async () => {
+      const { screens, events } = await crawlApp(['/']);
+
+      expect(screens).toHaveLength(1);
+      const [screen] = screens;
+      expect(screen).toMatchObject({
+        url: `${app.url}/home.html`,
+        route: '/home.html',
+        redirectedFrom: `${app.url}/`,
+        title: 'Redirect target',
+        status: 'captured',
+        discoveredFrom: null,
+      });
+      expect(screen?.id).toBe(shortId(`/home.html|/home.html|${VIEWPORT.name}`, 10));
+      expect(screen?.links).toEqual([`${app.url}/`]);
+      expect(eventsOf(events, 'screen.discovered').map((event) => event.url)).toEqual([`${app.url}/`]);
+      expect(eventsOf(events, 'screen.skipped')).toEqual([]);
+    });
+
+    test('leaves redirectedFrom null for a page that loads where it was asked for', async () => {
+      const { screens } = await crawlApp(['/home.html']);
+
+      expect(screens.map((screen) => [screen.url, screen.redirectedFrom])).toEqual([
+        [`${app.url}/home.html`, null],
+      ]);
+    });
+
+    test('skips a redirect to a screen already captured', async () => {
+      const { screens, events } = await crawlApp(['/home.html', '/']);
+
+      expect(screens.map((screen) => [screen.url, screen.redirectedFrom])).toEqual([
+        [`${app.url}/home.html`, null],
+      ]);
+      expect(eventsOf(events, 'screen.skipped')).toEqual([
+        expect.objectContaining({
+          url: `${app.url}/`,
+          reason: 'redirected-duplicate',
+          landed: `${app.url}/home.html`,
+        }),
+      ]);
+      expect(eventsOf(events, 'screen.discovered').map((event) => event.url)).toEqual([
+        `${app.url}/home.html`,
+        `${app.url}/`,
+      ]);
+    });
+
+    test('skips a queued screen that a redirect already captured, and reports it', async () => {
+      const { screens, events } = await crawlApp(['/', '/home.html']);
+
+      expect(screens.map((screen) => [screen.url, screen.redirectedFrom])).toEqual([
+        [`${app.url}/home.html`, `${app.url}/`],
+      ]);
+      expect(eventsOf(events, 'screen.skipped')).toEqual([
+        expect.objectContaining({
+          url: `${app.url}/home.html`,
+          reason: 'redirected-duplicate',
+          landed: `${app.url}/home.html`,
+        }),
+      ]);
+      expect(eventsOf(events, 'screen.discovered').map((event) => event.url)).toEqual([`${app.url}/`]);
+    });
+
+    test('a redirect off the app is a failed screen without the foreign URL', async () => {
+      const { screens, events } = await crawlApp(['/away']);
+
+      expect(screens).toHaveLength(1);
+      expectFailedNavigation(screens[0], /^redirected outside the app to /);
+      expect(screens[0]).toMatchObject({
+        url: `${app.url}/away`,
+        error: `redirected outside the app to ${elsewhere.url}`,
+        redirectedFrom: null,
+      });
+      expect(JSON.stringify([screens, events])).not.toContain(SECRET_QUERY);
+    });
+
+    test('goes on crawling after a redirect off the app', async () => {
+      const { screens } = await crawlApp(['/away', '/home.html']);
+
+      expect(screens.map((screen) => [screen.url, screen.status])).toEqual([
+        [`${app.url}/away`, 'navigation-failed'],
+        [`${app.url}/home.html`, 'captured'],
+      ]);
     });
   });
 

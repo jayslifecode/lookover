@@ -17,6 +17,8 @@ export type RunEventBody =
       url: string;
       reason: 'destructive-link' | 'route-cap' | 'max-screens' | 'not-same-app';
     }
+  /** `url` redirected to `landed`, a screen of the app that was already captured. */
+  | { type: 'screen.skipped'; url: string; reason: 'redirected-duplicate'; landed: string }
   | { type: 'screen.captured'; screen: Screen }
   | { type: 'screen.truncated'; screenId: string; elements: number; kept: number }
   | { type: 'run.finished'; screens: number; durationMs: number }
