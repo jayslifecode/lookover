@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Target size fixture</title>
+    <style>
+      body {
+        margin: 0;
+        background: #ffffff;
+        font: 14px/1.5 sans-serif;
+        color: #111827;
+      }
+      /* Everything sits at a fixed spot, so the distances between the targets are exact. */
+      .at {
+        position: absolute;
+      }
+      button.small {
+        width: 16px;
+        height: 16px;
+        padding: 0;
+        border: 1px solid #374151;
+        background: #f3f4f6;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- two 16 px buttons 2 px apart: each has the other inside its 24 px circle -->
+    <button type="button" id="icon" class="small at" style="left: 20px; top: 20px" aria-label="Close"></button>
+    <button type="button" id="icon-next" class="small at" style="left: 38px; top: 20px" aria-label="Pin"></button>
+
+    <!-- 16 px, but nothing within 24 px: the spacing exception -->
+    <button type="button" id="lone" class="small at" style="left: 300px; top: 20px" aria-label="Lone"></button>
+
+    <!-- 40 px: big enough, however near a neighbour -->
+    <button type="button" id="big" class="at" style="left: 500px; top: 20px; width: 40px; height: 40px">Big</button>
+    <button type="button" id="big-next" class="at" style="left: 542px; top: 20px; width: 40px; height: 40px">Next</button>
+
+    <!-- a link in a line of text is exempt, however short; the button under it crowds it -->
+    <p class="at" style="left: 20px; top: 120px; margin: 0; width: 420px">
+      Read the <a id="inline" href="#terms" style="font-size: 14px">terms of service</a> before you go on.
+    </p>
+    <button type="button" id="under-link" class="at" style="left: 20px; top: 136px; width: 420px; height: 40px">
+      Continue
+    </button>
+
+    <!-- the browser's own controls are exempt: these three are small and crowd one another -->
+    <input type="checkbox" id="check" class="at" style="left: 20px; top: 220px" aria-label="Agree" />
+    <input type="radio" id="radio" class="at" style="left: 36px; top: 220px" aria-label="Option" />
+    <select
+      id="pick"
+      class="at"
+      style="left: 20px; top: 234px; width: 30px; height: 18px; font-size: 10px"
+      aria-label="Size"
+    >
+      <option>S</option>
+      <option>M</option>
+    </select>
+
+    <!-- a custom checkbox is not the browser's: it is judged. The disabled button beside it cannot be
+         tapped, so it is exempt, but it still sits where a finger could land -->
+    <!-- biome-ignore lint/a11y/useSemanticElements: the target-size rule must judge ARIA checkboxes, which the browser does not draw -->
+    <div
+      role="checkbox"
+      aria-checked="false"
+      id="custom-check"
+      tabindex="0"
+      class="at"
+      style="left: 20px; top: 320px; width: 16px; height: 16px; border: 1px solid #374151"
+      aria-label="Custom"
+    ></div>
+    <button type="button" id="off" class="small at" style="left: 40px; top: 320px" aria-label="Off" disabled></button>
+  </body>
+</html>

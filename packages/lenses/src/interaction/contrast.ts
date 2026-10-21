@@ -109,6 +109,18 @@ export function contrastRatio(a: Rgba, b: Rgba): number {
   return (Math.max(la, lb) + CONTRAST_FLARE) / (Math.min(la, lb) + CONTRAST_FLARE);
 }
 
+/** The decimals a contrast ratio is reported with. */
+export const RATIO_DECIMALS = 2;
+const RATIO_SCALE = 10 ** RATIO_DECIMALS;
+
+/**
+ * `contrastRatio` rounded to `RATIO_DECIMALS` places. A rule rounds once and then compares, prints and
+ * stores this value, so a ratio reported as 3.00:1 is never judged as being under 3.
+ */
+export function roundedContrastRatio(a: Rgba, b: Rgba): number {
+  return Math.round(contrastRatio(a, b) * RATIO_SCALE) / RATIO_SCALE;
+}
+
 export function isLargeText(fontSizePx: number, fontWeight: number): boolean {
   return fontSizePx >= LARGE_TEXT_PX || (fontSizePx >= LARGE_BOLD_TEXT_PX && fontWeight >= BOLD_WEIGHT);
 }

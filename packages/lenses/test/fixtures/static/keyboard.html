@@ -1,0 +1,56 @@
+<!-- biome-ignore-all lint/a11y: this page is the inaccessible markup the keyboard rules exist to find -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Keyboard reachability fixture</title>
+    <style>
+      body {
+        margin: 24px;
+        background: #ffffff;
+        font: 16px/1.5 sans-serif;
+        color: #111827;
+      }
+      div,
+      ul,
+      span,
+      button,
+      input {
+        margin-bottom: 16px;
+      }
+      [role='button'],
+      [role='link'],
+      [role='toolbar'] {
+        display: inline-block;
+        padding: 8px 16px;
+        border: 1px solid #374151;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- a div that looks like a button and cannot be focused -->
+    <div role="button" id="no-tab">Delete</div>
+    <!-- the same with tabindex: reachable -->
+    <div role="button" id="tab-zero" tabindex="0">Save</div>
+    <!-- tabindex -1: focusable by a script, which is all the rule asks -->
+    <div role="button" id="roving" tabindex="-1">Roving</div>
+    <!-- not focusable, but not usable either -->
+    <div role="button" id="disabled" aria-disabled="true">Archive</div>
+    <br />
+    <span role="link" id="span-link">Read the docs</span>
+    <br />
+    <!-- a listbox keeps focus on itself and points at the active option -->
+    <ul role="listbox" id="list" tabindex="0" aria-label="Fruit" aria-activedescendant="apple">
+      <li role="option" id="apple" aria-selected="true">Apple</li>
+      <li role="option" id="pear" aria-selected="false">Pear</li>
+    </ul>
+    <!-- so does a toolbar: its buttons are never focused themselves -->
+    <div role="toolbar" id="tools" tabindex="0" aria-label="Format" aria-activedescendant="bold">
+      <div role="button" id="bold">Bold</div>
+      <div role="button" id="italic">Italic</div>
+    </div>
+    <br />
+    <input id="pos-three" tabindex="3" aria-label="Search" />
+    <button type="button" id="pos-one" tabindex="1">Go</button>
+  </body>
+</html>

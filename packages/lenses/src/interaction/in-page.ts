@@ -277,6 +277,17 @@ function isInlineInText(this: Element): boolean {
  */
 export const IS_INLINE_IN_TEXT_SOURCE: string = isInlineInText.toString();
 
+function isInActiveDescendantWidget(this: Element): boolean {
+  return this.closest('[aria-activedescendant]') !== null;
+}
+
+/**
+ * Whether the element is, or is inside, an element with `aria-activedescendant`: a listbox, a combobox
+ * or a toolbar that keeps focus on itself and points at its active child. Those children are never
+ * focused themselves, so the keyboard-reachability rule leaves them alone.
+ */
+export const IN_ACTIVEDESCENDANT_WIDGET_SOURCE: string = isInActiveDescendantWidget.toString();
+
 function positiveTabindex(buildSelector: SelectorBuilder): PositiveTabindex[] {
   return Array.from(document.querySelectorAll('[tabindex]')).flatMap((el) => {
     const tabindex = (el as Element & Partial<HTMLOrSVGElement>).tabIndex ?? 0;

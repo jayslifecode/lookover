@@ -7,6 +7,7 @@ import {
   type Rgba,
   relativeLuminance,
   requiredRatio,
+  roundedContrastRatio,
 } from '../src/interaction/contrast.js';
 
 const WHITE: Rgba = { r: 255, g: 255, b: 255, a: 1 };
@@ -133,6 +134,20 @@ describe('relativeLuminance and contrastRatio', () => {
 
   test('a colour against itself is 1:1', () => {
     expect(contrastRatio(WHITE, WHITE)).toBe(1);
+  });
+});
+
+describe('roundedContrastRatio', () => {
+  test('is the contrast ratio to two decimals', () => {
+    expect(roundedContrastRatio(parsed('rgb(118, 118, 118)'), WHITE)).toBe(4.54);
+    expect(roundedContrastRatio(WHITE, BLACK)).toBe(21);
+  });
+
+  test('rounds up to the line it is a hair under: #959595 on white is 2.9953:1, which reads and compares as 3', () => {
+    const grey = parsed('rgb(149, 149, 149)');
+
+    expect(contrastRatio(grey, WHITE)).toBeLessThan(3);
+    expect(roundedContrastRatio(grey, WHITE)).toBe(3);
   });
 });
 

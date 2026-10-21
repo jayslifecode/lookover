@@ -13,6 +13,7 @@ import {
 import type { CDPSession } from 'playwright';
 import type { StyleSnapshot } from './in-page.js';
 import { evaluateSource, measureOn } from './measure.js';
+import { tally } from './skips.js';
 import {
   ANCESTOR_SNAPSHOTS_SOURCE,
   BLUR_SOURCE,
@@ -361,11 +362,4 @@ function paddedClip({ rect, viewportWidth, viewportHeight }: Placement): Box | n
 
 function isForcible(element: ElementRef): element is ForcibleElement {
   return element.backendNodeId !== undefined;
-}
-
-/** One skip per reason, the counts of the same reason added up, in the order the reasons first appear. */
-function tally(skips: readonly LensSkip[]): LensSkip[] {
-  const counts = new Map<string, number>();
-  for (const { reason, count } of skips) counts.set(reason, (counts.get(reason) ?? 0) + count);
-  return Array.from(counts, ([reason, count]) => ({ reason, count }));
 }

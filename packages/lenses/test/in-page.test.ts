@@ -15,6 +15,7 @@ import {
   COMPONENT_NAME_SOURCE,
   EFFECTIVE_BACKGROUND_SOURCE,
   type EffectiveBackground,
+  IN_ACTIVEDESCENDANT_WIDGET_SOURCE,
   IS_INLINE_IN_TEXT_SOURCE,
   MEASURE_OVERFLOW_SOURCE,
   type OverflowMeasure,
@@ -138,6 +139,21 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
       ['#block-alone', false],
     ])('%s is inline in text: %s', async (selector, expected) => {
       expect(await measure<boolean>(selector, IS_INLINE_IN_TEXT_SOURCE)).toBe(expected);
+    });
+  });
+
+  describe('IN_ACTIVEDESCENDANT_WIDGET_SOURCE', () => {
+    beforeEach(() => open('activedescendant.html'));
+
+    test.each([
+      ['#tools', true],
+      ['#bold', true],
+      ['#italic', true],
+      ['#apple', true],
+      ['#outside', false],
+      ['#own-tab-stop', false],
+    ])('%s is in a widget that points at its active child: %s', async (selector, expected) => {
+      expect(await measure<boolean>(selector, IN_ACTIVEDESCENDANT_WIDGET_SOURCE)).toBe(expected);
     });
   });
 

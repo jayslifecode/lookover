@@ -4,8 +4,10 @@ export {
   contrastRatio,
   isLargeText,
   parseCssColor,
+  RATIO_DECIMALS,
   relativeLuminance,
   requiredRatio,
+  roundedContrastRatio,
 } from './interaction/contrast.js';
 export type {
   ActiveElement,
@@ -25,6 +27,7 @@ export {
   ACTIVE_ELEMENT_SOURCE,
   COMPONENT_NAME_SOURCE,
   EFFECTIVE_BACKGROUND_SOURCE,
+  IN_ACTIVEDESCENDANT_WIDGET_SOURCE,
   IS_INLINE_IN_TEXT_SOURCE,
   MEASURE_OVERFLOW_SOURCE,
   POSITIVE_TABINDEX_SOURCE,
@@ -52,3 +55,7 @@ export {
   MAX_STATE_ELEMENTS,
   stateDiffers,
 } from './interaction/states.js';
+export type { StaticResult } from './interaction/static.js';
+export { MAX_CONTRAST_ELEMENTS, MUST_BE_FOCUSABLE_ROLES, measureStatic } from './interaction/static.js';
+export type { TargetSizeResult } from './interaction/target-size.js';
+export { MIN_TARGET_PX, passesTargetSize } from './interaction/target-size.js';

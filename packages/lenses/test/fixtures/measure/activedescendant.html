@@ -1,0 +1,19 @@
+<!-- biome-ignore-all lint/a11y: a widget that points at its children with aria-activedescendant is built from roles on purpose -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Active descendant fixture</title>
+  </head>
+  <body>
+    <div role="toolbar" id="tools" tabindex="0" aria-label="Format" aria-activedescendant="bold">
+      <div role="button" id="bold">Bold</div>
+      <div role="button" id="italic">Italic</div>
+    </div>
+    <ul role="listbox" tabindex="0" aria-label="Fruit" aria-activedescendant="apple">
+      <li role="option" id="apple">Apple</li>
+    </ul>
+    <div role="button" id="outside">Outside</div>
+    <div role="button" id="own-tab-stop" tabindex="0">Focusable itself</div>
+  </body>
+</html>

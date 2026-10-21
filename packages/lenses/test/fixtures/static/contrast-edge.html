@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Contrast edge cases fixture</title>
+    <style>
+      body {
+        margin: 24px;
+        background: #ffffff;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        display: block;
+        margin-bottom: 40px;
+        padding: 12px 24px;
+        border: 0;
+        background: transparent;
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 30% black over white is a mid grey of 2.11:1: the alpha is blended in before the ratio -->
+    <button type="button" id="translucent" style="color: rgba(0, 0, 0, 0.3)">Faint ink</button>
+    <!-- 2.995:1 before rounding, 3.00:1 after: a pass of the 3:1 line, a miss of the 4.5:1 one -->
+    <button type="button" id="rounds-to-three" style="color: #959595">Just at three</button>
+    <!-- a colour space the parser does not read -->
+    <button type="button" id="wide-gamut" style="color: color(display-p3 1 0 0)">Display P3 red</button>
+    <!-- opacity changes what is seen behind the text: no trusted ratio -->
+    <button type="button" id="faded" style="opacity: 0.5; color: #111827">Half there</button>
+  </body>
+</html>

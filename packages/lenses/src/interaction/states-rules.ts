@@ -9,7 +9,7 @@ import {
   stepFinding,
 } from '@jayslifecode/lookover-core';
 import { type Rule, ruleById } from '@jayslifecode/lookover-rules';
-import { blendOver, contrastRatio, parseCssColor } from './contrast.js';
+import { blendOver, parseCssColor, RATIO_DECIMALS, roundedContrastRatio } from './contrast.js';
 import {
   EFFECTIVE_BACKGROUND_SOURCE,
   type EffectiveBackground,
@@ -31,8 +31,6 @@ const HOVER_RULE = ruleById('interaction.hover-state-missing');
 
 /** WCAG 2.2 1.4.11 (non-text contrast): a focus indicator needs 3:1 against the colour next to it. */
 const MIN_INDICATOR_RATIO = 3;
-const RATIO_DECIMALS = 2;
-const RATIO_SCALE = 10 ** RATIO_DECIMALS;
 /** The outline style of the browser's own focus ring, which it paints itself, in two tones. */
 const USER_AGENT_RING_STYLE = 'auto';
 /** The roles a pointer user clicks, and so expects hover feedback from. */
@@ -168,7 +166,7 @@ async function judgeIndicator(subject: Subject, indicator: string): Promise<Judg
   const behind = parseCssColor(background.color);
   if (mark === null || behind === null) return skippedFor('focus-indicator-colour-unreadable');
   // Rounded once, so the ratio it is judged by is the one it reports: "3.00:1" is never a failure.
-  const ratio = Math.round(contrastRatio(blendOver(mark, behind), behind) * RATIO_SCALE) / RATIO_SCALE;
+  const ratio = roundedContrastRatio(blendOver(mark, behind), behind);
   if (ratio >= MIN_INDICATOR_RATIO) return NOTHING;
   const finding = await stateFinding(subject, INDICATOR_CONTRAST_RULE, 'focus', {
     what: INDICATOR_COLOURS,
