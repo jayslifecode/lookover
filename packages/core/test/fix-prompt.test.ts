@@ -6,6 +6,7 @@ import { occurrence, SAVE_BUTTON } from './fixtures/findings.js';
 const ROUTE = '/settings';
 const URL = 'http://localhost:3123/settings';
 const CLOSING_LINE = "Keep the control's accessible name, then tell me which file you changed.";
+const NO_TARGET_CLOSING_LINE = 'Tell me which file you changed.';
 
 describe('fixPromptFor', () => {
   const focusRule = ruleById('interaction.focus-visible-missing');
@@ -51,9 +52,12 @@ describe('fixPromptFor', () => {
       observed: 'no control could be reached with the Tab key',
     });
 
-    expect(prompt.split('\n')[0]).toBe(
+    const lines = prompt.split('\n');
+    expect(lines[0]).toBe(
       'In /settings (http://localhost:3123/settings), no control could be reached with the Tab key.',
     );
+    expect(lines.at(-1)).toBe(NO_TARGET_CLOSING_LINE);
+    expect(prompt).not.toContain('accessible name');
   });
 
   test('fixPromptFor omits the reference for a rule without one', () => {
@@ -97,7 +101,7 @@ describe('fixPromptFor', () => {
       '/b page',
       `Rule: ${consoleRule.title}. Expected: ${consoleRule.expected} ${consoleRule.whyItMatters}`,
       `Fix: ${consoleRule.fixHint}`,
-      CLOSING_LINE,
+      NO_TARGET_CLOSING_LINE,
     ]);
   });
 

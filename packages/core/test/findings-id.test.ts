@@ -139,6 +139,7 @@ describe('mergeFindings', () => {
         '/a #a — count=1',
         '/b #b — count=1',
       ]);
+      expect(merged?.fixPrompt.split('\n').at(-1)).toBe('Tell me which file you changed.');
       expect(merged?.observed).toBe(observed);
       expect(first.fixPrompt).not.toContain('/b #b');
     });

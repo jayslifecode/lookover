@@ -2,7 +2,9 @@ import type { Rule } from '@jayslifecode/lookover-rules';
 import type { ElementTarget, Occurrence } from './types.js';
 
 const MAX_LISTED_OCCURRENCES = 10;
-const CLOSING_LINE = "Keep the control's accessible name, then tell me which file you changed.";
+const CLOSING_LINE_FOR_ELEMENT = "Keep the control's accessible name, then tell me which file you changed.";
+/** A finding with no element (a console error, a failed request) has no control whose name to keep. */
+const CLOSING_LINE_WITHOUT_ELEMENT = 'Tell me which file you changed.';
 
 export interface FixPromptInput {
   rule: Rule;
@@ -17,17 +19,17 @@ export interface FixPromptInput {
 /**
  * The prompt a builder pastes into their coding agent: where the problem is, what the rule expects and
  * why it matters, how to fix it and (when the rule has one) the standard behind it. The first line names
- * the element; with no target it is just the route and the observation. A finding seen in several places
- * lists them (at most 10) under it.
+ * the element; with no target it is just the route and the observation, and the last line no longer asks
+ * to keep the control's accessible name. A finding seen in several places lists them (at most 10) under it.
  */
 export function fixPromptFor(input: FixPromptInput): string {
-  const { rule, occurrences = [] } = input;
+  const { rule, target, occurrences = [] } = input;
   return [
     firstLine(input),
     ...occurrenceLines(occurrences),
     `Rule: ${rule.title}. Expected: ${rule.expected} ${rule.whyItMatters}`,
     fixLine(rule),
-    CLOSING_LINE,
+    target === null ? CLOSING_LINE_WITHOUT_ELEMENT : CLOSING_LINE_FOR_ELEMENT,
   ].join('\n');
 }
 
