@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Focus parts fixture</title>
+  </head>
+  <body>
+    <input type="text" id="text" aria-label="Text" />
+    <input type="date" id="date" aria-label="Date" />
+    <!-- biome-ignore lint/a11y/useMediaCaption: the source under test reads the player's focus, not its content -->
+    <video id="player" controls width="200" height="100"></video>
+    <!-- biome-ignore lint/a11y/useMediaCaption: the source under test reads the player's focus, not its content -->
+    <audio id="sound" controls></audio>
+    <!-- biome-ignore lint/a11y/useMediaCaption: the source under test reads the player's focus, not its content -->
+    <video id="bare" tabindex="0" width="200" height="100"></video>
+    <div id="host">
+      <template shadowrootmode="open">
+        <button type="button" id="one">One</button>
+        <div>
+          <button type="button" id="two">Two</button>
+        </div>
+      </template>
+    </div>
+    <div id="outer">
+      <template shadowrootmode="open">
+        <div id="inner-host">
+          <template shadowrootmode="open">
+            <button type="button" id="deep">Deep</button>
+          </template>
+        </div>
+      </template>
+    </div>
+  </body>
+</html>

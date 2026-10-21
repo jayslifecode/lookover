@@ -4,8 +4,14 @@ import type { EvidenceRef, Finding, LensContext, LensSkip, StepFinding } from '@
 import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
 import type { Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { evaluateSource } from '../src/interaction/measure.js';
 import type { FocusStop } from '../src/interaction/states.js';
-import { MAX_TAB_PRESSES, TRAP_REPEATS, tabWalk } from '../src/interaction/tab-walk.js';
+import {
+  MAX_TAB_PRESSES,
+  RESTART_TAB_ORDER_SOURCE,
+  TRAP_REPEATS,
+  tabWalk,
+} from '../src/interaction/tab-walk.js';
 import { createTestRun, lensContextFor, type TestRun } from './helpers/context.js';
 import { DEFAULT_TEST_VIEWPORT, launchTestSession, type TestSession } from './helpers/session.js';
 
@@ -84,11 +90,11 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
     await run.dispose();
   }, BROWSER_TIMEOUT_MS);
 
-  /** Opens the page, captures its screen, lets `options.prepare` set it up and walks it. */
-  async function walk(file: string, options: WalkOptions = {}): Promise<Walked> {
+  /** Opens the page with `open`, captures its screen, lets `options.prepare` set it up and walks it. */
+  async function walkWith(open: (page: Page) => Promise<unknown>, options: WalkOptions): Promise<Walked> {
     const ipage = await browser.newPage();
     try {
-      await ipage.page.goto(`${fixture.url}/${file}`);
+      await open(ipage.page);
       const base = await lensContextFor(ipage, run.ctx);
       await options.prepare?.(ipage.page);
       const adjusted = options.adjust?.(base) ?? base;
@@ -97,6 +103,14 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
     } finally {
       await ipage.close();
     }
+  }
+
+  function walk(file: string, options: WalkOptions = {}): Promise<Walked> {
+    return walkWith((page) => page.goto(`${fixture.url}/${file}`), options);
+  }
+
+  function walkHtml(html: string, options: WalkOptions = {}): Promise<Walked> {
+    return walkWith((page) => page.setContent(html), options);
   }
 
   async function readJson(ref: EvidenceRef): Promise<unknown> {
@@ -222,12 +236,19 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
   describe('a focus trap on trap.html', () => {
     test('reports the control that keeps focus, once, and stops walking there', async () => {
-      const { focusOrder, findings, skipped } = await walk('trap.html');
+      const { focusOrder, findings } = await walk('trap.html');
 
       expect(selectorsOf(focusOrder)).toEqual(['#before', ...times('#stuck', TRAP_REPEATS)]);
       expect(focusOrder.length).toBeLessThan(MAX_TAB_PRESSES);
       expect(findings.map((finding) => finding.rule.id)).toEqual([FOCUS_TRAP]);
-      expect(skipped).toEqual([]);
+    });
+
+    test('says how many presses were not made, so the rest of the page is known to be unwalked', async () => {
+      const { context, skipped } = await walk('trap.html');
+
+      expect(skipped).toEqual([
+        { reason: 'tab-walk-stopped', count: budgetFor(focusableCountOf(context)) - (TRAP_REPEATS + 1) },
+      ]);
     });
 
     test('describes the finding: element, observation, trace and measurements', async () => {
@@ -260,7 +281,7 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
       expect(focusOrder).toHaveLength(TRAP_REPEATS + 1);
       expect(findings).toEqual([]);
-      expect(skipped).toEqual([]);
+      expect(skipped).toEqual([{ reason: 'tab-walk-stopped', count: budgetFor(1) - (TRAP_REPEATS + 1) }]);
     });
 
     test('catches a control that is the first stop itself and keeps focus', async () => {
@@ -271,6 +292,95 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
       expect(selectorsOf(focusOrder)).toEqual(times('#stuck', TRAP_REPEATS));
       expect(forRule(findings, FOCUS_TRAP).map((finding) => finding.target?.selector)).toEqual(['#stuck']);
+    });
+  });
+
+  describe('controls that keep focus while Tab crosses their parts', () => {
+    test('does not call the segments of a date input a trap, and goes on to the button after it', async () => {
+      const { focusOrder, findings, skipped } = await walk('date.html');
+      const selectors = selectorsOf(focusOrder);
+
+      expect(selectors.filter((selector) => selector === '#date').length).toBeGreaterThanOrEqual(
+        TRAP_REPEATS,
+      );
+      expect(selectors.at(-1)).toBe('#after');
+      expect(findings).toEqual([]);
+      expect(skipped).toEqual([]);
+    });
+
+    test.each([
+      ['a time input', '<input type="time" id="field" aria-label="Time" />'],
+      ['a datetime-local input', '<input type="datetime-local" id="field" aria-label="When" />'],
+      ['a month input', '<input type="month" id="field" aria-label="Month" />'],
+      ['a week input', '<input type="week" id="field" aria-label="Week" />'],
+    ])('does not call the parts of %s a trap', async (_, control) => {
+      const { focusOrder, findings } = await walkHtml(
+        `<body>${control}<button type="button" id="after">After</button></body>`,
+      );
+      const selectors = selectorsOf(focusOrder);
+
+      expect(selectors.filter((selector) => selector === '#field').length).toBeGreaterThanOrEqual(
+        TRAP_REPEATS,
+      );
+      expect(selectors.at(-1)).toBe('#after');
+      expect(findings).toEqual([]);
+    });
+
+    test('does not call the buttons in a shadow tree a trap: the host stays the active element', async () => {
+      const { focusOrder, findings, skipped } = await walk('shadow.html');
+
+      expect(selectorsOf(focusOrder)).toEqual(['#before', ...times('#host', 3), '#after']);
+      expect(findings).toEqual([]);
+      expect(skipped).toEqual([]);
+    });
+
+    test('still reports a control with a key handler that keeps focus in a page of date inputs', async () => {
+      const { findings } = await walk('trap.html', {
+        prepare: (page) =>
+          page.evaluate(
+            `document.querySelector('#before').outerHTML = '<input type="date" aria-label="D" />'`,
+          ),
+      });
+
+      expect(forRule(findings, FOCUS_TRAP).map((finding) => finding.target?.selector)).toEqual(['#stuck']);
+    });
+  });
+
+  describe('restarting the Tab order', () => {
+    async function restart(
+      html: string,
+    ): Promise<{ tabindex: string | null; isBodyActive: boolean; scrollY: number }> {
+      const ipage = await browser.newPage();
+      try {
+        await ipage.page.setContent(html);
+        await ipage.page.focus('#field');
+        await ipage.page.evaluate(`window.scrollTo(0, ${SCROLLED_PX})`);
+        await evaluateSource(ipage.page, RESTART_TAB_ORDER_SOURCE);
+        return await ipage.page.evaluate(`({
+          tabindex: document.body.getAttribute('tabindex'),
+          isBodyActive: document.activeElement === document.body,
+          scrollY: window.scrollY,
+        })`);
+      } finally {
+        await ipage.close();
+      }
+    }
+
+    const field = `<button type="button" id="field">Field</button><div style="height: ${TALL_PAGE_PX}px"></div>`;
+
+    test('leaves the body without a tabindex when it had none, with nothing focused and the page at the top', async () => {
+      expect(await restart(`<body>${field}</body>`)).toEqual({
+        tabindex: null,
+        isBodyActive: true,
+        scrollY: 0,
+      });
+    });
+
+    test('puts back the tabindex the body had', async () => {
+      expect(await restart(`<body tabindex="5">${field}</body>`)).toMatchObject({
+        tabindex: '5',
+        isBodyActive: true,
+      });
     });
   });
 

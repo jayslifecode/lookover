@@ -126,6 +126,18 @@ export interface ActiveElement {
   /** Nothing has focus: `document.activeElement` is the body (or the root). */
   isBody: boolean;
   hidden: FocusHiddenReason | null;
+  /**
+   * Where focus is inside the active element's open shadow roots, outermost first, as
+   * `<tag>#<position in the root>` steps joined with ` >> `; empty when it is not inside any. The
+   * active element stays the shadow host while Tab moves between the controls in its shadow tree.
+   */
+  inner: string;
+  /**
+   * A native control Tab crosses in several presses while it stays the active element, because the
+   * browser draws its parts: a date, time, datetime-local, month or week `<input>`, and a `<video>`
+   * or `<audio>` with `controls`.
+   */
+  isMultiPart: boolean;
 }
 
 function styleSnapshot(this: Element, properties: readonly StateStyleProperty[]): StyleSnapshot {
@@ -413,6 +425,22 @@ function activeElement(buildSelector: SelectorBuilder): ActiveElement {
     const resolvesToEl = (selector: string): boolean => document.querySelector(selector) === el;
     return resolvesToEl(candidate.selector) && resolvesToEl(candidate.path) ? candidate : null;
   };
+  const MULTI_PART_INPUT_TYPES = ['date', 'time', 'datetime-local', 'month', 'week'];
+  const isMultiPart =
+    (active instanceof HTMLInputElement && MULTI_PART_INPUT_TYPES.includes(active.type)) ||
+    ((active instanceof HTMLVideoElement || active instanceof HTMLAudioElement) && active.controls);
+  const innerSteps = (): string[] => {
+    const steps: string[] = [];
+    let host: Element = active;
+    let inside = host.shadowRoot?.activeElement ?? null;
+    while (inside !== null) {
+      const position = Array.from(host.shadowRoot?.querySelectorAll('*') ?? []).indexOf(inside);
+      steps.push(`${inside.localName}#${position}`);
+      host = inside;
+      inside = host.shadowRoot?.activeElement ?? null;
+    }
+    return steps;
+  };
   const isTransparent = (el: Element | null): boolean =>
     el !== null && (Number.parseFloat(getComputedStyle(el).opacity) === 0 || isTransparent(el.parentElement));
   const hiddenReason = (): FocusHiddenReason | null => {
@@ -432,17 +460,21 @@ function activeElement(buildSelector: SelectorBuilder): ActiveElement {
     box,
     isBody,
     hidden: isBody ? null : hiddenReason(),
+    inner: innerSteps().join(' >> '),
+    isMultiPart,
   };
 }
 
 /**
- * What has keyboard focus, as `{ selector: { selector, path } | null, tag, box, isBody, hidden }`
+ * What has keyboard focus, as
+ * `{ selector: { selector, path } | null, tag, box, isBody, hidden, inner, isMultiPart }`
  * (`ActiveElement`). `selector` is the selector builder's pair (the Node side stores the one
  * `stableSelector` picks), `null` when focus is on the body or the pair does not find the element
  * again (a shadow tree). `hidden` says why a person could not see the focused element: its box has no
  * area (`zero-size`), it is not `visibility: visible`, it or an ancestor has `opacity: 0`, or its box
  * lies entirely outside the document (`offscreen`, e.g. `left: -9999px`); `null` when it can be seen.
  * Read it after focus has landed, so an element that shows itself on `:focus` (a skip link) reads as
- * visible.
+ * visible. `inner` and `isMultiPart` say when Tab moves focus without changing the active element:
+ * see `ActiveElement`.
  */
 export const ACTIVE_ELEMENT_SOURCE = `() => (${activeElement.toString()})(${BUILD_SELECTOR_SOURCE})`;

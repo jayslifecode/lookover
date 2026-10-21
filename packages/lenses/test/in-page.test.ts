@@ -305,7 +305,13 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
     test('describes a focused control that can be seen', async () => {
       const active = await focusOn('#shown');
 
-      expect(active).toMatchObject({ tag: 'button', isBody: false, hidden: null });
+      expect(active).toMatchObject({
+        tag: 'button',
+        isBody: false,
+        hidden: null,
+        inner: '',
+        isMultiPart: false,
+      });
       expect(active.selector).toEqual({ selector: '#shown', path: 'body > button:nth-of-type(1)' });
       expect(active.box).toMatchObject({ x: 0, y: 0 });
       expect(active.box.width).toBeGreaterThan(0);
@@ -337,6 +343,43 @@ describe('in-page measurement sources', { timeout: BROWSER_TIMEOUT_MS }, () => {
       })()`);
 
       expect(active.hidden).toBe('visibility');
+    });
+  });
+
+  describe('ACTIVE_ELEMENT_SOURCE on controls with parts', () => {
+    beforeEach(() => open('focus-parts.html'));
+
+    async function focusOn(selector: string): Promise<ActiveElement> {
+      // Playwright's selectors reach into open shadow roots, as `document.querySelector` does not.
+      await ipage.page.focus(selector);
+      return evaluateSource<ActiveElement>(ipage.page, ACTIVE_ELEMENT_SOURCE);
+    }
+
+    test.each([
+      ['#date', true],
+      ['#player', true],
+      ['#sound', true],
+      ['#text', false],
+      ['#bare', false],
+    ])(
+      'says whether the browser draws %s in parts that Tab crosses one by one: %s',
+      async (selector, isMultiPart) => {
+        expect(await focusOn(selector)).toMatchObject({ selector: { selector }, inner: '', isMultiPart });
+      },
+    );
+
+    test('keeps the shadow host as the active element and says which control inside has focus', async () => {
+      const first = await focusOn('#one');
+      const second = await focusOn('#two');
+
+      expect(first).toMatchObject({ tag: 'div', selector: { selector: '#host' }, inner: 'button#0' });
+      expect(second).toMatchObject({ tag: 'div', selector: { selector: '#host' }, inner: 'button#2' });
+    });
+
+    test('follows focus through nested shadow roots, outermost first', async () => {
+      const active = await focusOn('#deep');
+
+      expect(active).toMatchObject({ selector: { selector: '#outer' }, inner: 'div#0 >> button#0' });
     });
   });
 

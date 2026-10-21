@@ -30,6 +30,7 @@ const FRAME_TAG = 'iframe';
 
 const SKIP_UNADDRESSABLE = 'focus-stop-unaddressable';
 const SKIP_PRESSES_CAP = 'tab-presses-cap';
+const SKIP_WALK_STOPPED = 'tab-walk-stopped';
 const SKIP_TIME_BUDGET = 'time-budget';
 
 const HIDDEN_WHAT = 'bounding box and visibility of document.activeElement';
@@ -62,7 +63,7 @@ function restartTabOrder(blur: () => void): void {
 }
 
 /** Back to the top of the page with nothing focused, so the first Tab press lands on the first control. */
-const RESTART_TAB_ORDER_SOURCE = `() => (${restartTabOrder.toString()})(${BLUR_SOURCE})`;
+export const RESTART_TAB_ORDER_SOURCE = `() => (${restartTabOrder.toString()})(${BLUR_SOURCE})`;
 /**
  * `ACTIVE_ELEMENT_SOURCE` once the transitions the focus started have run to their end, so a skip link
  * that slides in on `:focus` is read in the place it settles, not where it started.
@@ -82,11 +83,20 @@ type AddressedStop = FocusStop & { selector: string };
 type WalkEnd =
   /** Focus left the document, or came back round to the first stop. */
   | { kind: 'finished' }
-  /** The same element kept focus for `TRAP_REPEATS` presses in a row. */
-  | { kind: 'stuck' }
+  /** The same element kept focus for `TRAP_REPEATS` presses in a row; the rest of the page was not walked. */
+  | { kind: 'stuck'; pressesLeft: number }
   /** The presses ran out before either. */
   | { kind: 'cap' }
   | { kind: 'deadline'; pressesLeft: number };
+
+/** A stop, and what tells whether the next press moved focus: see `isStuck`. */
+interface Landing {
+  stop: FocusStop;
+  /** The element focus is on, down to the control in its open shadow roots (`ActiveElement.inner`). */
+  identity: string;
+  /** A native control that Tab crosses in several presses (`ActiveElement.isMultiPart`). */
+  isMultiPart: boolean;
+}
 
 interface Walked {
   stops: FocusStop[];
@@ -98,8 +108,9 @@ interface Walked {
  * (`index` is the number of presses it took). At most `min(2 * focusableCount + 5, MAX_TAB_PRESSES)`
  * presses are made, and `context.deadline` is checked before each. The walk ends when focus leaves the
  * document (the active element is the body), when it comes back round to the first stop, when the same
- * element keeps focus for `TRAP_REPEATS` presses (`isStuck`), when the presses run out
- * (`tab-presses-cap`) or at the deadline (`time-budget`, counting the presses not made).
+ * element keeps focus for `TRAP_REPEATS` presses (`isStuck`; `tab-walk-stopped` counts the presses not
+ * made), when the presses run out (`tab-presses-cap`) or at the deadline (`time-budget`, counting the
+ * presses not made).
  *
  * - `interaction.focus-hidden`: a stop that cannot be seen (see `ACTIVE_ELEMENT_SOURCE`), measured once
  *   the focus has landed and its transitions have finished, so a skip link that shows itself on
@@ -126,30 +137,37 @@ function pressBudget(focusableCount: number): number {
 async function walkStops(context: LensContext, budget: number): Promise<Walked> {
   const { page } = context.ipage;
   await evaluateSource(page, RESTART_TAB_ORDER_SOURCE);
-  let stops: FocusStop[] = [];
+  let landings: Landing[] = [];
+  const ended = (end: WalkEnd): Walked => ({ stops: landings.map(({ stop }) => stop), end });
   for (let press = 1; press <= budget; press += 1) {
     if (performance.now() >= context.deadline) {
-      return { stops, end: { kind: 'deadline', pressesLeft: budget - press + 1 } };
+      return ended({ kind: 'deadline', pressesLeft: budget - press + 1 });
     }
     await page.keyboard.press('Tab');
     const active = await evaluateSource<ActiveElement>(page, SETTLED_ACTIVE_ELEMENT_SOURCE);
-    if (active.isBody) return { stops, end: { kind: 'finished' } };
-    const stop = stopOf(press, active);
-    if (isWrap(stops, stop)) return { stops, end: { kind: 'finished' } };
-    stops = [...stops, stop];
-    if (isStuck(stops)) return { stops, end: { kind: 'stuck' } };
+    if (active.isBody) return ended({ kind: 'finished' });
+    const landing = landingOf(press, active);
+    if (isWrap(landings, landing)) return ended({ kind: 'finished' });
+    landings = [...landings, landing];
+    if (isStuck(landings)) return ended({ kind: 'stuck', pressesLeft: budget - press });
   }
-  return { stops, end: { kind: 'cap' } };
+  return ended({ kind: 'cap' });
 }
 
-function stopOf(index: number, { selector, tag, box, hidden }: ActiveElement): FocusStop {
-  return { index, selector: selector === null ? null : stableSelector(selector), tag, box, hidden };
+function landingOf(index: number, active: ActiveElement): Landing {
+  const { selector, tag, box, hidden, inner, isMultiPart } = active;
+  const stored = selector === null ? null : stableSelector(selector);
+  return {
+    stop: { index, selector: stored, tag, box, hidden },
+    identity: `${stored}|${inner}`,
+    isMultiPart,
+  };
 }
 
 /** Focus is back on the first stop after being somewhere else: the walk has been all the way round. */
-function isWrap(stops: readonly FocusStop[], stop: FocusStop): boolean {
-  const [first] = stops;
-  const previous = lastOf(stops);
+function isWrap(landings: readonly Landing[], { stop }: Landing): boolean {
+  const first = landings[0]?.stop;
+  const previous = landings.at(-1)?.stop;
   return (
     first !== undefined &&
     stop.selector !== null &&
@@ -158,13 +176,18 @@ function isWrap(stops: readonly FocusStop[], stop: FocusStop): boolean {
   );
 }
 
-/** The last `TRAP_REPEATS` stops are on one element. Not an iframe: see `FRAME_TAG`. */
-function isStuck(stops: readonly FocusStop[]): boolean {
-  const run = stops.slice(-TRAP_REPEATS);
+/**
+ * The last `TRAP_REPEATS` landings are the same element and the same control inside it. Focus can
+ * move without the active element changing, so those moves are not a trap: between the controls in a
+ * shadow tree (`identity` includes where in it focus is), between the segments of a native control
+ * the browser draws in parts (`isMultiPart`), and between the controls in an iframe (see `FRAME_TAG`).
+ */
+function isStuck(landings: readonly Landing[]): boolean {
+  const run = landings.slice(-TRAP_REPEATS);
   const [head] = run;
   if (head === undefined || run.length < TRAP_REPEATS) return false;
-  if (head.selector === null || head.tag === FRAME_TAG) return false;
-  return run.every(({ selector }) => selector === head.selector);
+  if (head.stop.selector === null || head.stop.tag === FRAME_TAG || head.isMultiPart) return false;
+  return run.every(({ identity }) => identity === head.identity);
 }
 
 function lastOf(stops: readonly FocusStop[]): FocusStop | null {
@@ -222,6 +245,9 @@ function unaddressableSkips(stops: readonly FocusStop[]): LensSkip[] {
 function endSkips(end: WalkEnd): LensSkip[] {
   if (end.kind === 'cap') return [{ reason: SKIP_PRESSES_CAP, count: 1 }];
   if (end.kind === 'deadline') return [{ reason: SKIP_TIME_BUDGET, count: end.pressesLeft }];
+  if (end.kind === 'stuck' && end.pressesLeft > 0) {
+    return [{ reason: SKIP_WALK_STOPPED, count: end.pressesLeft }];
+  }
   return [];
 }
 
