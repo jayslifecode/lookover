@@ -5,6 +5,7 @@ import { occurrenceFinding } from '../findings/build.js';
 import type { EvidenceItem, Finding } from '../findings/types.js';
 import type { Screen } from '../map/types.js';
 import type { RunContext } from '../run/run-context.js';
+import { redact } from '../util/redact.js';
 import { NavigationBuffer } from './buffer.js';
 import { isIgnoredConsoleEntry } from './noise.js';
 import type { Observer, ObserverResult } from './types.js';
@@ -114,16 +115,19 @@ export class ConsoleObserver implements Observer {
     this.record(type, message.text(), locationOf(message.location()));
   }
 
-  /** Dev noise is dropped here, so a chatty dev server cannot fill the buffer ahead of a real error. */
+  /**
+   * Dev noise is dropped here, so a chatty dev server cannot fill the buffer ahead of a real error. The
+   * text is redacted before it is cut to its cap, because a secret that straddles the cut (a token whose
+   * dots are past it) would no longer look like one.
+   */
   private record(type: EntryType, text: string, location: string | null): void {
-    const entry: ConsoleEntry = {
+    if (isIgnoredConsoleEntry({ text, location })) return;
+    this.buffer.record({
       at: new Date().toISOString(),
       type,
-      text: text.slice(0, MAX_CONSOLE_TEXT_LENGTH),
+      text: redact(text).slice(0, MAX_CONSOLE_TEXT_LENGTH),
       location,
-    };
-    if (isIgnoredConsoleEntry(entry)) return;
-    this.buffer.record(entry);
+    });
   }
 }
 

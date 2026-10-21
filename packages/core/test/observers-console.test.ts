@@ -470,6 +470,22 @@ describe('ConsoleObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(stored.entries.map((entry) => entry.text.length)).toEqual([MAX_CONSOLE_TEXT_LENGTH]);
   });
 
+  test('redacts a message before cutting it, so a secret that straddles the cut does not survive', async () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlMTIz';
+    // The cut at 2000 characters falls between the header and the payload of the token.
+    const padding = 'p'.repeat(MAX_CONSOLE_TEXT_LENGTH - 'token expired '.length - 'eyJhbGciOiJ'.length);
+    await open('/console-clean.html');
+    await logInPage('error', `${padding}token expired ${jwt} afterwards`);
+
+    const result = await observer.collect(screenAt('screen-1', '/console-clean.html'));
+
+    const [entry] = (await storedEvidence(result)).entries;
+    expect(entry?.text).toContain('token expired [jwt]');
+    expect(entry?.text).not.toContain('eyJ');
+    const [finding] = result.findings.map(asOccurrence);
+    expect(JSON.stringify(finding)).not.toContain('eyJ');
+  });
+
   async function storedEvidence(result: ObserverResult): Promise<StoredConsoleEvidence> {
     const [item] = result.evidence;
     if (item === undefined) throw new Error('expected a piece of evidence');
