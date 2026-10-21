@@ -62,8 +62,16 @@ export class NavigationBuffer<T> {
     this.entries.push(entry);
   }
 
-  /** Like `record`, for an entry about the document request that is loading (see the class note). */
+  /**
+   * Like `record`, for an entry about a document request (see the class note). Once the document has
+   * committed there is nothing left to wait for, so a late entry (the body of the page failing to
+   * arrive) goes straight into the buffer.
+   */
   recordDocument(entry: T): void {
+    if (!this.isLoadingDocument) {
+      this.record(entry);
+      return;
+    }
     this.heldForCommit = [...this.heldForCommit, entry];
   }
 

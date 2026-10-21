@@ -25,6 +25,7 @@ const VIEWPORT: Viewport = { name: 'desktop', width: 1280, height: 800 };
 const NOTHING_SEEN = { findings: [], worthALook: [], evidence: [] };
 const REFUSED = 'net::ERR_CONNECTION_REFUSED';
 const BLOCKED = /^net::ERR_BLOCKED_BY_CLIENT/;
+const CUT_OFF_DELAY_MS = 150;
 const JWT = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlMTIz';
 
 interface StoredEntry {
@@ -65,6 +66,14 @@ function brokenPage(status: number): FixtureRoute {
     res.end('<!doctype html><title>Oops</title><main>Something went wrong</main>');
   };
 }
+
+/** The status line, the headers and the start of a page, then the connection drops while the body is still coming. */
+const cutOffPage: FixtureRoute = (_req, res) => {
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+  res.write('<!doctype html><title>Partial</title><main>Partial');
+  // Long enough for the browser to commit the page first, as it does when the first bytes arrive.
+  setTimeout(() => res.destroy(), CUT_OFF_DELAY_MS);
+};
 
 /** A loopback port that nothing listens on: one that was just free. */
 async function closedPort(): Promise<number> {
@@ -132,6 +141,7 @@ describe('RequestObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
       '/broken.html': brokenPage(500),
       '/gone.html': brokenPage(404),
       '/old': (_req, res) => redirect(res, '/broken.html'),
+      '/partial.html': cutOffPage,
     });
     session = await BrowserSession.launch({ viewport: VIEWPORT, allowHosts: [], onEvent: () => {} });
   }, BROWSER_TIMEOUT_MS);
@@ -318,6 +328,27 @@ describe('RequestObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     const { findings } = await observer.collect(screenAt('screen-1', '/gone.html'));
 
     expect(findings.map((finding) => finding.key)).toEqual([`GET ${host()}/gone.html → 404`]);
+  });
+
+  test('a page that fails after it committed is reported as a network error', async () => {
+    // The answer (200) and the commit come first; the failure of the body comes after both.
+    await Promise.all([
+      ipage.page.waitForEvent('requestfailed', (request) => request.isNavigationRequest()),
+      ipage.page.goto(url('/partial.html'), { waitUntil: 'commit' }),
+    ]);
+
+    const result = await observer.collect(screenAt('screen-1', '/partial.html'));
+
+    const [finding] = result.findings.map(asOccurrence);
+    expect(ruleIds(result.findings)).toEqual(['observers.request-network-error']);
+    expect(finding?.key).toBe(`GET ${host()}/partial.html → net::ERR_INCOMPLETE_CHUNKED_ENCODING`);
+    expect(finding?.observed).toBe('GET /partial.html failed: net::ERR_INCOMPLETE_CHUNKED_ENCODING');
+    expect(finding?.occurrences[0]?.measured).toMatchObject({ status: null, resourceType: 'document' });
+    const stored = await storedEvidence(result);
+    expect(stored.entries.map((entry) => [entry.status, entry.failure])).toEqual([
+      [200, null],
+      [null, 'net::ERR_INCOMPLETE_CHUNKED_ENCODING'],
+    ]);
   });
 
   test("never carries one screen's requests into the next, whatever happened to the page in between", async () => {

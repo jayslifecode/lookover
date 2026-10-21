@@ -324,6 +324,14 @@ describe('TextObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     );
   });
 
+  test('puts text on one line before cutting it to 120 characters, so the cut counts the words, not the padding', async () => {
+    const text = `${'w'.repeat(100)}\n\n        \t        ${'x'.repeat(50)} undefined`;
+    const { findings } = await collectFromHtml(`<p>${text}</p>`);
+
+    const [finding] = findings.map(asOccurrence);
+    expect(finding?.observed).toBe(`shows "${'w'.repeat(100)} ${'x'.repeat(19)}"`);
+  });
+
   test('redacts the text before it is cut, in the findings and in the evidence', async () => {
     const redacted = `Invoice for [email] is NaN${'!'.repeat(MAX_HIT_TEXT_LENGTH)}`;
     const result = await collectFromHtml(

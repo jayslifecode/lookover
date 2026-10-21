@@ -213,6 +213,8 @@ function groupHits(hits: readonly TextHit[]): TextHit[] {
 
 function findingOf(hit: TextHit, screen: Screen, evidence: EvidenceItem): Finding {
   const shown = hit.text.slice(0, SUMMARY_TEXT_LENGTH);
+  // On one line first, then cut: the padding of a text must not use up the 120 characters.
+  const sentence = hit.text.replace(WHITESPACE_PATTERN, ' ').trim().slice(0, SUMMARY_TEXT_LENGTH);
   return occurrenceFinding({
     rule: ruleById(RULE_ID_OF[hit.kind]),
     key: keyOf(hit),
@@ -226,7 +228,7 @@ function findingOf(hit: TextHit, screen: Screen, evidence: EvidenceItem): Findin
         measured: { text: shown, kind: hit.kind },
       },
     ],
-    observed: `shows "${shown.replace(WHITESPACE_PATTERN, ' ').trim()}"`,
+    observed: `shows "${sentence}"`,
     evidence: [evidence],
   });
 }
