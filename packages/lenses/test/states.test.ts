@@ -255,9 +255,14 @@ describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
     });
 
     test('#nohover is worth a look; #hover and #link-plain (cursor change) are not', () => {
-      // #eased fades its hover colour in, #link-thick thickens its underline: both change on hover.
-      // #link-bare keeps the browser's pointer cursor and has no hover rule, so it is worth a look too.
+      // #eased fades its hover colour in, #link-thick thickens its underline, #hover-scale grows and
+      // #hover-gradient shows a gradient: all change on hover. #link-bare keeps the browser's pointer
+      // cursor and has no hover rule, so it is worth a look too.
       expect(selectorsFor(result.worthALook, HOVER_MISSING)).toEqual(['#nohover', '#link-bare']);
+      expect(entryFor(result, '#hover-scale').states.hover?.self.scale).toBe('1.05');
+      expect(entryFor(result, '#hover-gradient').states.hover?.self['background-image']).toMatch(
+        /^linear-gradient\(/,
+      );
       expect(result.worthALook.every((finding) => finding.rule.id === HOVER_MISSING)).toBe(true);
       expect(selectorsFor(result.findings, HOVER_MISSING)).toEqual([]);
       expect(asStep(result.worthALook[0]).trace.steps[2]).toEqual({
@@ -442,7 +447,7 @@ describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(result.findings).toEqual([]);
       expect(result.worthALook).toEqual([]);
       expect(result.skipped).toEqual([{ reason: 'time-budget', count: context.screen.elements.length }]);
-      expect(context.screen.elements).toHaveLength(13);
+      expect(context.screen.elements).toHaveLength(15);
     });
   });
 });

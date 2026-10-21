@@ -14,7 +14,11 @@ import { type Box, BUILD_SELECTOR_SOURCE, type SelectorCandidate } from '@jaysli
 
 type SelectorBuilder = (el: Element) => SelectorCandidate;
 
-/** The computed properties a hover, focus or active state shows itself through. */
+/**
+ * The computed properties a hover, focus or active state shows itself through. `scale`, `translate`
+ * and `rotate` are the individual transforms Tailwind v4's `hover:scale-*` and friends set instead of
+ * `transform`; `background-image` carries a gradient hover.
+ */
 export const STATE_STYLE_PROPERTIES = [
   'outline-style',
   'outline-width',
@@ -27,11 +31,15 @@ export const STATE_STYLE_PROPERTIES = [
   'border-left-color',
   'border-top-width',
   'background-color',
+  'background-image',
   'color',
   'text-decoration-line',
   'text-decoration-color',
   'text-decoration-thickness',
   'transform',
+  'scale',
+  'translate',
+  'rotate',
   'opacity',
   'filter',
   'cursor',
