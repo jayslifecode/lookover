@@ -32,6 +32,7 @@ export {
   STYLE_SNAPSHOT_SOURCE,
   TEXT_SAMPLE_SOURCE,
 } from './interaction/in-page.js';
+export { INTERACTION_RULES, InteractionLens } from './interaction/lens.js';
 export { evaluateSource, measureOn } from './interaction/measure.js';
 export type {
   FocusLook,
@@ -60,3 +61,5 @@ export type { TabWalkResult } from './interaction/tab-walk.js';
 export { MAX_TAB_PRESSES, TRAP_REPEATS, tabWalk } from './interaction/tab-walk.js';
 export type { TargetSizeResult } from './interaction/target-size.js';
 export { MIN_TARGET_PX, passesTargetSize } from './interaction/target-size.js';
+export type { SweepResult } from './interaction/viewports.js';
+export { sweepViewports } from './interaction/viewports.js';

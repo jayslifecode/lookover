@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Busy main thread fixture</title>
+  </head>
+  <body>
+    <button type="button" id="first">First</button>
+    <button type="button" id="second">Second</button>
+    <a id="link" href="#link">Read the busy page notes</a>
+    <script>
+      const SPIN_MS = 3000;
+      /** Holds the main thread for SPIN_MS from the next task on: nothing in the page answers until then. */
+      window.spinSoon = () =>
+        setTimeout(() => {
+          const end = performance.now() + SPIN_MS;
+          while (performance.now() < end) {
+            // Busy: the page runs no other task, so neither CDP nor Playwright gets an answer.
+          }
+        }, 0);
+      // After every load, a reload by a lens included.
+      window.addEventListener('load', window.spinSoon);
+    </script>
+  </body>
+</html>

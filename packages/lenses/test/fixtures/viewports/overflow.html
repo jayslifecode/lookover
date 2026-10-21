@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Viewport overflow fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font: 16px/1.5 sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Fits a desktop screen; at 390 px it makes the whole page scroll sideways. -->
+    <div id="banner" style="width: 600px; height: 40px">A fixed-width banner</div>
+
+    <!-- Cut off at the edge of its 200 px box, with nothing to say that it was. -->
+    <p id="caption" style="width: 200px; overflow: hidden; white-space: nowrap">
+      A caption far too long to fit in two hundred pixels on one line
+    </p>
+
+    <script>
+      // The width the document was loaded at: a resize alone leaves it as it was.
+      document.documentElement.dataset.loadedAtWidth = String(window.innerWidth);
+    </script>
+  </body>
+</html>

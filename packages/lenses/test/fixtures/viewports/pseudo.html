@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Viewport pseudo-element overflow fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font: 16px/1.5 sans-serif;
+      }
+      #ribbon {
+        position: relative;
+        width: 100px;
+      }
+      /* The page scrolls sideways for a pseudo-element, which no element's box shows. */
+      #ribbon::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 600px;
+        height: 4px;
+        background-color: #1d4ed8;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ribbon">A ribbon</div>
+  </body>
+</html>
