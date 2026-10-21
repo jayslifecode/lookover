@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Contrast over an image</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        font: 16px/1.5 sans-serif;
+      }
+      .hero {
+        position: relative;
+        height: 200px;
+      }
+      .hero img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .hero .content {
+        position: relative;
+        padding: 80px 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- White on the near-black image: readable, though white on the white body would be 1:1. -->
+    <section class="hero">
+      <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%23111827'/%3E%3C/svg%3E" />
+      <div class="content"><a id="over-image" href="#image" style="color: #fff">Over the hero image</a></div>
+    </section>
+    <button type="button" id="fail" style="color: #9ca3af; background: #e5e7eb">Grey on grey</button>
+  </body>
+</html>

@@ -105,6 +105,15 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
     return JSON.parse(await readFile(run.ctx.evidence.resolve(ref), 'utf8'));
   }
 
+  describe('text contrast on contrast-overlap.html', () => {
+    test('skips white text over a dark image beside it rather than judge it against the white body', async () => {
+      const { findings, skipped } = await measure('contrast-overlap.html');
+
+      expect(selectorsFor(findings, CONTRAST_FAIL)).toEqual(['#fail']);
+      expect(skipped).toEqual([{ reason: 'background-uncertain:overlapped', count: 1 }]);
+    });
+  });
+
   describe('text contrast on contrast.html', () => {
     test('reports #fail as unreadable and #low as low, and #large-ok, #on-image and #ok not at all', async () => {
       const { findings } = await measure('contrast.html');

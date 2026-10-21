@@ -103,4 +103,35 @@ describe('EFFECTIVE_BACKGROUND_SOURCE', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expect(await background(selector)).toEqual({ color: null, uncertain: reason });
     });
   });
+
+  describe('on overlap.html', () => {
+    beforeEach(() => open('overlap.html'));
+
+    test.each([
+      ['#over-image', 'a hero image hit-testing finds under the text'],
+      ['#over-decoration', 'an image with pointer-events: none whose box meets the text'],
+      ['#over-shade', 'a positioned sibling painted under the text'],
+    ])('gives no colour for %s, over %s: overlapped', async (selector) => {
+      expect(await background(selector)).toEqual({ color: null, uncertain: 'overlapped' });
+    });
+
+    test('judges text on an opaque card, whatever is painted under the card', async () => {
+      expect(await background('#card-over-shade')).toEqual({ color: 'rgb(255, 255, 255)', uncertain: null });
+      expect(await background('#on-card')).toEqual({ color: 'rgb(30, 41, 59)', uncertain: null });
+    });
+
+    test('judges a control whose own icon sits beside its text', async () => {
+      expect(await background('#icon-button')).toEqual({ color: 'rgb(249, 250, 251)', uncertain: null });
+    });
+
+    test('gives no colour for an element that scrolling cannot bring into the viewport: off-viewport', async () => {
+      expect(await background('#away')).toEqual({ color: null, uncertain: 'off-viewport' });
+    });
+
+    test('scrolls the element into view to look at what is under it', async () => {
+      await background('#icon-button');
+
+      expect(await ipage.page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    });
+  });
 });

@@ -181,8 +181,11 @@ read back with `getImageData`. A wide-gamut colour is judged as the sRGB colour 
 
 **Backgrounds.** The background is found in the page by going up from the element to `<html>` and
 compositing each `background-color` under the ones above it (source-over), read through the same
-canvas, until the stack is opaque (alpha at least 0.999). The background cannot be trusted, and the
-measurement is skipped with the first reason met on the way up, when:
+canvas, until the stack is opaque (alpha at least 0.999). That walk sees the element's ancestors only,
+so before it the element is scrolled into view (to the middle of the viewport) and the elements at its
+centre are listed with `document.elementsFromPoint`. The background cannot be trusted, and the
+measurement is skipped with the first reason met on the way up (the walk's reasons come before
+`overlapped`), when:
 
 - `background-image`: a layer has an image or a gradient before the stack is opaque;
 - `backdrop-filter`: a layer has a backdrop filter before the stack is opaque;
@@ -190,7 +193,15 @@ measurement is skipped with the first reason met on the way up, when:
 - `mix-blend-mode`: the element or any ancestor blends;
 - `filter`: the element or any ancestor has a filter;
 - `never-opaque`: no layer up to `<html>` is opaque, so the browser's own canvas colour shows through,
-  and that depends on the colour scheme.
+  and that depends on the colour scheme;
+- `overlapped`: something that is not one of the element's ancestors is painted under it, above the
+  layer that made the stack opaque: an element listed beneath it at its centre (a positioned sibling,
+  a `next/image` hero, a portal), or a replaced element (`img`, `video`, `canvas`, `picture`, `svg`,
+  `iframe`, `object`, `embed`) inside that layer, not inside the element itself, whose box meets the
+  element's (hit-testing passes over a decoration with `pointer-events: none`). Text on an opaque card
+  is still judged, whatever is painted under the card, and so is a control beside its own icon;
+- `off-viewport`: the element's centre is outside the viewport even once it is scrolled into view (a
+  `position: fixed` element placed off the page), so nothing can be listed under it.
 
 ### `interaction.text-contrast-fail` (high) and `interaction.text-contrast-low` (medium)
 
@@ -213,9 +224,12 @@ measurement is skipped with the first reason met on the way up, when:
   describe, and the element is skipped (`text-colour-uncertain:descendant`). Descendants inside shadow
   roots are not looked at.
 - **Skips:** `disabled`, `text-colour-uncertain:descendant`, `background-uncertain:<why>` (the reasons
-  under "Backgrounds"), `colour-unparseable` (the page's canvas rejects the text or background colour,
-  or what it gives back cannot be read; a guard, since a computed colour is one the canvas paints),
-  `gone` (the element left the page), `contrast-elements-cap`, `time-budget:text-contrast`.
+  under "Backgrounds", `background-uncertain:overlapped` for text over a photo among them),
+  `colour-unparseable` (the page's canvas rejects the text or background colour, or what it gives back
+  cannot be read; a guard, since a computed colour is one the canvas paints), `gone` (the element left
+  the page), `contrast-elements-cap`, `time-budget:text-contrast`.
+- **Fixtures:** `static/contrast-overlap.html` (white text over a dark `<img>` beside it: skipped as
+  `overlapped`) and `measure/overlap.html`.
 - **Bench:** `interaction-002`, the Reports Export CSV button, `text-slate-400` on `bg-slate-100`
   (2.40:1). `text-contrast-low` has no seed yet; fixture `static/contrast.html` (`#low`, 4.23:1).
 

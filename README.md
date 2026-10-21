@@ -134,7 +134,7 @@ Every candidate names a rule from [the rules catalogue](docs/rules.md), and its 
 - A template placeholder was not filled in (`{{name}}`, `{count}`)
 - A translation key is shown instead of its text (`settings.timezone.hint`)
 
-Candidates are measurements: when one cannot be trusted (text over an image, a colour that cannot be read, an element that left the page) it is skipped and the reason recorded, never guessed. The judge that re-runs each candidate before it reaches a report comes next, with a replay that runs without Lookover.
+Candidates are measurements: when one cannot be trusted (text over a background image, a photo or anything else painted under it, a colour that cannot be read, an element that left the page) it is skipped and the reason recorded, never guessed. The judge that re-runs each candidate before it reaches a report comes next, with a replay that runs without Lookover.
 
 ## What it will not do
 

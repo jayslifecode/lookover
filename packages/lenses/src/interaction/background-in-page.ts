@@ -1,4 +1,5 @@
 import { COLOUR_READER_SOURCE, type ColourReader, type Painted } from './colour-in-page.js';
+import { PLACE_IN_VIEW_SOURCE, type Placement } from './place-in-page.js';
 
 /*
  * The background behind an element, measured in the page. Like `in-page.ts`, the function here runs in
@@ -14,7 +15,9 @@ export type BackgroundUncertainty =
   | 'filter'
   | 'backdrop-filter'
   | 'never-opaque'
-  | 'colour-unparseable';
+  | 'colour-unparseable'
+  | 'overlapped'
+  | 'off-viewport';
 
 export interface EffectiveBackground {
   /** `rgb(r, g, b)`, opaque; `null` exactly when `uncertain` is set. */
@@ -22,8 +25,14 @@ export interface EffectiveBackground {
   uncertain: BackgroundUncertainty | null;
 }
 
-function effectiveBackground(this: Element, colours: ColourReader): EffectiveBackground {
+function effectiveBackground(
+  this: Element,
+  colours: ColourReader,
+  placeInView: (this: Element) => Placement | null,
+): EffectiveBackground {
   const OPAQUE_ALPHA = 0.999;
+  /** The replaced elements: what they paint is not a colour the walk can read. */
+  const REPLACED = 'img, video, canvas, picture, svg, iframe, object, embed';
   type Layer = Painted;
   /** `bottom` under `top`, source-over. */
   const under = (top: Layer, bottom: Layer): Layer => {
@@ -45,7 +54,55 @@ function effectiveBackground(this: Element, colours: ColourReader): EffectiveBac
     return null;
   };
 
+  /** The element's ancestors, across the shadow roots it is in. */
+  const ancestorsOf = (element: Element): Set<Element> => {
+    const found = new Set<Element>();
+    let node: Node | null = element;
+    while (node !== null) {
+      const root: Node = node.getRootNode();
+      node = node.parentElement ?? (root instanceof ShadowRoot ? root.host : null);
+      if (node instanceof Element) found.add(node);
+    }
+    return found;
+  };
+  const intersects = (a: DOMRect, b: DOMRect): boolean =>
+    a.width > 0 &&
+    a.height > 0 &&
+    a.left < b.right &&
+    a.right > b.left &&
+    a.top < b.bottom &&
+    a.bottom > b.top;
+  /**
+   * Whether something that is not one of the element's ancestors is painted between it and `top`, the
+   * layer that made the background opaque: an element hit-testing finds beneath it at its centre, or a
+   * replaced element inside `top` whose box meets the element's (hit-testing passes over one with
+   * `pointer-events: none`).
+   */
+  const isOverlapped = (stack: readonly Element[], top: Element): boolean => {
+    const ancestors = ancestorsOf(this);
+    const at = stack.indexOf(this);
+    const beneath = at === -1 ? stack.filter((element) => !this.contains(element)) : stack.slice(at + 1);
+    const topAt = beneath.indexOf(top);
+    const between = topAt === -1 ? beneath : beneath.slice(0, topAt);
+    if (between.some((element) => !ancestors.has(element))) return true;
+    const box = this.getBoundingClientRect();
+    return Array.from(top.querySelectorAll(REPLACED)).some(
+      (element) => !this.contains(element) && intersects(element.getBoundingClientRect(), box),
+    );
+  };
+
+  const placement = placeInView.call(this);
+  if (placement === null) return { color: null, uncertain: 'off-viewport' };
+  const { rect, viewportWidth, viewportHeight } = placement;
+  const x = rect.x + rect.width / 2;
+  const y = rect.y + rect.height / 2;
+  if (x < 0 || y < 0 || x >= viewportWidth || y >= viewportHeight) {
+    return { color: null, uncertain: 'off-viewport' };
+  }
+  const stack = document.elementsFromPoint(x, y);
+
   let color: Layer = { r: 0, g: 0, b: 0, a: 0 };
+  let top: Element = this;
   for (let node: Element | null = this; node !== null; node = node.parentElement) {
     const style = getComputedStyle(node);
     const isCovered = color.a >= OPAQUE_ALPHA;
@@ -55,8 +112,10 @@ function effectiveBackground(this: Element, colours: ColourReader): EffectiveBac
     const painted = colours.paint(style.backgroundColor);
     if (painted === null) return { color: null, uncertain: 'colour-unparseable' };
     color = under(color, painted);
+    top = node;
   }
   if (color.a < OPAQUE_ALPHA) return { color: null, uncertain: 'never-opaque' };
+  if (isOverlapped(stack, top)) return { color: null, uncertain: 'overlapped' };
   const channel = (value: number): number => Math.round(value);
   return { color: `rgb(${channel(color.r)}, ${channel(color.g)}, ${channel(color.b)})`, uncertain: null };
 }
@@ -67,11 +126,21 @@ function effectiveBackground(this: Element, colours: ColourReader): EffectiveBac
  * until the stack is opaque (alpha ≥ 0.999). Colours are read as Chromium paints them (see
  * `colourReader`), so `lab()`, `oklch()` and every other computed syntax come back as `rgb()`.
  *
- * The colour is not trusted, and `uncertain` names the first reason met on the way up, when a layer
- * has a `background-image` (an image or a gradient) or a `backdrop-filter` before the stack is opaque,
- * when the element or any ancestor has `opacity` below 1, a `mix-blend-mode` or a `filter` (they
+ * The walk sees ancestors only, so the element is first scrolled into view (`placeInView`) and the
+ * elements at its centre listed (`document.elementsFromPoint`): when one painted beneath it is not one
+ * of its ancestors (a positioned sibling, a hero image, a portal), before the layer that made the stack
+ * opaque, the colour is not trusted (`overlapped`); nor when a replaced element (`img`, `video`,
+ * `canvas`, `picture`, `svg`, `iframe`, `object`, `embed`) inside that layer, and not inside the
+ * element itself, has a box that meets the element's, since hit-testing passes over a decoration with
+ * `pointer-events: none`. An element whose centre is still outside the viewport once scrolled cannot be
+ * looked at this way (`off-viewport`).
+ *
+ * The colour is not trusted either, and `uncertain` names the first reason met on the way up, when a
+ * layer has a `background-image` (an image or a gradient) or a `backdrop-filter` before the stack is
+ * opaque, when the element or any ancestor has `opacity` below 1, a `mix-blend-mode` or a `filter` (they
  * change the colours of everything inside), or when no layer up to `<html>` makes it opaque
  * (`never-opaque`: the browser's canvas colour shows through, and that depends on the colour scheme).
- * A background colour the canvas cannot read is `colour-unparseable`.
+ * A background colour the canvas cannot read is `colour-unparseable`. The reasons of the walk come
+ * before `overlapped`.
  */
-export const EFFECTIVE_BACKGROUND_SOURCE = `function () { return (${effectiveBackground.toString()}).call(this, (${COLOUR_READER_SOURCE})()); }`;
+export const EFFECTIVE_BACKGROUND_SOURCE = `function () { return (${effectiveBackground.toString()}).call(this, (${COLOUR_READER_SOURCE})(), ${PLACE_IN_VIEW_SOURCE}); }`;

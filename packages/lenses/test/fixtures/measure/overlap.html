@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Overlap fixture</title>
+    <style>
+      body {
+        margin: 0;
+        background-color: #fff;
+        font: 16px/1.5 sans-serif;
+      }
+      /* A hero: something painted under the text that is not one of its ancestors. */
+      .hero {
+        position: relative;
+        height: 200px;
+      }
+      .hero img,
+      .hero .shade {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .hero .content {
+        position: relative;
+        padding: 80px 24px;
+      }
+      .shade {
+        background-color: #111827;
+      }
+      /* Hit-testing skips it, as it skips many decorative layers. */
+      .decorative {
+        pointer-events: none;
+      }
+      .card {
+        position: relative;
+        background-color: #fff;
+        padding: 16px;
+      }
+      .light {
+        color: #fff;
+      }
+      .away {
+        position: fixed;
+        top: 0;
+        left: -500px;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="hero">
+      <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%23111827'/%3E%3C/svg%3E" />
+      <div class="content"><a id="over-image" class="light" href="#image">Over a hero image</a></div>
+    </section>
+    <section class="hero">
+      <img class="decorative" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%23111827'/%3E%3C/svg%3E" />
+      <div class="content">
+        <a id="over-decoration" class="light" href="#decoration">Over an image hit-testing skips</a>
+      </div>
+    </section>
+    <section class="hero">
+      <div class="shade"></div>
+      <div class="content"><a id="over-shade" class="light" href="#shade">Over a positioned sibling</a></div>
+    </section>
+    <section class="hero">
+      <div class="shade"></div>
+      <div class="content">
+        <div class="card"><p id="card-over-shade">On an opaque card above a positioned sibling</p></div>
+      </div>
+    </section>
+    <div style="background-color: rgb(30, 41, 59)"><p id="on-card" class="light">On an opaque card</p></div>
+    <button id="icon-button" type="button" style="background-color: rgb(249, 250, 251)">
+      <svg width="16" height="16" aria-hidden="true"><rect width="16" height="16" /></svg>
+      With an icon
+    </button>
+    <p id="away" class="away">Fixed outside the viewport</p>
+  </body>
+</html>
