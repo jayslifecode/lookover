@@ -49,6 +49,11 @@ function captured(screenOverrides: Partial<Screen>): RunEventBody {
   return { type: 'screen.captured', screen: screen(screenOverrides) };
 }
 
+/** `body` as the run log hands it to a subscriber. */
+function logged(body: RunEventBody, seq: number, runId: string): RunEvent {
+  return { ...body, seq, at: '2026-10-22T00:00:00.000Z', runId } as RunEvent;
+}
+
 function inspected(screenId: string, candidates: number, error: string | null = null): RunEventBody {
   return {
     type: 'screen.inspected',
@@ -95,13 +100,7 @@ describe('lookover run with the engine stubbed', () => {
   async function run(flags: RunFlags, script: Script): Promise<Output> {
     vi.mocked(runReview).mockImplementation(async (ctx, options) => {
       script.events.forEach((body, index) => {
-        const event = {
-          ...body,
-          seq: index + 1,
-          at: '2026-10-22T00:00:00.000Z',
-          runId: ctx.runId,
-        } as RunEvent;
-        options.hooks?.onEvent?.(event);
+        options.hooks?.onEvent?.(logged(body, index + 1, ctx.runId));
       });
       const screens = script.events.flatMap((event) =>
         event.type === 'screen.captured' ? [event.screen] : [],
@@ -168,19 +167,45 @@ describe('lookover run with the engine stubbed', () => {
     });
 
     test('prints nothing for a screen until its inspection is reported', async () => {
-      vi.mocked(runReview).mockImplementation((_ctx, options) => {
-        options.hooks?.onEvent?.({
-          ...captured(settings),
-          seq: 1,
-          at: '2026-10-22T00:00:00.000Z',
-          runId: 'r',
-        } as RunEvent);
-        return Promise.reject(new Error('stopped before the inspection'));
+      let printedWhenCaptured = '';
+      vi.mocked(runReview).mockImplementation(async (ctx, options) => {
+        options.hooks?.onEvent?.(logged(captured(settings), 1, ctx.runId));
+        printedWhenCaptured = stdout.join('');
+        options.hooks?.onEvent?.(logged(inspected('settings', 0), 2, ctx.runId));
+        return {
+          map: appMap([]),
+          confirmedBackendHosts: [],
+          blockedUnconfirmedHosts: [],
+          findings: findingsFile([]),
+        };
       });
 
-      await expect(runRun({ yes: true })).rejects.toThrow('stopped before the inspection');
+      await runRun({ yes: true });
 
-      expect(stdout.join('')).not.toContain('/settings');
+      expect(printedWhenCaptured).not.toContain('/settings');
+      expect(stdout.join('')).toContain('✓ /settings  1 element · 1 form · 0 candidates');
+    });
+
+    test('when the run fails, prints the screen that was captured but not inspected, without candidates', async () => {
+      vi.mocked(runReview).mockImplementation((ctx, options) => {
+        const events = [
+          captured({ id: 'a', route: '/a' }),
+          inspected('a', 1),
+          captured({ id: 'b', route: '/b', elements: [element('go')] }),
+        ];
+        events.forEach((body, index) => {
+          options.hooks?.onEvent?.(logged(body, index + 1, ctx.runId));
+        });
+        return Promise.reject(new Error('the browser closed'));
+      });
+
+      await expect(runRun({ yes: true })).rejects.toThrow('the browser closed');
+
+      const lines = stdout.join('').split('\n');
+      expect(lines.filter((line) => line.startsWith('✓ /'))).toEqual([
+        '✓ /a  0 elements · 0 forms · 1 candidate',
+        '✓ /b  1 element · 0 forms',
+      ]);
     });
 
     test('prints one line per screen, in the order the inspections are reported', async () => {
@@ -256,9 +281,7 @@ describe('lookover run with the engine stubbed', () => {
       expect(positions.map((position) => position - (positions[0] ?? 0))).toEqual([0, 1, 2, 3]);
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Candidates +3$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Worth a look +1$/));
-      expect(lines).toContainEqual(
-        expect.stringMatching(/^ {2}Findings +\.lookover\/runs\/[\w-]+\/findings\.json$/),
-      );
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Findings +\.lookover\/findings\.json$/));
     });
 
     test('lists the candidates by rule after the table, then the note', async () => {

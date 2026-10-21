@@ -129,7 +129,7 @@ describe('summaryRows', () => {
       ...summary,
       inspection: {
         findings: findingsFile(candidates(3), candidates(2, 3)),
-        findingsPath: '/work/app/.lookover/runs/20261021-101500-ab12/findings.json',
+        findingsPath: '/work/app/.lookover/findings.json',
       },
     };
 
@@ -140,7 +140,7 @@ describe('summaryRows', () => {
       expect(rows.slice(8)).toEqual([
         ['Candidates', '3'],
         ['Worth a look', '2'],
-        ['Findings', '.lookover/runs/20261021-101500-ab12/findings.json'],
+        ['Findings', '.lookover/findings.json'],
       ]);
     });
 

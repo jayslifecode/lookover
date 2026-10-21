@@ -12,8 +12,11 @@ export interface CandidateGroup {
   readonly example: string;
 }
 
-/** What a page may put in an element's name that a terminal would act on rather than show. */
-const CONTROL_CHARACTERS = /\p{Cc}/gu;
+/**
+ * What a page may put in an element's name that a terminal would act on rather than show: control
+ * characters, format characters (bidi overrides such as U+202E) and line and paragraph separators.
+ */
+const TERMINAL_UNSAFE_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 const COLUMN_GAP = '  ';
 const LINE_INDENT = '  ';
 
@@ -57,7 +60,7 @@ function groupOf({ first, count: size }: Tally): CandidateGroup {
     ruleId: first.rule.id,
     title: first.title,
     count: size,
-    example: exampleOf(first).replaceAll(CONTROL_CHARACTERS, ' '),
+    example: exampleOf(first).replaceAll(TERMINAL_UNSAFE_CHARACTERS, ' '),
   };
 }
 

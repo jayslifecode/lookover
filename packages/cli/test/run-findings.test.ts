@@ -110,6 +110,21 @@ describe('groupCandidates', () => {
     expect(group?.example).toBe('/ button "Save [2J now"');
   });
 
+  test.each([
+    ['a bidi override', 'Pay\u202Egnp.exe', 'Pay gnp.exe'],
+    ['a line separator', 'Save\u2028now', 'Save now'],
+    ['a paragraph separator', 'Save\u2029now', 'Save now'],
+  ])(
+    'replaces %s in an element name, so the name cannot be shown reversed or split',
+    (_what, name, shown) => {
+      const [group] = groupCandidates(
+        findingsFile([stepCandidate({ ruleId: 'interaction.target-size', name })]),
+      );
+
+      expect(group?.example).toBe(`/ button "${shown}"`);
+    },
+  );
+
   test('leaves the worth-a-look entries out', () => {
     const groups = groupCandidates(
       findingsFile([], [stepCandidate({ ruleId: 'interaction.hover-state-missing', severity: 'low' })]),

@@ -45,6 +45,8 @@ interface Progress {
   readonly blockedRequests: () => number;
   /** A host as the CLI lists it (see `hostLabel`), from the events so far. */
   readonly labelHost: (host: string) => string;
+  /** Prints the screens captured but not yet inspected, as plain lines: a failed run's last screens. */
+  readonly flushInFlight: () => void;
 }
 
 export function registerRun(program: Command): void {
@@ -101,7 +103,7 @@ export async function runRun(flags: RunFlags): Promise<void> {
   ]);
   const inspection: InspectionSummary = {
     findings: result.findings,
-    findingsPath: join(ctx.dir, FINDINGS_FILE),
+    findingsPath: join(ctx.lookoverDir, FINDINGS_FILE),
   };
   ui.info('');
   ui.table(
@@ -149,6 +151,7 @@ async function discover(
       },
     });
   } catch (error) {
+    progress.flushInFlight();
     if (error instanceof RunCancelledError) {
       cancel(error.message);
       process.exit(ui.EXIT_FAILURE);
@@ -183,6 +186,12 @@ function createProgress(isInspecting: boolean): Progress {
     },
     blockedRequests: () => blocked,
     labelHost: (host) => hostLabel(host, hostKinds),
+    flushInFlight: () => {
+      for (const screen of awaiting.values()) {
+        ui.info(progressLine(screen));
+      }
+      awaiting = new Map();
+    },
   };
 }
 
