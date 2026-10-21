@@ -3,6 +3,7 @@ import {
   type Finding,
   type LensContext,
   type LensSkip,
+  normaliseUrl,
   type Occurrence,
   type OccurrenceFindingInput,
   occurrenceFinding,
@@ -11,9 +12,9 @@ import {
   type Viewport,
 } from '@jayslifecode/lookover-core';
 import { ruleById } from '@jayslifecode/lookover-rules';
-import type { Page } from 'playwright';
 import { MEASURE_OVERFLOW_SOURCE, type OverflowMeasure } from './in-page.js';
 import { evaluateSource } from './measure.js';
+import { tally } from './skips.js';
 import { FINISH_ALL_TRANSITIONS_SOURCE } from './states-in-page.js';
 
 const OVERFLOW_RULE = ruleById('interaction.horizontal-overflow');
@@ -25,6 +26,8 @@ const FONTS_READY_TIMEOUT_MS = 2_000;
 /** As long as the crawler gives a navigation by default. */
 const RELOAD_TIMEOUT_MS = 15_000;
 const SKIP_TIME_BUDGET = 'time-budget';
+/** A reload that landed on another URL: what it shows is not the screen. */
+const SKIP_REDIRECTED = 'viewport-reload-redirected';
 /** Waits, in the page, until its fonts have loaded: text set in a fallback font is measured too narrow. */
 const FONTS_READY_SOURCE = '() => document.fonts.ready.then(() => undefined)';
 
@@ -39,6 +42,7 @@ export interface SweepResult {
 type Draft = Omit<OccurrenceFindingInput, 'evidence'>;
 
 const NOTHING: SweepResult = { findings: [], screenshots: [], skipped: [] };
+const REDIRECTED: SweepResult = { ...NOTHING, skipped: [{ reason: SKIP_REDIRECTED, count: 1 }] };
 
 /**
  * Reloads the screen at each viewport after the first (the one it was captured at) and measures its
@@ -56,27 +60,60 @@ const NOTHING: SweepResult = { findings: [], screenshots: [], skipped: [] };
  * viewport; the ones not reached are counted (`time-budget`). When any viewport was swept, the first one
  * is restored and the page reloaded at it, so whatever measures next finds it as it was captured. The
  * page only ever reloads its own URL.
+ *
+ * A reload that lands on another URL (a redirect: the session expired, the screen moved) is never
+ * measured, whatever it shows: the viewport counts as `viewport-reload-redirected`, the first viewport is
+ * restored and the sweep goes on. The reload back at the first viewport is checked the same way.
  */
 export async function sweepViewports(context: LensContext): Promise<SweepResult> {
   const [first, ...others] = context.viewports;
-  const { page } = context.ipage;
+  if (first === undefined) return NOTHING;
   let result = NOTHING;
   let swept = 0;
   for (const viewport of others) {
     if (performance.now() >= context.deadline) break;
-    result = merge(result, await measureAt(context, viewport));
+    result = merge(result, await sweepAt(context, viewport, first));
     swept += 1;
   }
-  if (first !== undefined && swept > 0) await reloadAt(page, first);
+  if (swept > 0) result = merge(result, await restore(context, first));
   const left = others.length - swept;
-  return left > 0
-    ? { ...result, skipped: [...result.skipped, { reason: SKIP_TIME_BUDGET, count: left }] }
-    : result;
+  const late: LensSkip[] = left > 0 ? [{ reason: SKIP_TIME_BUDGET, count: left }] : [];
+  return { ...result, skipped: tally([...result.skipped, ...late]) };
+}
+
+/** Measures the screen reloaded at `viewport`, unless the reload landed elsewhere. */
+async function sweepAt(context: LensContext, viewport: Viewport, first: Viewport): Promise<SweepResult> {
+  if (await reloadAt(context, viewport)) return measureAt(context, viewport);
+  await context.ipage.page.setViewportSize(sizeOf(first));
+  return REDIRECTED;
+}
+
+/** The first viewport again, and the screen reloaded at it. */
+async function restore(context: LensContext, first: Viewport): Promise<SweepResult> {
+  return (await reloadAt(context, first)) ? NOTHING : REDIRECTED;
+}
+
+/** Resizes the page and reloads it; `false` when the reload landed on a URL other than the screen's. */
+async function reloadAt(context: LensContext, viewport: Viewport): Promise<boolean> {
+  const { page } = context.ipage;
+  await page.setViewportSize(sizeOf(viewport));
+  await page.reload({ waitUntil: 'load', timeout: RELOAD_TIMEOUT_MS });
+  return isSameScreenUrl(page.url(), context.screen.url);
+}
+
+/** The same URL once both are normalised: a trailing slash and the hash do not count. */
+function isSameScreenUrl(landed: string, screenUrl: string): boolean {
+  const base = new URL(screenUrl);
+  const expected = normaliseUrl(screenUrl, base);
+  return expected !== null && normaliseUrl(landed, base)?.href === expected.href;
+}
+
+function sizeOf({ width, height }: Viewport): { width: number; height: number } {
+  return { width, height };
 }
 
 async function measureAt(context: LensContext, viewport: Viewport): Promise<SweepResult> {
   const { page } = context.ipage;
-  await reloadAt(page, viewport);
   await atMost(FONTS_READY_TIMEOUT_MS, evaluateSource(page, FONTS_READY_SOURCE));
   await evaluateSource(page, FINISH_ALL_TRANSITIONS_SOURCE);
   const measure = await evaluateSource<OverflowMeasure>(page, MEASURE_OVERFLOW_SOURCE);
@@ -90,11 +127,6 @@ async function measureAt(context: LensContext, viewport: Viewport): Promise<Swee
     screenshots: [screenshot],
     skipped: [],
   };
-}
-
-async function reloadAt(page: Page, { width, height }: Viewport): Promise<void> {
-  await page.setViewportSize({ width, height });
-  await page.reload({ waitUntil: 'load', timeout: RELOAD_TIMEOUT_MS });
 }
 
 function overflowDraft(context: LensContext, viewport: Viewport, measure: OverflowMeasure): Draft | null {

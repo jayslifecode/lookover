@@ -8,7 +8,12 @@ import type {
   OccurrenceFinding,
   Viewport,
 } from '@jayslifecode/lookover-core';
-import { type FixtureServer, serveFixture } from '@jayslifecode/lookover-test-support';
+import {
+  type FixtureRoute,
+  type FixtureServer,
+  redirect,
+  serveFixture,
+} from '@jayslifecode/lookover-test-support';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { sweepViewports } from '../src/interaction/viewports.js';
 import { createTestRun, type LensContextOptions, lensContextFor, type TestRun } from './helpers/context.js';
@@ -35,6 +40,19 @@ function forRule(findings: readonly Finding[], ruleId: string): OccurrenceFindin
   return asOccurrence(findings.find((finding) => finding.rule.id === ruleId));
 }
 
+/**
+ * A route that serves `file` for its first `served` requests and then redirects to `to`: the page a
+ * lens reloads lands somewhere else from request `served + 1` on.
+ */
+function redirectsAfter(served: number, file: string, to: string): FixtureRoute {
+  let requests = 0;
+  return (_req, res, serveStatic) => {
+    requests += 1;
+    if (requests <= served) serveStatic(file);
+    else redirect(res, to);
+  };
+}
+
 describe('sweepViewports', { timeout: BROWSER_TIMEOUT_MS }, () => {
   let fixture: FixtureServer;
   let browser: TestSession;
@@ -42,7 +60,12 @@ describe('sweepViewports', { timeout: BROWSER_TIMEOUT_MS }, () => {
   let ipage: InstrumentedPage;
 
   beforeAll(async () => {
-    fixture = await serveFixture(FIXTURE_DIR);
+    fixture = await serveFixture(FIXTURE_DIR, {
+      // The first load is fine.html; the sweep's reload lands on overflow.html, which must not be measured.
+      '/moves-on-reload.html': redirectsAfter(1, '/fine.html', '/overflow.html'),
+      // The first load and the reload at 390 px are overflow.html; the reload back at 1440 px lands elsewhere.
+      '/moves-on-restore.html': redirectsAfter(2, '/overflow.html', '/fine.html'),
+    });
     browser = await launchTestSession(DESKTOP);
     run = await createTestRun(fixture.url);
   }, BROWSER_TIMEOUT_MS);
@@ -200,5 +223,31 @@ describe('sweepViewports', { timeout: BROWSER_TIMEOUT_MS }, () => {
     });
     expect(await ipage.page.title()).toBe(MARKED_TITLE);
     expect(ipage.page.viewportSize()).toEqual({ width: DESKTOP.width, height: DESKTOP.height });
+  });
+
+  describe('when a reload lands on another URL', () => {
+    test('measures nothing there, records the skip for each such reload and restores the first viewport', async () => {
+      const context = await open('moves-on-reload.html');
+
+      expect(await sweepViewports(context)).toEqual({
+        findings: [],
+        screenshots: [],
+        // The reload at 390 px, and the one back at 1440 px, which reloads the page it landed on.
+        skipped: [{ reason: 'viewport-reload-redirected', count: 2 }],
+      });
+      expect(ipage.page.viewportSize()).toEqual({ width: DESKTOP.width, height: DESKTOP.height });
+    });
+
+    test('keeps what it measured on the screen when only the reload back at the first viewport lands elsewhere', async () => {
+      const context = await open('moves-on-restore.html');
+
+      const { findings, skipped } = await sweepViewports(context);
+
+      expect(findings.map((finding) => [finding.rule.id, finding.key])).toEqual([
+        [OVERFLOW, '/moves-on-restore.html|mobile'],
+        [CLIPPED, '/moves-on-restore.html|mobile|clipped'],
+      ]);
+      expect(skipped).toEqual([{ reason: 'viewport-reload-redirected', count: 1 }]);
+    });
   });
 });
