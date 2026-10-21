@@ -86,6 +86,10 @@ describe('EFFECTIVE_BACKGROUND_SOURCE', { timeout: BROWSER_TIMEOUT_MS }, () => {
       expectNear(color, { r: 128, g: 128, b: 128 });
     });
 
+    test('takes the white canvas for text straight on a page that asks for no dark scheme', async () => {
+      expect(await background('#bare')).toEqual({ color: 'rgb(255, 255, 255)', uncertain: null });
+    });
+
     test('ignores a gradient that an opaque card covers', async () => {
       expect(await background('#card-over-image')).toEqual({ color: 'rgb(255, 255, 255)', uncertain: null });
     });
@@ -98,9 +102,19 @@ describe('EFFECTIVE_BACKGROUND_SOURCE', { timeout: BROWSER_TIMEOUT_MS }, () => {
       ['#blended', 'mix-blend-mode'],
       ['#filtered', 'filter'],
       ['#frosted', 'backdrop-filter'],
-      ['#bare', 'never-opaque'],
     ])('gives no colour for %s, naming the first reason on the way up: %s', async (selector, reason) => {
       expect(await background(selector)).toEqual({ color: null, uncertain: reason });
+    });
+  });
+
+  describe('on a page that asks for a dark canvas', () => {
+    test.each([
+      ['backgrounds-dark.html', 'the root color-scheme'],
+      ['backgrounds-meta-dark.html', 'a color-scheme meta tag'],
+    ])('gives no colour for text straight on %s, darkened by %s: never-opaque', async (file) => {
+      await open(file);
+
+      expect(await background('#bare')).toEqual({ color: null, uncertain: 'never-opaque' });
     });
   });
 

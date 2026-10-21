@@ -114,6 +114,18 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
     });
   });
 
+  describe('text contrast on contrast-canvas.html', () => {
+    test('judges text on a page with no background against the white canvas', async () => {
+      const { findings, skipped } = await measure('contrast-canvas.html');
+
+      expect(selectorsFor(findings, CONTRAST_FAIL)).toEqual(['#faint']);
+      expect(findingFor(findings, CONTRAST_FAIL, '#faint').observed).toBe(
+        '"Faint link on the page" is rgb(209, 213, 219) on rgb(255, 255, 255), 1.47:1 (needs 4.5:1)',
+      );
+      expect(skipped).toEqual([]);
+    });
+  });
+
   describe('text contrast on contrast.html', () => {
     test('reports #fail as unreadable and #low as low, and #large-ok, #on-image and #ok not at all', async () => {
       const { findings } = await measure('contrast.html');

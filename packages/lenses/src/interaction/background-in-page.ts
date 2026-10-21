@@ -33,6 +33,9 @@ function effectiveBackground(
   const OPAQUE_ALPHA = 0.999;
   /** The replaced elements: what they paint is not a colour the walk can read. */
   const REPLACED = 'img, video, canvas, picture, svg, iframe, object, embed';
+  /** What Chromium paints the canvas with when nothing asks for a dark one. */
+  const WHITE_CANVAS: Painted = { r: 255, g: 255, b: 255, a: 1 };
+  const DARK = /\bdark\b/;
   type Layer = Painted;
   /** `bottom` under `top`, source-over. */
   const under = (top: Layer, bottom: Layer): Layer => {
@@ -54,6 +57,18 @@ function effectiveBackground(
     return null;
   };
 
+  /**
+   * Whether the canvas under `<html>` is white: neither the root's computed `color-scheme`, nor a
+   * `<meta name="color-scheme">`, nor the preferred colour scheme asks for a dark one.
+   */
+  const isCanvasWhite = (): boolean => {
+    const meta = document.querySelector('meta[name="color-scheme"]')?.getAttribute('content') ?? '';
+    return (
+      !DARK.test(getComputedStyle(document.documentElement).colorScheme) &&
+      !DARK.test(meta) &&
+      !matchMedia('(prefers-color-scheme: dark)').matches
+    );
+  };
   /** The element's ancestors, across the shadow roots it is in. */
   const ancestorsOf = (element: Element): Set<Element> => {
     const found = new Set<Element>();
@@ -114,6 +129,9 @@ function effectiveBackground(
     color = under(color, painted);
     top = node;
   }
+  if (color.a < OPAQUE_ALPHA && top === document.documentElement && isCanvasWhite()) {
+    color = under(color, WHITE_CANVAS);
+  }
   if (color.a < OPAQUE_ALPHA) return { color: null, uncertain: 'never-opaque' };
   if (isOverlapped(stack, top)) return { color: null, uncertain: 'overlapped' };
   const channel = (value: number): number => Math.round(value);
@@ -138,8 +156,11 @@ function effectiveBackground(
  * The colour is not trusted either, and `uncertain` names the first reason met on the way up, when a
  * layer has a `background-image` (an image or a gradient) or a `backdrop-filter` before the stack is
  * opaque, when the element or any ancestor has `opacity` below 1, a `mix-blend-mode` or a `filter` (they
- * change the colours of everything inside), or when no layer up to `<html>` makes it opaque
- * (`never-opaque`: the browser's canvas colour shows through, and that depends on the colour scheme).
+ * change the colours of everything inside). When no layer up to `<html>` makes it opaque, the browser's
+ * canvas shows through: it is taken as white when nothing asks for a dark one (the root's computed
+ * `color-scheme`, a `color-scheme` meta tag and the preferred colour scheme do not say `dark`), since
+ * Chromium paints it white then; otherwise its colour is not known (`never-opaque`), and neither is it
+ * for an element whose walk ends at a shadow root rather than at `<html>`.
  * A background colour the canvas cannot read is `colour-unparseable`. The reasons of the walk come
  * before `overlapped`.
  */

@@ -181,7 +181,11 @@ read back with `getImageData`. A wide-gamut colour is judged as the sRGB colour 
 
 **Backgrounds.** The background is found in the page by going up from the element to `<html>` and
 compositing each `background-color` under the ones above it (source-over), read through the same
-canvas, until the stack is opaque (alpha at least 0.999). That walk sees the element's ancestors only,
+canvas, until the stack is opaque (alpha at least 0.999). When nothing up to `<html>` is opaque, the
+browser's canvas shows through, and Chromium paints it white unless the page asks for a dark one: the
+stack is then composited over white, as long as neither the root's computed `color-scheme`, nor a
+`<meta name="color-scheme">`, nor the preferred colour scheme says `dark`, so a page with no background
+of its own is judged against white. That walk sees the element's ancestors only,
 so before it the element is scrolled into view (to the middle of the viewport) and the elements at its
 centre are listed with `document.elementsFromPoint`. The background cannot be trusted, and the
 measurement is skipped with the first reason met on the way up (the walk's reasons come before
@@ -192,8 +196,8 @@ measurement is skipped with the first reason met on the way up (the walk's reaso
 - `opacity`: the element or any ancestor has `opacity` below 1;
 - `mix-blend-mode`: the element or any ancestor blends;
 - `filter`: the element or any ancestor has a filter;
-- `never-opaque`: no layer up to `<html>` is opaque, so the browser's own canvas colour shows through,
-  and that depends on the colour scheme;
+- `never-opaque`: no layer up to `<html>` is opaque and the page asks for a dark canvas, whose colour
+  depends on the browser; or the element is in a shadow root, where the walk ends before `<html>`;
 - `overlapped`: something that is not one of the element's ancestors is painted under it, above the
   layer that made the stack opaque: an element listed beneath it at its centre (a positioned sibling,
   a `next/image` hero, a portal), or a replaced element (`img`, `video`, `canvas`, `picture`, `svg`,
