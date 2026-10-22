@@ -15,9 +15,10 @@ import { ON_GLASS_FOCUS, PANEL_SECTION, PRIMARY_BUTTON, SECONDARY_BUTTON } from 
  * What the reader can do with a finding (spec §11, the motion study's `.actions`): copy its fix prompt
  * for a coding agent, replay it in a fresh browser, or mark it intended with an optional note. Marking is
  * optimistic: the finding shows as intended at once, with an Undo, and goes back if the server refuses.
- * An intended finding shows its note and the Undo instead of the actions; a rejected one says it is not
- * listed with the findings (its attribution and note are in the verdict above). A worth-a-look entry can
- * be copied and replayed but not decided: decisions apply to findings.
+ * An intended finding shows its note and the Undo instead of the actions; one from the findings file's
+ * intended list whose decision was taken back says it is judged on the next run, and can be marked again.
+ * A rejected one says it is not listed with the findings (its attribution and note are in the verdict
+ * above). A worth-a-look entry can be copied and replayed but not decided: decisions apply to findings.
  */
 
 const CONFLICT = 409;
@@ -220,8 +221,13 @@ function DecidableActions({ report, finding }: { readonly report: ReportState; r
       </p>
     );
   }
+  // From the file's intended list, its decision taken back: not a finding until the next run judges it.
+  const isCleared = finding.status === 'intended';
   return (
     <div className={PANEL_SECTION}>
+      {isCleared ? (
+        <p className="m-0 mb-2 font-semibold text-[12.5px]">Decision cleared; judged on the next run.</p>
+      ) : null}
       <CopyAndReplay finding={finding} />
       <MarkIntended
         isDeciding={control.isDeciding}

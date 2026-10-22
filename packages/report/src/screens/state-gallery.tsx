@@ -18,8 +18,10 @@ import { type GalleryControl, type GalleryFile, type GalleryStop, parseGallery }
  */
 
 export interface StateGalleryProps {
-  /** The screen's gallery; `null` when no lens wrote one. */
+  /** The screen's gallery; `null` when no lens wrote one, or the screen is not inspected yet. */
   readonly gallery: EvidenceRef | null;
+  /** The lenses are still on the screen, so its gallery may yet come. */
+  readonly isInspecting?: boolean;
 }
 
 type GalleryLoad =
@@ -286,7 +288,16 @@ function Controls({ entries }: { readonly entries: readonly GalleryControl[] }) 
   );
 }
 
-function GalleryBody({ load }: { readonly load: GalleryLoad | null }) {
+function GalleryBody({
+  load,
+  isInspecting,
+}: {
+  readonly load: GalleryLoad | null;
+  readonly isInspecting: boolean;
+}) {
+  if (load === null && isInspecting) {
+    return <p className="mt-1 text-ink-2">The gallery comes once this screen is inspected.</p>;
+  }
   if (load === null) return <p className="mt-1 text-ink-2">No gallery for this screen</p>;
   if (load.status === 'loading') {
     return (
@@ -306,7 +317,7 @@ function GalleryBody({ load }: { readonly load: GalleryLoad | null }) {
   );
 }
 
-export function StateGallery({ gallery }: StateGalleryProps) {
+export function StateGallery({ gallery, isInspecting = false }: StateGalleryProps) {
   const titleId = useId();
   const url = gallery === null ? null : evidenceUrl(gallery);
   const load = useGallery(url);
@@ -320,7 +331,7 @@ export function StateGallery({ gallery }: StateGalleryProps) {
         State gallery
       </h2>
       {/* Each screen's gallery starts collapsed. */}
-      <GalleryBody key={url ?? 'none'} load={shown} />
+      <GalleryBody key={url ?? 'none'} load={shown} isInspecting={isInspecting} />
     </section>
   );
 }

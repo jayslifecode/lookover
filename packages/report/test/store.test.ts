@@ -2,7 +2,7 @@
 import type { RunEvent } from '@jayslifecode/lookover-core';
 import { afterEach, expect, test, vi } from 'vitest';
 import type { RunFileName, RunManifest } from '../node/api';
-import { ApiError } from '../src/data/api';
+import { ApiError, STREAM_RECONNECTING } from '../src/data/api';
 import { createReportStore, type ReportApi, type ReportStore } from '../src/data/store';
 import { eventsOf, fixtureEvents, fixtureFindings, fixturePreviousFindings } from './fixture';
 
@@ -22,6 +22,7 @@ interface FakeServer {
   readonly requestedFiles: RunFileName[];
   emit(events: readonly RunEvent[]): void;
   failStream(message: string): void;
+  openStream(): void;
   readonly subscribe: ReturnType<typeof vi.fn>;
 }
 
@@ -33,13 +34,17 @@ function fakeServer(options: {
   const requestedFiles: RunFileName[] = [];
   let onEvent: ((event: RunEvent) => void) | null = null;
   let onError: ((message: string) => void) | null = null;
-  const subscribe = vi.fn((next: (event: RunEvent) => void, fail: (message: string) => void) => {
-    onEvent = next;
-    onError = fail;
-    return () => {
-      onEvent = null;
-    };
-  });
+  let onOpen: (() => void) | undefined;
+  const subscribe = vi.fn(
+    (next: (event: RunEvent) => void, fail: (message: string) => void, _lastSeq = 0, open?: () => void) => {
+      onEvent = next;
+      onError = fail;
+      onOpen = open;
+      return () => {
+        onEvent = null;
+      };
+    },
+  );
   const fetchRunFile = async (name: RunFileName) => {
     requestedFiles.push(name);
     const body = options.files?.[name];
@@ -63,6 +68,7 @@ function fakeServer(options: {
       for (const event of events) onEvent?.(event);
     },
     failStream: (message) => onError?.(message),
+    openStream: () => onOpen?.(),
   };
 }
 
@@ -84,7 +90,13 @@ test('a finished run: the manifest, then the event stream, and its findings file
   const report = started(server.api);
 
   await vi.waitFor(() => expect(report.getSnapshot().findingsSource).toBe('file'));
-  expect(server.subscribe).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), 0);
+  // Followed from the last event reduced; the stream tells the store when it (re)opens.
+  expect(server.subscribe).toHaveBeenCalledWith(
+    expect.any(Function),
+    expect.any(Function),
+    0,
+    expect.any(Function),
+  );
   expect(report.getSnapshot().manifest).toEqual(MANIFEST);
   await vi.waitFor(() => expect(report.getSnapshot().decisions).toEqual({ version: 1, decisions: {} }));
 
@@ -157,6 +169,31 @@ test('an event of a known type without its payload is reported, and the run is s
   ]);
   expect(state.judged.size).toBe(0);
   expect(state.lastSeq).toBe(third?.seq);
+});
+
+test('a dropped stream is reported until it opens again; other stream errors stay', async () => {
+  const server = fakeServer({ manifest: { status: 'running' } });
+  const report = started(server.api);
+  await vi.waitFor(() => expect(server.subscribe).toHaveBeenCalled());
+
+  server.failStream(STREAM_RECONNECTING);
+  expect(report.getSnapshot().errors).toEqual([{ source: 'events', message: STREAM_RECONNECTING }]);
+  server.openStream();
+  expect(report.getSnapshot().errors).toEqual([]);
+
+  server.failStream('The event stream sent a message that is not a run event');
+  server.openStream();
+  expect(report.getSnapshot().errors).toHaveLength(1);
+});
+
+test('a run the server does not have (its manifest is not found) is marked so, for the no-run state', async () => {
+  const missing = fakeServer({ manifestError: new ApiError(404, 'No run yet') });
+  const report = started(missing.api);
+  await vi.waitFor(() => expect(report.getSnapshot().errors).toHaveLength(1));
+
+  expect(report.getSnapshot().errors).toEqual([
+    { source: 'manifest', message: 'No run yet', isNotFound: true },
+  ]);
 });
 
 test("the decisions the server answers a decision with replace the store's, and the store tells its readers", async () => {

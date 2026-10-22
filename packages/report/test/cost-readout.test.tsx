@@ -42,7 +42,7 @@ test('tokens are exact under a thousand, and rounded to the nearest thousand fro
 });
 
 test('its tooltip breaks the cost down: the model, the calls and cache hits, and each kind of token', async () => {
-  render(<CostReadout totals={USED} isRunning={false} />);
+  render(<CostReadout totals={USED} isFinished={true} />);
 
   const readout = screen.getByRole('button', { name: '34 calls · 61k tokens · ≈ $0.19' });
   fireEvent.focus(readout);
@@ -59,15 +59,15 @@ test('its tooltip breaks the cost down: the model, the calls and cache hits, and
   }
 });
 
-test('a judge model not used is plain text; a run still going shows no cost until it has one', () => {
+test('a judge model not used is plain text; a run still going, or failed, shows no cost until it has one', () => {
   const { container, rerender } = render(
-    <CostReadout totals={{ ...USED, unavailable: 'no-api-key' }} isRunning={false} />,
+    <CostReadout totals={{ ...USED, unavailable: 'no-api-key' }} isFinished={true} />,
   );
   expect(screen.getByText('judge model not used (no API key)')).toBeDefined();
   expect(screen.queryByRole('button')).toBeNull();
 
-  rerender(<CostReadout totals={null} isRunning={true} />);
+  rerender(<CostReadout totals={null} isFinished={false} />);
   expect(container.textContent).toBe('');
-  rerender(<CostReadout totals={null} isRunning={false} />);
+  rerender(<CostReadout totals={null} isFinished={true} />);
   expect(container.textContent).toBe('judge model off');
 });

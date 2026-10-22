@@ -181,16 +181,22 @@ export function evidenceUrl(ref: Pick<EvidenceRef, 'path'>): string | null {
   return `${API_PATHS.evidence}${segments.map(encodeURIComponent).join('/')}`;
 }
 
+/** What `subscribe` tells `onError` while the browser reconnects a dropped stream. */
+export const STREAM_RECONNECTING = 'The live event stream dropped; reconnecting';
+
 /**
  * Follows the run's events. The browser reconnects a dropped stream by itself and sends the last `id`
  * it saw as `Last-Event-ID`; events at or below the last `seq` seen (from before `lastSeq`, or replayed
  * by a server that starts over) are dropped, so each reaches `onEvent` once. `onError` hears of a
- * message that is not an event, and of a stream the server closed for good. Returns the unsubscribe.
+ * message that is not an event, of a dropped stream the browser is reconnecting (`STREAM_RECONNECTING`),
+ * and of a stream the server closed for good; `onOpen` of each time the stream (re)opens. Returns the
+ * unsubscribe.
  */
 export function subscribe(
   onEvent: (event: RunEvent) => void,
   onError: (message: string) => void,
   lastSeq = 0,
+  onOpen?: () => void,
 ): () => void {
   if (typeof EventSource !== 'function') {
     onError('This browser cannot follow the run live: it has no EventSource');
@@ -213,11 +219,14 @@ export function subscribe(
     seen = data.seq;
     onEvent(data);
   };
+  source.onopen = () => onOpen?.();
   source.onerror = () => {
     // While the browser reconnects the state is CONNECTING; CLOSED means it gave up (the server refused).
     if (source.readyState === EventSource.CLOSED) {
       onError('The live event stream was closed by the report server; reload the page to follow the run');
+      return;
     }
+    onError(STREAM_RECONNECTING);
   };
   return () => source.close();
 }

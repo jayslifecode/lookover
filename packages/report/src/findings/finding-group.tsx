@@ -18,7 +18,13 @@ export interface FindingGroupProps {
   readonly onToggle: () => void;
   /** The route's selected finding. */
   readonly selectedId: string | null;
+  /** Intended findings whose decision was taken back since, marked so in the list. */
+  readonly clearedIds?: ReadonlySet<string>;
 }
+
+/** How an intended finding whose decision was taken back is marked. */
+const DECISION_CLEARED = 'decision cleared; judged on the next run';
+const NONE_CLEARED: ReadonlySet<string> = new Set();
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
@@ -67,7 +73,13 @@ export function FindingLink({
   );
 }
 
-export function FindingGroup({ group, isExpanded, onToggle, selectedId }: FindingGroupProps) {
+export function FindingGroup({
+  group,
+  isExpanded,
+  onToggle,
+  selectedId,
+  clearedIds = NONE_CLEARED,
+}: FindingGroupProps) {
   const listId = useId();
   const { lead, severity } = group;
   return (
@@ -100,6 +112,9 @@ export function FindingGroup({ group, isExpanded, onToggle, selectedId }: Findin
               <FindingLink finding={finding} selectedId={selectedId}>
                 <span>{subjectOf(finding)}</span>
                 <span className="font-mono text-[12px] text-ink-2">{routesOf(finding).join(', ')}</span>
+                {clearedIds.has(finding.id) ? (
+                  <span className="text-[12px] text-ink-2">{DECISION_CLEARED}</span>
+                ) : null}
               </FindingLink>
             </li>
           ))}

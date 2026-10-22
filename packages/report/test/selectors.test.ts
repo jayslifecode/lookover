@@ -202,13 +202,13 @@ test("the user's decisions win once they are loaded: a decided finding is intend
     decisions: { b: { status: 'intended', at: '2026-10-22T13:00:00.000Z', note: 'On purpose' } },
   });
   expect(ids(confirmedFindings(decided))).toEqual(['a']);
-  expect(ids(intendedFindings(decided))).toEqual(['b']);
+  // `i` was taken back: it was never reproduced, so it stays with the intended ones until the next run.
+  expect(ids(intendedFindings(decided))).toEqual(['b', 'i']);
   expect(decisionOf(decided, file.findings[1] as Finding)).toEqual({
     status: 'intended',
     at: '2026-10-22T13:00:00.000Z',
     note: 'On purpose',
   });
-  // `i` was taken back: it is neither confirmed (it was never reproduced) nor intended any more.
   expect(decisionOf(decided, file.intended[0] as Finding)).toBeNull();
   expect(ids(rejectedFindings(decided))).toEqual(['r']);
   // Both are high findings of the fixture's dashboard; the decided one leaves its scorecard.
@@ -238,6 +238,7 @@ test("a screen's scorecard counts its confirmed findings by severity, its skips 
     rejected: 0,
     reproducedEveryTime: 2,
     skipped: [{ reason: 'text-colour-uncertain:descendant', count: 2 }],
+    reproducing: [],
   });
   expect(scorecard(state, '38a8049145').confirmed).toEqual({ blocker: 0, high: 1, medium: 24, low: 0 });
   expect(scorecard(state, '57682dba9d').skipped).toEqual([]);

@@ -1,9 +1,11 @@
+import type { ReportState } from '@/data/reduce';
 import { cn } from '@/lib/utils';
 import { useReducedMotion } from '@/motion/reduced';
 
 /*
  * Where the run is. While it runs, the dot pulses: the only motion in the report nobody asked for
  * (spec §11), a separate element animated with transform and opacity, and none under reduced motion.
+ * While a dropped event stream reconnects, a small `reconnecting…` says the page may be behind.
  */
 
 export type LiveStatus = 'mapping' | 'inspecting' | 'judging' | 'done' | 'failed';
@@ -26,7 +28,24 @@ const DOT: Readonly<Record<LiveStatus, string>> = {
 
 const RUNNING: ReadonlySet<LiveStatus> = new Set(['mapping', 'inspecting', 'judging']);
 
-export function LiveIndicator({ status }: { status: LiveStatus }) {
+/**
+ * The run's phase from what has arrived: mapping from `run.started`, inspecting from the first captured
+ * screen, judging from the first candidate (judged or not), then done or failed when the run closes.
+ */
+export function liveStatusOf(report: ReportState): LiveStatus {
+  if (report.run.status === 'finished') return 'done';
+  if (report.run.status === 'failed') return 'failed';
+  if (report.candidates.size > 0 || report.judged.size > 0) return 'judging';
+  return report.screens.length > 0 ? 'inspecting' : 'mapping';
+}
+
+export interface LiveIndicatorProps {
+  readonly status: LiveStatus;
+  /** The run's event stream dropped and the browser is reconnecting it. */
+  readonly isReconnecting?: boolean;
+}
+
+export function LiveIndicator({ status, isReconnecting = false }: LiveIndicatorProps) {
   const isReducedMotion = useReducedMotion();
   const isPulsing = RUNNING.has(status) && !isReducedMotion;
   return (
@@ -39,6 +58,7 @@ export function LiveIndicator({ status }: { status: LiveStatus }) {
       </span>
       <span className="sr-only">Run status: </span>
       {LABEL[status]}
+      {isReconnecting ? <span className="font-medium text-[11.5px]">reconnecting…</span> : null}
     </output>
   );
 }

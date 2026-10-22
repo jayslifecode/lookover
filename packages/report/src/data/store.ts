@@ -12,6 +12,7 @@ import {
   withError,
   withFindingsFile,
   withManifest,
+  withoutError,
   withPrevious,
 } from './reduce';
 
@@ -96,6 +97,8 @@ export function createReportStore(server: ReportApi = api): ReportStore {
   const follow = (signal: AbortSignal) => {
     const onError = (message: string) =>
       update((current) => withError(current, { source: 'events', message }));
+    // A dropped stream that opens again is followed again: it no longer says it is reconnecting.
+    const onOpen = () => update((current) => withoutError(current, 'events', api.STREAM_RECONNECTING));
     const onEvent = (event: RunEvent) => {
       const wasClosed = isRunClosed(state);
       let next: ReportState;
@@ -109,7 +112,7 @@ export function createReportStore(server: ReportApi = api): ReportStore {
       update(() => next);
       if (!wasClosed && isRunClosed(state)) loadFindings(signal);
     };
-    closeStream = server.subscribe(onEvent, onError, state.lastSeq);
+    closeStream = server.subscribe(onEvent, onError, state.lastSeq, onOpen);
   };
 
   const begin = async (signal: AbortSignal) => {
@@ -117,6 +120,13 @@ export function createReportStore(server: ReportApi = api): ReportStore {
     try {
       manifest = await server.fetchManifest(signal);
     } catch (error) {
+      if (signal.aborted) return;
+      // No manifest: the server has no run to show yet.
+      if (api.isNotFound(error)) {
+        const missing = { source: 'manifest', message: messageOf(error), isNotFound: true } as const;
+        update((current) => withError(current, missing));
+        return;
+      }
       failed('manifest', signal)(error);
       return;
     }

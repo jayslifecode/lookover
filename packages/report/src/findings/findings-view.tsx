@@ -7,20 +7,27 @@ import {
   type FindingGroup as Group,
   groups,
   intendedFindings,
+  isDecisionCleared,
   rejectedFindings,
+  reproducingFindings,
+  runScorecard,
 } from '@/data/selectors';
 import { RejectedHint } from '@/screens/scorecard';
+import { NoMatches, NothingConfirmed } from '@/shell/empty-states';
 import { type FindingFilters, isFiltered, matchesFilters, NO_FILTERS } from './filter';
 import { FindingGroup, FindingLine, FindingLink } from './finding-group';
 import { FindingPanel } from './finding-panel';
 import { FindingsFilters } from './findings-filters';
+import { Reproducing } from './reproducing';
 
 /*
  * The Findings view (`#/findings?f=<findingId>`): the confirmed findings in fix-first groups (one per
  * component the findings share, the most severe and widespread first), narrowed by severity, lens and a
  * search, or the findings the user marked intended; the lower-confidence entries in a section of their
- * own when the Worth a look switch is on, never mixed with the findings. A chosen finding shows in the
- * panel beside the list from `xl`, below it on a phone. Everything here but the panel is solid.
+ * own when the Worth a look switch is on, never mixed with the findings. While the run is going, the
+ * candidates not judged yet are listed as being reproduced, apart from the findings. An empty list says
+ * why and what to do. A chosen finding shows in the panel beside the list from `xl`, below it on a phone.
+ * Everything here but the panel is solid.
  */
 
 export interface FindingsViewProps {
@@ -71,10 +78,43 @@ function CountLine({ report }: { readonly report: ReportState }) {
 }
 
 function emptyText(report: ReportState, filters: FindingFilters): string {
-  if (isFiltered(filters)) return 'No finding matches these filters.';
   return filters.status === 'confirmed' && report.run.status === 'running'
     ? 'No finding has been confirmed yet.'
     : `No finding is ${filters.status}.`;
+}
+
+interface EmptyListProps {
+  readonly report: ReportState;
+  readonly filters: FindingFilters;
+  readonly onFiltersChange: (filters: FindingFilters) => void;
+  readonly isWorthALookShown: boolean;
+  readonly onWorthALookChange: (isShown: boolean) => void;
+}
+
+/** Why the list is empty, and what to do: clear the filters, or look at what was set aside. */
+function EmptyList({
+  report,
+  filters,
+  onFiltersChange,
+  isWorthALookShown,
+  onWorthALookChange,
+}: EmptyListProps) {
+  if (isFiltered(filters)) {
+    // The status is which list is shown, not a narrowing of it: it stays.
+    return <NoMatches onClear={() => onFiltersChange({ ...NO_FILTERS, status: filters.status })} />;
+  }
+  if (filters.status === 'confirmed' && report.run.status === 'finished') {
+    return (
+      <NothingConfirmed
+        card={runScorecard(report)}
+        isWorthALookShown={isWorthALookShown}
+        onShowWorthALook={() => onWorthALookChange(true)}
+      />
+    );
+  }
+  return (
+    <p className="m-0 rounded-lg border border-line bg-bg-1 p-4 text-ink-2">{emptyText(report, filters)}</p>
+  );
 }
 
 function WorthALook({
@@ -128,6 +168,19 @@ export function FindingsView({ report, findingId }: FindingsViewProps) {
   // Opened or closed by the reader; a group not toggled yet is open when it holds the chosen finding.
   const [toggledOpen, setToggledOpen] = useState<ReadonlyMap<string, boolean>>(new Map());
   const fixFirstGroups = useMemo(() => fixFirst(groups(listed(report, filters))), [report, filters]);
+  const clearedIds = useMemo(
+    () =>
+      new Set(
+        intendedFindings(report)
+          .filter((finding) => isDecisionCleared(report, finding))
+          .map((finding) => finding.id),
+      ),
+    [report],
+  );
+  const reproducing =
+    filters.status === 'confirmed'
+      ? reproducingFindings(report).filter((finding) => matchesFilters(finding, filters))
+      : [];
   const isOpen = (group: Group) =>
     toggledOpen.get(group.key) ?? group.findings.some((finding) => finding.id === findingId);
   const toggle = (group: Group) => setToggledOpen((known) => new Map(known).set(group.key, !isOpen(group)));
@@ -146,9 +199,13 @@ export function FindingsView({ report, findingId }: FindingsViewProps) {
           onWorthALookChange={setWorthALookShown}
         />
         {fixFirstGroups.length === 0 ? (
-          <p className="m-0 rounded-lg border border-line bg-bg-1 p-4 text-ink-2">
-            {emptyText(report, filters)}
-          </p>
+          <EmptyList
+            report={report}
+            filters={filters}
+            onFiltersChange={setFilters}
+            isWorthALookShown={isWorthALookShown}
+            onWorthALookChange={setWorthALookShown}
+          />
         ) : (
           <ul aria-label="Fix first" className="m-0 grid list-none gap-2 p-0">
             {fixFirstGroups.map((group) => (
@@ -158,9 +215,15 @@ export function FindingsView({ report, findingId }: FindingsViewProps) {
                 isExpanded={isOpen(group)}
                 onToggle={() => toggle(group)}
                 selectedId={findingId}
+                clearedIds={clearedIds}
               />
             ))}
           </ul>
+        )}
+        {reproducing.length === 0 ? null : (
+          <section className="rounded-lg border border-line bg-bg-1 p-4">
+            <Reproducing findings={reproducing} level={2} />
+          </section>
         )}
         {isWorthALookShown ? <WorthALook report={report} filters={filters} selectedId={findingId} /> : null}
       </div>

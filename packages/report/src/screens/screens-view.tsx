@@ -1,10 +1,11 @@
 import type { Screen } from '@jayslifecode/lookover-core';
 import { useMemo, useRef } from 'react';
 import type { ReportState } from '@/data/reduce';
-import { findingsOnScreen, firstCapturedScreen, scorecard } from '@/data/selectors';
+import { findingsOnScreen, firstCapturedScreen, isInspecting, scorecard } from '@/data/selectors';
 import { FindingPanel } from '@/findings/finding-panel';
 import { PanelGhost } from '@/findings/panel-ghost';
 import { usePanelTransform } from '@/findings/use-panel-transform';
+import { NothingOnScreen } from '@/shell/empty-states';
 import { AnnotatedScreenshot, Notice } from './annotated-screenshot';
 import { Scorecard } from './scorecard';
 import { ScreenList } from './screen-list';
@@ -51,6 +52,7 @@ function ScreenShot({
 }) {
   const findings = useMemo(() => findingsOnScreen(report, screen.id), [report, screen.id]);
   const { width, height } = screen.viewport;
+  const isEmpty = findings.length === 0 && screen.status === 'captured' && !isInspecting(report, screen);
   return (
     <div className={MAIN}>
       <header className="min-w-0">
@@ -60,6 +62,7 @@ function ScreenShot({
         </p>
       </header>
       <AnnotatedScreenshot screen={screen} findings={findings} selectedId={findingId} />
+      {isEmpty ? <NothingOnScreen isRunning={report.run.status === 'running'} /> : null}
     </div>
   );
 }
@@ -70,7 +73,7 @@ function ScreenNumbers({ report, screen }: { readonly report: ReportState; reado
   return (
     <div className={MAIN}>
       <Scorecard card={card} />
-      <StateGallery gallery={gallery} />
+      <StateGallery gallery={gallery} isInspecting={isInspecting(report, screen)} />
     </div>
   );
 }

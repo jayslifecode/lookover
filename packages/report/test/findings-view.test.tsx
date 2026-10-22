@@ -177,7 +177,7 @@ test('the search matches the title, the route and the selector', () => {
 
   fireEvent.change(search, { target: { value: 'nothing like this' } });
   expect(groupButtons()).toEqual([]);
-  expect(screen.getByText('No finding matches these filters.')).toBeDefined();
+  expect(screen.getByText('No findings match these filters')).toBeDefined();
 });
 
 test('the worth-a-look switch lists the lower-confidence entries in a section of their own, and is remembered', () => {

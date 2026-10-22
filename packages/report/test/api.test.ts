@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { RunManifest } from '../node/api';
+import { FakeEventSource } from './event-source';
 import { eventOf } from './fixture';
 
 const MANIFEST: RunManifest = {
@@ -24,33 +25,6 @@ function stubFetch(body: unknown, status = 200) {
   );
   vi.stubGlobal('fetch', fetch);
   return fetch;
-}
-
-/** jsdom has no EventSource: one that records what the module does with it and lets a test send. */
-class FakeEventSource {
-  static readonly CONNECTING = 0;
-  static readonly CLOSED = 2;
-  static latest: FakeEventSource | null = null;
-  readonly url: string;
-  readyState = FakeEventSource.CONNECTING;
-  isClosed = false;
-  onmessage: ((message: MessageEvent<string>) => void) | null = null;
-  onerror: (() => void) | null = null;
-
-  constructor(url: string) {
-    this.url = url;
-    FakeEventSource.latest = this;
-  }
-
-  close(): void {
-    this.isClosed = true;
-    this.readyState = FakeEventSource.CLOSED;
-  }
-
-  send(data: unknown): void {
-    const text = typeof data === 'string' ? data : JSON.stringify(data);
-    this.onmessage?.({ data: text } as MessageEvent<string>);
-  }
 }
 
 beforeEach(() => {
@@ -124,13 +98,17 @@ test('the event stream delivers each event once and after lastSeq, and reports w
   const api = await loadApi();
   const seen: number[] = [];
   const errors: string[] = [];
+  const opened = vi.fn();
   const unsubscribe = api.subscribe(
     (event) => seen.push(event.seq),
     (message) => errors.push(message),
     5,
+    opened,
   );
   const source = FakeEventSource.latest as FakeEventSource;
   expect(source.url).toBe('/api/events');
+  source.open();
+  expect(opened).toHaveBeenCalledTimes(1);
 
   // A server that starts over replays what was seen; an older event arriving late is dropped too.
   for (const seq of [4, 5, 6, 6, 8, 7])
@@ -141,12 +119,18 @@ test('the event stream delivers each event once and after lastSeq, and reports w
   source.send({ hello: 'world' });
   expect(errors).toHaveLength(2);
 
-  // While the browser reconnects (CONNECTING) nothing is wrong; a stream it gave up on (CLOSED) is.
-  source.onerror?.();
-  expect(errors).toHaveLength(2);
+  // A dropped stream the browser is reconnecting (CONNECTING) is reported as such, and its reopening
+  // told; the browser resumes after the last id it saw. A stream it gave up on (CLOSED) is an error.
+  source.drop();
+  expect(errors.at(-1)).toBe(api.STREAM_RECONNECTING);
+  source.open();
+  expect(opened).toHaveBeenCalledTimes(2);
+  source.send(eventOf({ type: 'judge.unavailable', reason: 'disabled', message: 'off' }, 9));
+  expect(seen).toEqual([6, 8, 9]);
   source.readyState = FakeEventSource.CLOSED;
   source.onerror?.();
-  expect(errors).toHaveLength(3);
+  expect(errors).toHaveLength(4);
+  expect(errors.at(-1)).toMatch(/closed by the report server/);
 
   unsubscribe();
   expect(source.isClosed).toBe(true);

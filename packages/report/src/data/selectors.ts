@@ -1,4 +1,5 @@
 import type { Decision, Finding, Screen, Severity, SkipTally } from '@jayslifecode/lookover-core';
+import { STREAM_RECONNECTING } from './api';
 import { compareText, type ReportState, talliedSkips } from './reduce';
 
 /*
@@ -42,6 +43,8 @@ export interface Scorecard {
   readonly reproducedEveryTime: number;
   /** What the lenses skipped on the screen, per reason, the most frequent first, then by reason. */
   readonly skipped: readonly SkipTally[];
+  /** While the run is going: the candidates seen on the screen and not judged yet, being reproduced. */
+  readonly reproducing: readonly Finding[];
 }
 
 /**
@@ -108,9 +111,19 @@ export function confirmedFindings(state: ReportState): Finding[] {
   return judgedWith(state, 'confirmed');
 }
 
-/** Decided intended by the user, whatever the judge made of them. */
+/**
+ * Whether `finding` came from the findings file's `intended` list and its decision was taken back since:
+ * it was never judged, so it stays with the intended findings until the next run judges it.
+ */
+export function isDecisionCleared(state: ReportState, finding: Finding): boolean {
+  return finding.status === 'intended' && decisionOf(state, finding) === null;
+}
+
+/** Decided intended by the user, whatever the judge made of them, and those whose decision was cleared. */
 export function intendedFindings(state: ReportState): Finding[] {
-  return [...state.judged.values()].filter((finding) => decisionOf(state, finding) !== null);
+  return [...state.judged.values()].filter(
+    (finding) => decisionOf(state, finding) !== null || finding.status === 'intended',
+  );
 }
 
 /** Judged and not reproduced, or explained away; never listed as findings. */
@@ -136,6 +149,11 @@ export function findingById(state: ReportState, id: string): Finding | null {
 
 export function findingsOnScreen(state: ReportState, screenId: string): Finding[] {
   return confirmedFindings(state).filter((finding) => isOnScreen(finding, screenId));
+}
+
+/** While the run is going, a captured screen the lenses have not finished with yet. */
+export function isInspecting(state: ReportState, screen: Screen): boolean {
+  return state.run.status === 'running' && screen.status === 'captured' && !state.inspections.has(screen.id);
 }
 
 /** The first screen the run captured (a screen whose navigation failed holds nothing to show). */
@@ -207,6 +225,14 @@ function reproducedEveryTime(finding: Finding): boolean {
   return judgement !== null && judgement.of > 0 && judgement.reproduced === judgement.of;
 }
 
+/**
+ * While the run is going, the candidates not judged yet: they are being reproduced. None once the run is
+ * over, when what is still a candidate (a run not judged) will not be reproduced.
+ */
+export function reproducingFindings(state: ReportState): Finding[] {
+  return state.run.status === 'running' ? [...state.candidates.values()] : [];
+}
+
 export function scorecard(state: ReportState, screenId: string): Scorecard {
   const onScreen = (finding: Finding) => isOnScreen(finding, screenId);
   const confirmed = findingsOnScreen(state, screenId);
@@ -217,7 +243,29 @@ export function scorecard(state: ReportState, screenId: string): Scorecard {
     reproducedEveryTime: confirmed.filter(reproducedEveryTime).length,
     // As logged, a screen's skips are each lens's in the order met, so a reason can come twice.
     skipped: talliedSkips(state.inspections.get(screenId)?.skipped ?? []),
+    reproducing: reproducingFindings(state).filter(onScreen),
   };
+}
+
+/** The whole run's numbers, as a screen's scorecard counts them. */
+export function runScorecard(state: ReportState): Scorecard {
+  const confirmed = confirmedFindings(state);
+  return {
+    confirmed: countBySeverity(confirmed),
+    worthALook: state.worthALook.length,
+    rejected: rejectedFindings(state).length,
+    reproducedEveryTime: confirmed.filter(reproducedEveryTime).length,
+    skipped: state.skipped,
+    reproducing: reproducingFindings(state),
+  };
+}
+
+/** Whether the run is going and its event stream dropped, so the browser is reconnecting it. */
+export function isReconnecting(state: ReportState): boolean {
+  return (
+    state.run.status === 'running' &&
+    state.errors.some((error) => error.source === 'events' && error.message === STREAM_RECONNECTING)
+  );
 }
 
 function sortedDifference(source: ReadonlySet<string>, other: ReadonlySet<string>): string[] {

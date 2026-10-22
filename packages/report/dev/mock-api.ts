@@ -17,15 +17,16 @@ import {
   RUN_FILES,
   type RunFileName,
   type RunManifest,
-  type RunStatus,
 } from '../node/api.ts';
 
 /*
  * The report's API in development (`pnpm dev`), over the fixture run in `fixtures/`: the same contract
- * as the CLI's server (node/api.ts), without the token. `/api/events` replays run.jsonl with a gap
- * between events so the live states can be watched; decisions are written to a temporary copy of
- * fixtures/decisions.json, so the fixture never changes; a replay answers the finding's recorded
- * attempts after a pause.
+ * as the CLI's server (node/api.ts), without the token. Each page load watches the run go by again:
+ * `/api/run` says it is running, `/api/events` replays run.jsonl with a gap between events, and the
+ * findings file is not there (404) until the stream has sent the log's last event, so the live states
+ * can be seen; a stream that resumes (`Last-Event-ID`) carries on with the same replay. Decisions are
+ * written to a temporary copy of fixtures/decisions.json, so the fixture never changes; a replay answers
+ * the finding's recorded attempts after a pause.
  */
 
 const FIXTURES_DIR = fileURLToPath(new URL('../fixtures/', import.meta.url));
@@ -33,6 +34,7 @@ const RUN_DIR = join(FIXTURES_DIR, 'run');
 const EVIDENCE_DIR = join(RUN_DIR, 'evidence');
 const PREVIOUS_FINDINGS_FILE = join(FIXTURES_DIR, 'previous-findings.json');
 const DECISIONS_FILE: RunFileName = 'decisions.json';
+const FINDINGS_FILE: RunFileName = 'findings.json';
 const EVENT_GAP_MS = 40;
 /** A replay takes this long, so the busy state can be seen (and a second one answers 409). */
 const REPLAY_PAUSE_MS = 1_500;
@@ -42,10 +44,6 @@ const JSON_TYPE = 'application/json; charset=utf-8';
 const CONTENT_TYPES: Readonly<Record<string, string>> = { '.png': 'image/png', '.json': JSON_TYPE };
 const NO_STORE = 'no-store';
 const IMMUTABLE = 'public, max-age=31536000, immutable';
-const STATUS_AFTER: Readonly<Partial<Record<RunEvent['type'], RunStatus>>> = {
-  'run.finished': 'finished',
-  'run.failed': 'failed',
-};
 
 class HttpError extends Error {
   readonly status: number;
@@ -93,7 +91,8 @@ async function openFixtureRun(): Promise<FixtureRun> {
     runId: started.runId,
     baseUrl: started.baseUrl,
     startedAt: started.at,
-    status: STATUS_AFTER[events.at(-1)?.type ?? 'run.started'] ?? 'running',
+    // Each page load watches the run go by: the events close it.
+    status: 'running',
     previousRunId: await previousRunId(),
     lookoverVersion: findings.environment?.lookover ?? FALLBACK_VERSION,
   };
@@ -137,8 +136,16 @@ function runFilePath(run: FixtureRun, name: string): string {
   return name === DECISIONS_FILE ? join(run.scratchDir, DECISIONS_FILE) : join(RUN_DIR, name);
 }
 
-/** Replays the run log from after `Last-Event-ID`, one event every EVENT_GAP_MS, then stays open. */
-function streamEvents(run: FixtureRun, req: IncomingMessage, res: ServerResponse): void {
+/**
+ * Replays the run log from after `Last-Event-ID`, one event every EVENT_GAP_MS, then stays open; calls
+ * `onReplayed` once the log's last event has been sent (at once when there is nothing left to send).
+ */
+function streamEvents(
+  run: FixtureRun,
+  req: IncomingMessage,
+  res: ServerResponse,
+  onReplayed: () => void,
+): void {
   const header = req.headers[LAST_EVENT_ID_HEADER];
   const lastSeq = typeof header === 'string' && /^\d+$/.test(header) ? Number(header) : 0;
   const pending = run.events.filter((event) => event.seq > lastSeq);
@@ -147,6 +154,7 @@ function streamEvents(run: FixtureRun, req: IncomingMessage, res: ServerResponse
     'cache-control': NO_STORE,
     connection: 'keep-alive',
   });
+  if (pending.length === 0) onReplayed();
   let next = 0;
   const timer = setInterval(() => {
     const event = pending[next];
@@ -156,6 +164,7 @@ function streamEvents(run: FixtureRun, req: IncomingMessage, res: ServerResponse
     }
     next += 1;
     res.write(`id: ${event.seq}\ndata: ${JSON.stringify(event)}\n\n`);
+    if (next === pending.length) onReplayed();
   }, EVENT_GAP_MS);
   req.on('close', () => clearInterval(timer));
 }
@@ -236,11 +245,23 @@ function replayHandler(run: FixtureRun) {
 
 function apiHandler(run: FixtureRun) {
   const replay = replayHandler(run);
+  // Whether the page's replay of the run has sent its last event: until then the run is going.
+  let isReplayed = false;
+  const markReplayed = () => {
+    isReplayed = true;
+  };
   return async (req: IncomingMessage, res: ServerResponse, path: string): Promise<void> => {
     const isGet = req.method === 'GET';
-    if (isGet && path === API_PATHS.run) return sendJson(res, 200, run.manifest);
-    if (isGet && path === API_PATHS.events) return streamEvents(run, req, res);
+    if (isGet && path === API_PATHS.run) {
+      // A page load: the run goes by again.
+      isReplayed = false;
+      return sendJson(res, 200, run.manifest);
+    }
+    if (isGet && path === API_PATHS.events) return streamEvents(run, req, res, markReplayed);
     if (isGet && path === API_PATHS.previousFindings) return sendFile(res, PREVIOUS_FINDINGS_FILE);
+    if (isGet && path === `${API_PATHS.files}${FINDINGS_FILE}` && !isReplayed) {
+      throw new HttpError(404, 'The run has not finished yet');
+    }
     if (isGet && path.startsWith(API_PATHS.files)) {
       return sendFile(res, runFilePath(run, path.slice(API_PATHS.files.length)));
     }

@@ -5,6 +5,7 @@ import { findingById, isWorthALook } from '@/data/selectors';
 import { Glass } from '@/glass/glass';
 import { cn } from '@/lib/utils';
 import { SEVERITY_DOT, SEVERITY_EDGE, SEVERITY_LABEL } from '@/screens/severity';
+import { ErrorBoundary } from '@/shell/error-boundary';
 import { FindingActions } from './actions';
 import { EvidenceStrip } from './evidence-strip';
 import { Fact, FindingFacts } from './finding-facts';
@@ -133,7 +134,10 @@ export function FindingPanel({ report, findingId, className, contentRef }: Findi
   const titleId = useId();
   return (
     <Glass lens as="aside" aria-labelledby={titleId} data-finding-panel="" className={cn(PANEL, className)}>
-      <PanelContent report={report} findingId={findingId} titleId={titleId} ref={contentRef} />
+      {/* A finding that cannot be shown leaves the panel in place, with a notice; another one is tried afresh. */}
+      <ErrorBoundary label="finding" resetKey={findingId} className="m-4">
+        <PanelContent report={report} findingId={findingId} titleId={titleId} ref={contentRef} />
+      </ErrorBoundary>
     </Glass>
   );
 }

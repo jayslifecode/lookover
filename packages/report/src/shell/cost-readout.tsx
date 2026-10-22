@@ -4,14 +4,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 /*
  * What the judge model cost the run, in the top bar: `34 calls · 61k tokens · ≈ $0.19`, with a tooltip
  * that breaks it down (the model, the calls and cache hits, each kind of token), or why the model was
- * not used. The totals come with the end of the run, so a run still going shows nothing yet. Its text
- * is --ink, the ink that reads on the glass bar over any content.
+ * not used. The totals come with the end of the run, so a run still going (or one that failed before
+ * it ended) shows nothing. Its text is --ink, the ink that reads on the glass bar over any content.
  */
 
 export interface CostReadoutProps {
-  /** The run's judge totals; `null` for a run not judged, or one still going. */
+  /** The run's judge totals; `null` for a run not judged, or one that has not finished. */
   readonly totals: JudgeTotals | null;
-  readonly isRunning: boolean;
+  /** Whether the run finished: only then do no totals mean the judge model was off. */
+  readonly isFinished: boolean;
 }
 
 const TOKENS_PER_K = 1_000;
@@ -74,8 +75,8 @@ function Breakdown({ totals }: { readonly totals: JudgeTotals }) {
   );
 }
 
-export function CostReadout({ totals, isRunning }: CostReadoutProps) {
-  if (isRunning && totals === null) return null;
+export function CostReadout({ totals, isFinished }: CostReadoutProps) {
+  if (totals === null && !isFinished) return null;
   const text = costText(totals);
   if (!isUsed(totals)) return <span className={READOUT}>{text}</span>;
   return (

@@ -2,6 +2,7 @@ import { Info } from 'lucide-react';
 import { type ReactNode, useId } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { type Scorecard as ScorecardData, SEVERITY_ORDER } from '@/data/selectors';
+import { Reproducing } from '@/findings/reproducing';
 import { cn } from '@/lib/utils';
 import { SEVERITY_DOT, SEVERITY_LABEL } from './severity';
 
@@ -13,7 +14,13 @@ import { SEVERITY_DOT, SEVERITY_LABEL } from './severity';
 
 export interface ScorecardProps {
   readonly card: ScorecardData;
+  /** The card's heading, which names it. Default `Scorecard`. */
+  readonly title?: string;
+  /** What the numbers are of: one screen (the default), or the whole run. */
+  readonly scope?: 'screen' | 'run';
 }
+
+const SCOPE_PHRASE = { screen: 'on this screen', run: 'in this run' } as const;
 
 /** The skip reasons shown, the most frequent first. */
 export const TOP_SKIP_REASONS = 3;
@@ -60,7 +67,13 @@ export function RejectedHint() {
   );
 }
 
-function Skipped({ skipped }: { readonly skipped: ScorecardData['skipped'] }) {
+function Skipped({
+  skipped,
+  scope,
+}: {
+  readonly skipped: ScorecardData['skipped'];
+  readonly scope: 'screen' | 'run';
+}) {
   const titleId = useId();
   const top = skipped.slice(0, TOP_SKIP_REASONS);
   const others = skipped.slice(TOP_SKIP_REASONS).reduce((sum, { count }) => sum + count, 0);
@@ -70,7 +83,7 @@ function Skipped({ skipped }: { readonly skipped: ScorecardData['skipped'] }) {
         Skipped
       </h3>
       {top.length === 0 ? (
-        <p className="mt-0.5 text-[12.5px] text-ink-2">The lenses skipped nothing on this screen.</p>
+        <p className="mt-0.5 text-[12.5px] text-ink-2">{`The lenses skipped nothing ${SCOPE_PHRASE[scope]}.`}</p>
       ) : (
         <ul aria-labelledby={titleId} className="mt-1 grid gap-0.5 text-[12.5px]">
           {top.map(({ reason, count }) => (
@@ -86,12 +99,12 @@ function Skipped({ skipped }: { readonly skipped: ScorecardData['skipped'] }) {
   );
 }
 
-export function Scorecard({ card }: ScorecardProps) {
+export function Scorecard({ card, title = 'Scorecard', scope = 'screen' }: ScorecardProps) {
   const titleId = useId();
   return (
     <section aria-labelledby={titleId} className="rounded-lg border border-line bg-bg-1 p-4">
       <h2 id={titleId} className="font-semibold text-[15px]">
-        Scorecard
+        {title}
       </h2>
       <h3 className="mt-2 font-semibold text-[13.5px]">Confirmed</h3>
       <dl className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -109,7 +122,8 @@ export function Scorecard({ card }: ScorecardProps) {
         <Stat term="Worth a look" value={card.worthALook} />
         <Stat term="Rejected" value={card.rejected} hint={<RejectedHint />} />
       </dl>
-      <Skipped skipped={card.skipped} />
+      <Reproducing findings={card.reproducing} level={3} className="mt-3" />
+      <Skipped skipped={card.skipped} scope={scope} />
     </section>
   );
 }

@@ -2,7 +2,7 @@ import type { Screen, Severity } from '@jayslifecode/lookover-core';
 import { useEffect, useRef } from 'react';
 import type { ReportState } from '@/data/reduce';
 import { formatRoute } from '@/data/route';
-import { SEVERITY_ORDER, scorecard } from '@/data/selectors';
+import { isInspecting, SEVERITY_ORDER, scorecard } from '@/data/selectors';
 import { cn } from '@/lib/utils';
 import { SEVERITY_DOT, SEVERITY_LABEL } from './severity';
 
@@ -39,10 +39,12 @@ function ScreenLink({
   screen,
   counts,
   isCurrent,
+  isBeingInspected,
 }: {
   readonly screen: Screen;
   readonly counts: Readonly<Record<Severity, number>>;
   readonly isCurrent: boolean;
+  readonly isBeingInspected: boolean;
 }) {
   const isFailed = screen.status === 'navigation-failed';
   return (
@@ -64,6 +66,8 @@ function ScreenLink({
             <span aria-hidden="true" className="size-2 rounded-full bg-high" />
             Navigation failed
           </span>
+        ) : isBeingInspected ? (
+          <span className="text-ink-2">inspecting…</span>
         ) : (
           <SeverityCounts counts={counts} />
         )}
@@ -91,6 +95,7 @@ export function ScreenList({ report, currentId }: ScreenListProps) {
               screen={screen}
               counts={scorecard(report, screen.id).confirmed}
               isCurrent={screen.id === currentId}
+              isBeingInspected={isInspecting(report, screen)}
             />
           </li>
         ))}

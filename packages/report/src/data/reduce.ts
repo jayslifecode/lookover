@@ -27,6 +27,8 @@ export type ReportErrorSource = 'manifest' | 'events' | 'findings' | 'decisions'
 export interface ReportError {
   readonly source: ReportErrorSource;
   readonly message: string;
+  /** The server has no such thing (it answered 404): for the manifest, there is no run yet. */
+  readonly isNotFound?: true;
 }
 
 /** What the run finished with (`run.finished`). */
@@ -303,4 +305,11 @@ export function withPrevious(state: ReportState, previous: FindingsFile | null):
 /** Keeps the latest error of each source. */
 export function withError(state: ReportState, error: ReportError): ReportState {
   return { ...state, errors: [...state.errors.filter((known) => known.source !== error.source), error] };
+}
+
+/** The state without the error of `source` that says `message`; the same state when there is none. */
+export function withoutError(state: ReportState, source: ReportErrorSource, message: string): ReportState {
+  const isGone = (known: ReportError) => known.source === source && known.message === message;
+  if (!state.errors.some(isGone)) return state;
+  return { ...state, errors: state.errors.filter((known) => !isGone(known)) };
 }

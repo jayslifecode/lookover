@@ -1,8 +1,7 @@
-import type { RunStatus } from '../node/api';
 import { Toaster } from './components/ui/sonner';
-import type { ReportError, ReportState } from './data/reduce';
+import type { ReportState } from './data/reduce';
 import { defaultRoute, navigate, type Route, type RouteView, useRoute, viewRoute } from './data/route';
-import { firstCapturedScreen } from './data/selectors';
+import { firstCapturedScreen, isReconnecting } from './data/selectors';
 import { useReport } from './data/store';
 import { DriftView } from './drift/drift-view';
 import { FindingsView } from './findings/findings-view';
@@ -10,24 +9,19 @@ import { LensFilter } from './glass/glass';
 import { cn } from './lib/utils';
 import { ScreensView } from './screens/screens-view';
 import { CostReadout } from './shell/cost-readout';
-import type { LiveStatus } from './shell/live-indicator';
+import { NoRunYet } from './shell/empty-states';
+import { ErrorBoundary } from './shell/error-boundary';
+import { liveStatusOf } from './shell/live-indicator';
+import { RunFailedNotice } from './shell/run-failed-notice';
 import { SegmentedControl, type SegmentedItem } from './shell/segmented-control';
 import { TopBar } from './shell/top-bar';
 
 /*
- * The report's shell: the top bar with the view switcher and the cost readout over the page, and the
- * main area the current route's view fills (Screens, Findings or Drift).
+ * The report's shell: the top bar with the view switcher, the cost readout and where the run is, over
+ * the page, and the main area the current route's view fills (Screens, Findings or Drift). A run that
+ * failed says so at the top of the main area; with no run yet, the page says how to make one. Each view
+ * is held by an error boundary, so one that cannot render leaves the rest of the page standing.
  */
-
-/**
- * The run's state says only whether it is still going; which phase it is in comes with the live states,
- * so a running run shows its first phase.
- */
-const LIVE_STATUS: Readonly<Record<RunStatus, LiveStatus>> = {
-  running: 'mapping',
-  finished: 'done',
-  failed: 'failed',
-};
 
 const VIEW_TABS: readonly SegmentedItem<RouteView>[] = [
   { value: 'screens', label: 'Screens' },
@@ -42,54 +36,49 @@ const VIEW_TITLE: Readonly<Record<RouteView, string>> = {
 };
 
 const VIEW_PANEL_ID = 'report-view';
+const SOLID_BOX = 'rounded-lg border border-line bg-bg-1 p-6';
 
-function MainArea({
-  report,
-  route,
-  error,
-}: {
-  report: ReportState;
-  route: Route;
-  error: ReportError | null;
-}) {
-  if (error !== null) {
+function View({ report, route }: { readonly report: ReportState; readonly route: Route }) {
+  switch (route.view) {
+    case 'screens':
+      return <ScreensView report={report} screenId={route.screenId} findingId={route.findingId} />;
+    case 'findings':
+      return <FindingsView report={report} findingId={route.findingId} />;
+    case 'drift':
+      return <DriftView report={report} />;
+  }
+}
+
+/** What the main area holds before the run is known: no run yet, a failure to load it, or a wait. */
+function NoView({ report }: { readonly report: ReportState }) {
+  const error = report.errors.find((known) => known.source === 'manifest');
+  if (error?.isNotFound === true) return <NoRunYet />;
+  if (error !== undefined) {
     return (
-      <div role="alert" className="rounded-lg border border-line bg-bg-1 p-6">
+      <div role="alert" className={SOLID_BOX}>
         <h1 className="font-bold text-lg">The run could not be loaded</h1>
         <p className="mt-1 text-ink-2">{error.message}</p>
       </div>
     );
   }
-  if (route.view === 'screens' && report.manifest !== null) {
-    return (
-      <section id={VIEW_PANEL_ID} role="tabpanel" aria-label={VIEW_TITLE.screens}>
-        <ScreensView report={report} screenId={route.screenId} findingId={route.findingId} />
-      </section>
-    );
-  }
-  if (route.view === 'findings' && report.manifest !== null) {
-    return (
-      <section id={VIEW_PANEL_ID} role="tabpanel" aria-label={VIEW_TITLE.findings}>
-        <FindingsView report={report} findingId={route.findingId} />
-      </section>
-    );
-  }
-  if (route.view === 'drift' && report.manifest !== null) {
-    return (
-      <section id={VIEW_PANEL_ID} role="tabpanel" aria-label={VIEW_TITLE.drift}>
-        <DriftView report={report} />
-      </section>
-    );
-  }
+  return <p className={cn(SOLID_BOX, 'm-0 text-ink-2')}>Loading the run…</p>;
+}
+
+function MainArea({ report, route }: { readonly report: ReportState; readonly route: Route }) {
+  const { error } = report.run;
   return (
-    <section
-      id={VIEW_PANEL_ID}
-      role="tabpanel"
-      aria-label={VIEW_TITLE[route.view]}
-      className="rounded-lg border border-line bg-bg-1 p-6"
-    >
-      <p className="m-0 text-ink-2">Loading the run…</p>
-    </section>
+    <>
+      {report.run.status === 'failed' && error !== null ? <RunFailedNotice error={error} /> : null}
+      <section id={VIEW_PANEL_ID} role="tabpanel" aria-label={VIEW_TITLE[route.view]}>
+        {report.manifest === null ? (
+          <NoView report={report} />
+        ) : (
+          <ErrorBoundary label={`${VIEW_TITLE[route.view]} view`} resetKey={route.view}>
+            <View report={report} route={route} />
+          </ErrorBoundary>
+        )}
+      </section>
+    </>
   );
 }
 
@@ -98,17 +87,17 @@ export function App() {
   const firstScreenId = firstCapturedScreen(report)?.id ?? null;
   const route = useRoute() ?? defaultRoute(firstScreenId);
   const { manifest } = report;
-  const manifestError = report.errors.find((error) => error.source === 'manifest') ?? null;
   return (
     <div className="px-4 pt-3.5 pb-30 sm:px-6">
       <LensFilter />
       <TopBar
         runName={manifest?.runId ?? 'Lookover report'}
         baseUrl={manifest?.baseUrl ?? null}
-        status={manifest === null ? null : LIVE_STATUS[report.run.status]}
+        status={manifest === null ? null : liveStatusOf(report)}
+        isReconnecting={isReconnecting(report)}
         cost={
           manifest === null ? undefined : (
-            <CostReadout totals={report.totals} isRunning={report.run.status === 'running'} />
+            <CostReadout totals={report.totals} isFinished={report.run.status === 'finished'} />
           )
         }
         nav={
@@ -122,7 +111,7 @@ export function App() {
         }
       />
       <main className={cn('mx-auto mt-6', route.view === 'screens' ? 'max-w-[1392px]' : 'max-w-[1120px]')}>
-        <MainArea report={report} route={route} error={manifestError} />
+        <MainArea report={report} route={route} />
       </main>
       {/* Bottom centre: clear of the finding panel on the right. */}
       <Toaster position="bottom-center" />
