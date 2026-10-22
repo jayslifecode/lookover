@@ -3,10 +3,11 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { API_PATHS } from '../node/api';
 import { Toaster } from '../src/components/ui/sonner';
+import { DECISION_TIMEOUT_MS, REPLAY_TIMEOUT_MS } from '../src/data/api';
 import type { ReportState } from '../src/data/reduce';
 import { withFindingsFile } from '../src/data/reduce';
 import { FindingPanel } from '../src/findings/finding-panel';
-import { findingsFile } from './fixture';
+import { findingsFile, stepFinding } from './fixture';
 import {
   factOf,
   fixtureFinding,
@@ -20,16 +21,7 @@ import {
   stubServer,
   unstubDialog,
 } from './panel-helpers';
-import {
-  DASHBOARD,
-  loadScreenshot,
-  ORGANISATIONS,
-  placementsOn,
-  STATE,
-  show,
-  stepFindingsOn,
-  stubImageSizes,
-} from './screens-helpers';
+import { STATE } from './screens-helpers';
 
 /* The finding panel over the fixture run, with the report server stood in for by `stubServer`. */
 
@@ -332,73 +324,66 @@ test("with nothing selected the panel shows the run's summary, never nothing", (
   expect(within(withCost).getByText('This run has no finding no-such-finding.')).toBeDefined();
 });
 
-/* In the Screens view: the panel follows the route, and grows out of the pin chosen. */
-test("the panel shows the route's finding, and the run's summary with none chosen", () => {
-  const [step] = stepFindingsOn(DASHBOARD);
-  if (step === undefined) throw new Error('The dashboard has no step finding');
-  stubImageSizes();
-  const { rerender } = render(show(DASHBOARD));
-  expect(screen.getByRole('complementary', { name: 'Run summary' })).toBeDefined();
+test('from xl the panel is a fixed box under the top bar, and its body is what scrolls', () => {
+  renderPanel(KEYBOARD);
+  const panel = panelFor(KEYBOARD_TITLE);
 
-  rerender(show(DASHBOARD, step.id));
-
-  expect(screen.getByRole('complementary', { name: step.title })).toBeDefined();
+  expect(panel.className.split(' ')).toEqual(
+    expect.arrayContaining(['xl:sticky', 'xl:top-[84px]', 'xl:h-[calc(100vh-100px)]', 'overflow-hidden']),
+  );
+  const body = panel.querySelector<HTMLElement>('[data-panel-body]');
+  expect(body?.className).toContain('overflow-y-auto');
+  expect(body?.contains(within(panel).getByRole('heading', { name: KEYBOARD_TITLE }))).toBe(true);
+  expect(within(panel).getByRole('button', { name: 'Copy fix prompt' }).closest('[data-panel-body]')).toBe(
+    body,
+  );
 });
 
-test('another pinned finding grows the panel out of its pin; the old one stays until the copy lands', async () => {
-  const grown: { element: Element; keyframes: Keyframe[]; finish: () => void }[] = [];
-  Object.defineProperty(HTMLElement.prototype, 'animate', {
-    configurable: true,
-    writable: true,
-    value(this: Element, keyframes: Keyframe[]) {
-      let finish: () => void = () => undefined;
-      const finished = new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-      grown.push({ element: this, keyframes, finish });
-      return { finished, cancel: () => undefined } as unknown as Animation;
-    },
-  });
-  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-    left: 10,
-    top: 10,
-    width: 380,
-    height: 600,
-    right: 390,
-    bottom: 610,
-    x: 10,
-    y: 10,
-  } as DOMRect);
-  stubImageSizes();
+test('a worth-a-look entry is labelled as one, can be copied and replayed, and cannot be marked intended', () => {
+  const entry = {
+    ...stepFinding({ id: 'worth-1', title: 'Hover changes nothing', status: 'candidate', severity: 'low' }),
+    judgement: null,
+  };
+  const report = withFindingsFile(STATE, { ...findingsFile({}), worthALook: [entry] });
+  renderPanel(entry.id, report);
+  const panel = panelFor('Hover changes nothing');
+
+  expect(within(panel).getByText('worth a look', { exact: true })).toBeDefined();
+  expect(within(panel).getByText('Low · interaction · worth a look')).toBeDefined();
+  expect(
+    within(panel).getByText(
+      'A lower-confidence observation: measured, but not reproduced or judged, so not a finding.',
+    ),
+  ).toBeDefined();
+  expect(
+    within(panel)
+      .getAllByRole('button')
+      .map((button) => button.textContent),
+  ).toEqual(['Copy fix prompt', 'Replay']);
+  expect(within(panel).queryByLabelText('Note (optional)')).toBeNull();
+});
+
+test('a request the server never answers is given up on: the replay says so in the panel, the decision in a toast', async () => {
+  renderPanel(KEYBOARD);
+  const panel = panelFor(KEYBOARD_TITLE);
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
   try {
-    const [first, second] = placementsOn(ORGANISATIONS).map(({ members }) => members[0]?.finding);
-    if (first === undefined || second === undefined)
-      throw new Error('The organisations screen has too few pins');
-    const { rerender } = render(show(ORGANISATIONS, first.id));
-    loadScreenshot();
-    const panel = () => screen.getByRole('complementary');
+    fireEvent.click(within(panel).getByRole('button', { name: 'Replay' }));
+    await act(async () => vi.advanceTimersByTimeAsync(REPLAY_TIMEOUT_MS));
+    expect(
+      within(panel).getByText('The replay failed: The report server did not answer within 120 s'),
+    ).toBeDefined();
+    expect((within(panel).getByRole('button', { name: 'Replay' }) as HTMLButtonElement).disabled).toBe(false);
 
-    rerender(show(ORGANISATIONS, second.id));
-
-    // The copy holds the new finding and is hidden from assistive technology; the panel keeps the old one.
-    const ghost = document.querySelector('[inert]');
-    expect(ghost?.getAttribute('aria-hidden')).toBe('true');
-    expect(ghost?.textContent).toContain(second.id);
-    expect(ghost?.hasAttribute('data-glass')).toBe(false);
-    expect(panel().textContent).toContain(first.id);
-    const grow = grown.find(({ element }) => element === ghost);
-    expect(grow?.keyframes[0]?.clipPath).toBe('inset(0 round 999px)');
-
-    await act(async () => grow?.finish());
-    expect(panel().textContent).toContain(second.id);
-    await act(async () =>
-      grown
-        .filter(({ element }) => element === ghost)
-        .at(-1)
-        ?.finish(),
-    );
-    expect(document.querySelector('[inert]')).toBeNull();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Mark intended' }));
+    expect(within(panel).getByText('Marked intended')).toBeDefined();
+    // The toast is added on a timer of sonner's own, just after the request is given up on.
+    await act(async () => vi.advanceTimersByTimeAsync(DECISION_TIMEOUT_MS + 1));
+    expect(
+      screen.getByText('Could not mark the finding intended: The report server did not answer within 15 s'),
+    ).toBeDefined();
+    expect(within(panel).getByRole('button', { name: 'Mark intended' })).toBeDefined();
   } finally {
-    Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+    vi.useRealTimers();
   }
 });

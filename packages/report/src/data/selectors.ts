@@ -97,6 +97,12 @@ export function rejectedFindings(state: ReportState): Finding[] {
   return judgedWith(state, 'rejected');
 }
 
+/** Whether `id` names a worth-a-look entry: set aside before judging, so not a finding. */
+export function isWorthALook(state: ReportState, id: string): boolean {
+  if (state.judged.has(id) || state.candidates.has(id)) return false;
+  return state.worthALook.some((entry) => entry.id === id);
+}
+
 /** The finding `id` names: judged, still a candidate, or worth a look; `null` when the run has none. */
 export function findingById(state: ReportState, id: string): Finding | null {
   return (

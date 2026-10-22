@@ -75,14 +75,37 @@ export async function fetchJson(path: string, signal?: AbortSignal): Promise<unk
   return response.json();
 }
 
-async function postJson(path: string, body: unknown): Promise<unknown> {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: requestHeaders({ 'content-type': JSON_TYPE }),
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) throw await errorOf(response);
-  return response.json();
+/** How long a decision may take to be written before the report gives up on it. */
+export const DECISION_TIMEOUT_MS = 15_000;
+/** How long a replay may take: three attempts in fresh browser contexts. */
+export const REPLAY_TIMEOUT_MS = 120_000;
+const MS_PER_SECOND = 1_000;
+
+/**
+ * POSTs `body` as JSON and reads the JSON answer. A server that has not answered within `timeoutMs` is
+ * given up on (the request is aborted) with a plain error saying so. The timer is the page's own
+ * `setTimeout`, cleared as soon as the answer is in, so no timer outlives its request.
+ */
+async function postJson(path: string, body: unknown, timeoutMs: number): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: requestHeaders({ 'content-type': JSON_TYPE }),
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw await errorOf(response);
+    return await response.json();
+  } catch (error) {
+    if (!controller.signal.aborted) throw error;
+    throw new Error(`The report server did not answer within ${timeoutMs / MS_PER_SECOND} s`, {
+      cause: error,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function checked<T>(value: unknown, isValid: (value: unknown) => boolean, what: string): T {
@@ -200,7 +223,7 @@ export function subscribe(
 }
 
 export async function postDecision(request: DecisionRequest): Promise<DecisionResponse> {
-  const body = await postJson(API_PATHS.decisions, request);
+  const body = await postJson(API_PATHS.decisions, request, DECISION_TIMEOUT_MS);
   return checked<DecisionResponse>(
     body,
     (value) => isRecord(value) && isRecord(value.decisions),
@@ -209,7 +232,7 @@ export async function postDecision(request: DecisionRequest): Promise<DecisionRe
 }
 
 export async function postReplay(request: ReplayRequest): Promise<ReplayResult> {
-  const body = await postJson(API_PATHS.replay, request);
+  const body = await postJson(API_PATHS.replay, request, REPLAY_TIMEOUT_MS);
   const isResult = (value: unknown) =>
     isRecord(value) && Array.isArray(value.attempts) && typeof value.reproduced === 'number';
   return checked<ReplayResult>(body, isResult, 'a replay result');

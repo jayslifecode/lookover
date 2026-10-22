@@ -1,14 +1,16 @@
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { type ContainerTransform, growFromPin, type Rect } from '@/motion/container-transform';
-import { prefersReducedMotion } from '@/motion/reduced';
-import { PANEL_SELECTOR } from './finding-panel';
+import { matchesMedia, prefersReducedMotion } from '@/motion/reduced';
+import { FIXED_PANEL_QUERY, PANEL_SELECTOR } from './finding-panel';
 
 /*
  * The Screens view's side of the pin → panel container transform. It follows the route's finding: when
- * the choice moves from one pinned finding to another, the panel keeps showing the old one while a ghost
- * holding the new one grows out of the new pin, and the new one is swapped in when the ghost lands. From
- * nothing, from a finding without a pin, to one without a pin, or under reduced motion, the new finding is
- * shown at once. A choice made while a ghost is on its way lands that ghost at once and grows from there.
+ * a pinned finding is chosen, the panel keeps showing what it showed (another finding, or the run's
+ * summary) while a ghost holding the new one grows out of its pin, and the new one is swapped in when the
+ * ghost lands. A finding without a pin on the screen, no finding, the same finding, reduced motion, or a
+ * panel that is not the fixed box it is from `xl` (on a phone it is inline and sized by its content, so
+ * nothing grows into it) shows the new content at once. A choice made while a ghost is on its way lands
+ * that ghost at once and grows from there.
  */
 
 /** A ghost to render into the stage: the finding it holds, and where it grows from and to. */
@@ -39,12 +41,17 @@ export function pinOf(stage: ParentNode, findingId: string): HTMLElement | null 
   return null;
 }
 
-/** The ghost for a move from `from` to `to`; `null` when the move is shown at once. */
+/** Whether a move to another finding is shown at once rather than grown. */
+function isShownAtOnce(from: string | null, to: string | null): boolean {
+  return to === null || from === to || prefersReducedMotion() || !matchesMedia(FIXED_PANEL_QUERY);
+}
+
+/** The ghost for a move from `from` (a finding, or `null`: the summary) to `to`; `null`: shown at once. */
 function ghostFor(stage: HTMLElement | null, from: string | null, to: string | null): Ghost | null {
-  if (stage === null || from === null || to === null || from === to || prefersReducedMotion()) return null;
+  if (stage === null || to === null || isShownAtOnce(from, to)) return null;
   const pin = pinOf(stage, to);
   const panel = stage.querySelector(PANEL_SELECTOR);
-  if (pin === null || panel === null || pinOf(stage, from) === null) return null;
+  if (pin === null || panel === null) return null;
   const panelRect = panel.getBoundingClientRect();
   // A panel not laid out (hidden, or not rendered yet) has no box to grow onto.
   if (panelRect.width === 0 || panelRect.height === 0) return null;

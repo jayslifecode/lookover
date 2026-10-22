@@ -16,7 +16,8 @@ import { ON_GLASS_FOCUS, PANEL_SECTION, PRIMARY_BUTTON, SECONDARY_BUTTON } from 
  * for a coding agent, replay it in a fresh browser, or mark it intended with an optional note. Marking is
  * optimistic: the finding shows as intended at once, with an Undo, and goes back if the server refuses.
  * An intended finding shows its note and the Undo instead of the actions; a rejected one says it is not
- * listed with the findings (its attribution and note are in the verdict above).
+ * listed with the findings (its attribution and note are in the verdict above). A worth-a-look entry can
+ * be copied and replayed but not decided: decisions apply to findings.
  */
 
 const CONFLICT = 409;
@@ -191,13 +192,25 @@ function IntendedBlock({ control }: { readonly control: DecisionControl }) {
   );
 }
 
-export function FindingActions({
-  report,
-  finding,
-}: {
+interface FindingActionsProps {
   readonly report: ReportState;
   readonly finding: Finding;
-}) {
+  /** `false` for a worth-a-look entry: decisions apply to findings only, so it can be copied and replayed. */
+  readonly canDecide: boolean;
+}
+
+export function FindingActions({ report, finding, canDecide }: FindingActionsProps) {
+  if (!canDecide) {
+    return (
+      <div className={PANEL_SECTION}>
+        <CopyAndReplay finding={finding} />
+      </div>
+    );
+  }
+  return <DecidableActions report={report} finding={finding} />;
+}
+
+function DecidableActions({ report, finding }: { readonly report: ReportState; readonly finding: Finding }) {
   const control = useDecision(report, finding);
   if (control.decision !== null) return <IntendedBlock control={control} />;
   if (finding.status === 'rejected') {

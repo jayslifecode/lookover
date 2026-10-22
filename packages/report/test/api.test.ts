@@ -151,3 +151,55 @@ test('the event stream delivers each event once and after lastSeq, and reports w
   unsubscribe();
   expect(source.isClosed).toBe(true);
 });
+
+/** A `fetch` that never answers, and rejects as the browser's does when its request is aborted. */
+function stubHungFetch() {
+  const fetch = vi.fn(
+    (_path: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      }),
+  );
+  vi.stubGlobal('fetch', fetch);
+  return fetch;
+}
+
+test('a POST the server never answers is given up on: a decision after 15 s, a replay after 120 s', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    stubHungFetch();
+    const api = await loadApi();
+    const decision = api.postDecision({ findingId: 'a', status: 'intended' });
+    const replay = api.postReplay({ findingId: 'a' });
+    const settled: string[] = [];
+    decision.catch(() => settled.push('decision'));
+    replay.catch(() => settled.push('replay'));
+
+    await vi.advanceTimersByTimeAsync(api.DECISION_TIMEOUT_MS - 1);
+    expect(settled).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(decision).rejects.toThrow('The report server did not answer within 15 s');
+    expect(settled).toEqual(['decision']);
+
+    await vi.advanceTimersByTimeAsync(api.REPLAY_TIMEOUT_MS - api.DECISION_TIMEOUT_MS);
+    await expect(replay).rejects.toThrow('The report server did not answer within 120 s');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('an answered POST leaves no timer behind, and a refusal stays a refusal', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    stubFetch({ attempts: [], reproduced: 1, of: 1 });
+    const api = await loadApi();
+    await expect(api.postReplay({ findingId: 'a' })).resolves.toMatchObject({ reproduced: 1, of: 1 });
+    expect(vi.getTimerCount()).toBe(0);
+
+    stubFetch({ error: 'A replay is already running' }, 409);
+    await expect(api.postReplay({ findingId: 'a' })).rejects.toMatchObject({ status: 409 });
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});

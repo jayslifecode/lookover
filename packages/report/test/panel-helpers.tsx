@@ -43,15 +43,23 @@ function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
-export function stubServer(): Server {
+/**
+ * The report server as `fetch`: evidence from the fixture run, `routes` (path → JSON body) for anything
+ * else a test needs, and every POST held until the test answers it. A held POST that is aborted (its
+ * timeout) rejects, as the browser's fetch does.
+ */
+export function stubServer(routes: Readonly<Record<string, unknown>> = {}): Server {
   const held = new Map<string, HeldPost[]>();
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (init?.method === 'POST') {
       let resolve: (response: Response) => void = () => undefined;
-      const answered = new Promise<Response>((done) => {
+      let reject: (reason: unknown) => void = () => undefined;
+      const answered = new Promise<Response>((done, fail) => {
         resolve = done;
+        reject = fail;
       });
+      init.signal?.addEventListener('abort', () => reject(init.signal?.reason));
       const post: HeldPost = {
         body: JSON.parse(String(init.body)),
         answer: (status, body) => resolve(json(status, body)),
@@ -59,6 +67,7 @@ export function stubServer(): Server {
       held.set(url, [...(held.get(url) ?? []), post]);
       return answered;
     }
+    if (Object.hasOwn(routes, url)) return json(200, routes[url]);
     if (!url.startsWith(API_PATHS.evidence)) return json(404, { error: `No ${url}` });
     const path = `${EVIDENCE_PATH_PREFIX}${decodeURIComponent(url.slice(API_PATHS.evidence.length))}`;
     return new Response(fixtureEvidenceText(path), { headers: { 'content-type': 'application/json' } });
@@ -104,4 +113,47 @@ export function unstubDialog(): void {
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
   Reflect.deleteProperty(navigator, 'clipboard');
+}
+
+export interface StubbedAnimation {
+  readonly element: Element;
+  readonly keyframes: Keyframe[];
+  readonly cancel: ReturnType<typeof vi.fn>;
+  /** Ends the animation, as the browser does when its time is up. */
+  finish(): void;
+}
+
+/**
+ * jsdom has no Web Animations: `animate` records each call and hands back an animation whose `finished`
+ * settles when the test says (and rejects, marked handled as in a browser, when it is cancelled).
+ */
+export function stubAnimations(): StubbedAnimation[] {
+  const animations: StubbedAnimation[] = [];
+  Object.defineProperty(HTMLElement.prototype, 'animate', {
+    configurable: true,
+    writable: true,
+    value(this: Element, keyframes: Keyframe[]) {
+      let finish: () => void = () => undefined;
+      let fail: (reason: unknown) => void = () => undefined;
+      const finished = new Promise<void>((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      });
+      finished.catch(() => undefined);
+      const cancel = vi.fn(() => fail(new DOMException('The animation was cancelled', 'AbortError')));
+      animations.push({ element: this, keyframes, cancel, finish });
+      return { finished, cancel } as unknown as Animation;
+    },
+  });
+  return animations;
+}
+
+export function unstubAnimations(): void {
+  Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+}
+
+/** Lays every element out as a 380 × 600 box, so the transform has a panel to grow onto. */
+export function stubLayout(): void {
+  const box = { left: 10, top: 10, width: 380, height: 600, right: 390, bottom: 610, x: 10, y: 10 };
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(box as DOMRect);
 }

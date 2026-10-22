@@ -1,11 +1,13 @@
 import type { Finding, Severity } from '@jayslifecode/lookover-core';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { API_PATHS, type RunManifest } from '../node/api';
 import { initialState, type ReportState, withDecisions, withFindingsFile } from '../src/data/reduce';
 import { formatRoute } from '../src/data/route';
 import { confirmedFindings, fixFirst, groups } from '../src/data/selectors';
+import { useReport } from '../src/data/store';
 import { FindingsView } from '../src/findings/findings-view';
-import { findingsFile, occurrenceFinding, stepFinding } from './fixture';
+import { findingsFile, fixtureFindings, occurrenceFinding, stepFinding } from './fixture';
 import { fixtureFinding, INTENDED, KEYBOARD, panelFor, stubServer } from './panel-helpers';
 import { STATE } from './screens-helpers';
 
@@ -233,6 +235,53 @@ test('a switch whose storage is blocked still works for the page', () => {
 
   expect(toggle.getAttribute('aria-checked')).toBe('true');
   expect(screen.getByText('Nothing was set aside as worth a look.')).toBeDefined();
+});
+
+const RUN: RunManifest = {
+  runId: 'test-run',
+  baseUrl: 'http://localhost:3123',
+  startedAt: '2026-10-22T10:00:00.000Z',
+  status: 'finished',
+  previousRunId: null,
+  lookoverVersion: '0.0.0',
+};
+const KEPT = { status: 'intended', at: '2026-10-22T12:28:02.508Z', note: null } as const;
+
+/** The Findings view over the page's own store, which loads the run from the stubbed server. */
+function Live({ findingId }: { readonly findingId: string | null }) {
+  const report = useReport();
+  if (report.findingsSource !== 'file' || report.decisions === null) return <p>Loading the run</p>;
+  return (
+    <>
+      <p data-testid="decided">{Object.keys(report.decisions.decisions).join(' ')}</p>
+      <FindingsView report={report} findingId={findingId} />
+    </>
+  );
+}
+
+test("a mark the server accepts goes into the page's store, and the finding moves to Intended", async () => {
+  const server = stubServer({
+    [API_PATHS.run]: RUN,
+    [`${API_PATHS.files}findings.json`]: fixtureFindings(),
+    [`${API_PATHS.files}decisions.json`]: { version: 1, decisions: { [INTENDED]: KEPT } },
+  });
+  render(<Live findingId={KEYBOARD} />);
+  expect(await screen.findByText('27 confirmed · 1 intended · 0 rejected by the judge')).toBeDefined();
+
+  fireEvent.click(
+    within(panelFor('Control cannot be reached with the keyboard')).getByRole('button', {
+      name: 'Mark intended',
+    }),
+  );
+  const [mark] = server.posts(API_PATHS.decisions);
+  const decision = { status: 'intended', at: '2026-10-22T13:00:00.000Z', note: null };
+  await act(async () => mark?.answer(200, { decisions: { [INTENDED]: KEPT, [KEYBOARD]: decision } }));
+
+  expect(await screen.findByText('26 confirmed · 2 intended · 0 rejected by the judge')).toBeDefined();
+  expect(screen.getByTestId('decided').textContent?.split(' ')).toEqual([INTENDED, KEYBOARD]);
+  fireEvent.click(pressed('Status', 'Intended'));
+  const [group] = groupButtons();
+  expect(group?.textContent).toMatch(/keyboard.*2 findings$/);
 });
 
 /** One hundred step findings over four signatures, each signature with its own severity. */
