@@ -11,10 +11,12 @@
       "**",
       "!**/node_modules",
       "!**/dist",
+      "!**/dist-node",
       "!**/.superpowers",
       "!**/.lookover",
       "!pnpm-lock.yaml",
-      "!docs/superpowers/specs/*.html"
+      "!docs/superpowers/specs/*.html",
+      "!packages/report/fixtures"
     ]
   },
   "formatter": {
@@ -45,7 +47,9 @@
         "packages/core/src/**",
         "packages/judge/src/**",
         "packages/lenses/src/**",
-        "packages/rules/src/**"
+        "packages/rules/src/**",
+        "packages/report/src/**",
+        "packages/report/node/**"
       ],
       "linter": {
         "rules": {

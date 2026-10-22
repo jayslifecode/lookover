@@ -1,0 +1,58 @@
+{
+  "name": "@jayslifecode/lookover-report",
+  "version": "0.0.0",
+  "description": "Lookover report: the local web report a run opens, built to static files the CLI serves.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "files": [
+    "dist",
+    "dist-node"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist-node/index.d.ts",
+      "import": "./dist-node/index.js"
+    },
+    "./api": {
+      "types": "./dist-node/api.d.ts",
+      "import": "./dist-node/api.js"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc -p tsconfig.node.json",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "test": "vitest run",
+    "refresh-fixture": "node --experimental-strip-types scripts/refresh-fixture.ts"
+  },
+  "dependencies": {
+    "@jayslifecode/lookover-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@base-ui/react": "^1.9.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3",
+    "@fontsource-variable/manrope": "^5.3",
+    "@tailwindcss/vite": "^4.3",
+    "@testing-library/dom": "^10.4",
+    "@testing-library/react": "^16.3",
+    "@types/node": "^24",
+    "@types/react": "^19.3",
+    "@types/react-dom": "^19.3",
+    "@vitejs/plugin-react": "^6.1",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.5.0",
+    "jsdom": "^30",
+    "lucide-react": "^1.61.0",
+    "motion": "^14.6",
+    "react": "^19.3",
+    "react-dom": "^19.3",
+    "shadcn": "^4.22.1",
+    "sonner": "^2.0.8",
+    "tailwindcss": "^4.3",
+    "tw-animate-css": "^1.4.0",
+    "vite": "^8.3"
+  }
+}
