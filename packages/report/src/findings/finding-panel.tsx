@@ -1,9 +1,10 @@
 import type { Finding } from '@jayslifecode/lookover-core';
-import { type Ref, useId } from 'react';
+import { type Ref, type RefObject, useCallback, useEffect, useId, useRef } from 'react';
 import type { ReportState } from '@/data/reduce';
 import { findingById, isWorthALook } from '@/data/selectors';
 import { Glass } from '@/glass/glass';
 import { cn } from '@/lib/utils';
+import { matchesMedia } from '@/motion/reduced';
 import { SEVERITY_DOT, SEVERITY_EDGE, SEVERITY_LABEL } from '@/screens/severity';
 import { ErrorBoundary } from '@/shell/error-boundary';
 import { FindingActions } from './actions';
@@ -21,7 +22,7 @@ import { PanelSummary } from './panel-summary';
  * as one and can be copied and replayed, not decided. From `xl` the panel is a fixed box, 380 px wide and
  * the viewport's height less the top bar, stuck under the top bar with its body scrolling inside: the
  * glass never changes size, and the ghost that grows into it always matches it. Below `xl` it sits in
- * the page's flow, sized by its content.
+ * the page's flow, sized by its content, so a choice of finding scrolls it into view (below the top bar).
  *
  * `PanelContent` is what the panel holds; the Screens view also renders it into the solid ghost that
  * grows out of a pin (motion/container-transform.ts), so the copy and the real panel look the same.
@@ -112,7 +113,8 @@ export interface PanelContentProps {
 export function PanelContent({ report, findingId, titleId, ref }: PanelContentProps) {
   const finding = findingId === null ? null : findingById(report, findingId);
   return (
-    <div ref={ref} className="flex min-h-0 flex-1 flex-col">
+    // Scrolled into view on a phone, it lands below the sticky top bar (up to three rows tall below `sm`).
+    <div ref={ref} className="flex min-h-0 flex-1 scroll-mt-[156px] flex-col sm:scroll-mt-[88px]">
       <div className="flex items-center justify-between gap-3 border-line border-b px-4 pt-3 pb-2.5 font-medium font-mono text-[11.5px]">
         <span>
           {finding === null ? 'summary' : isWorthALook(report, finding.id) ? WORTH_A_LOOK : 'finding'}
@@ -130,13 +132,33 @@ export function PanelContent({ report, findingId, titleId, ref }: PanelContentPr
   );
 }
 
+/** `node` into `ref`, whichever kind of ref it is. */
+function assignRef<T>(ref: Ref<T> | undefined, node: T | null): void {
+  if (typeof ref === 'function') ref(node);
+  else if (ref != null) (ref as RefObject<T | null>).current = node;
+}
+
 export function FindingPanel({ report, findingId, className, contentRef }: FindingPanelProps) {
   const titleId = useId();
+  const content = useRef<HTMLDivElement | null>(null);
+  const setContent = useCallback(
+    (node: HTMLDivElement | null) => {
+      content.current = node;
+      assignRef(contentRef, node);
+    },
+    [contentRef],
+  );
+  // Below `xl` the panel is in the page's flow, maybe far below the pin or link chosen: bring it in.
+  useEffect(() => {
+    if (findingId === null || matchesMedia(FIXED_PANEL_QUERY)) return;
+    // jsdom has no scrollIntoView.
+    content.current?.scrollIntoView?.({ block: 'start' });
+  }, [findingId]);
   return (
     <Glass lens as="aside" aria-labelledby={titleId} data-finding-panel="" className={cn(PANEL, className)}>
       {/* A finding that cannot be shown leaves the panel in place, with a notice; another one is tried afresh. */}
       <ErrorBoundary label="finding" resetKey={findingId} className="m-4">
-        <PanelContent report={report} findingId={findingId} titleId={titleId} ref={contentRef} />
+        <PanelContent report={report} findingId={findingId} titleId={titleId} ref={setContent} />
       </ErrorBoundary>
     </Glass>
   );

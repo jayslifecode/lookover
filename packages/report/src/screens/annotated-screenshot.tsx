@@ -1,6 +1,7 @@
 import type { Finding, Screen } from '@jayslifecode/lookover-core';
 import {
   type CSSProperties,
+  memo,
   useCallback,
   useEffect,
   useId,
@@ -13,7 +14,8 @@ import { evidenceUrl } from '@/data/api';
 import { formatRoute } from '@/data/route';
 import { cn } from '@/lib/utils';
 import { Pin } from './pin';
-import { fixFirstOrder, isPinnable, LABEL_INSET, placePins } from './pins';
+import { fixFirstOrder, isPinnable, LABEL_INSET, type PinPlacement, placePins } from './pins';
+import { ScreenshotImage } from './screenshot-image';
 import { SEVERITY_DOT, SEVERITY_LABEL } from './severity';
 
 /*
@@ -24,6 +26,10 @@ import { SEVERITY_DOT, SEVERITY_LABEL } from './severity';
  * Findings with no place on the screenshot are listed below it; while there is no image to pin on (the
  * screen failed, kept no screenshot, its screenshot failed to load or is not measured yet) every finding
  * is listed there, so none is out of reach.
+ *
+ * Choosing a finding is cheap: the image and the pins render through `memo`, the placement is computed
+ * from the screen's findings and the image's sizes only, and the selected id reaches only the pin that
+ * holds it (the ring marks it), so a `?f=` change renders one or two pins and nothing else here.
  */
 
 export interface AnnotatedScreenshotProps {
@@ -42,6 +48,8 @@ interface Size {
 const NOT_MEASURED: ReadonlyMap<string, number> = new Map();
 const NO_BOX: Size = { width: 0, height: 0 };
 const LABEL_SELECTOR = '[data-pin-label]';
+const MemoImage = memo(ScreenshotImage);
+const MemoPin = memo(Pin);
 const FRAME = 'relative overflow-hidden rounded-lg border border-line bg-bg-2';
 
 /** A plain message in place of something the view cannot show. */
@@ -53,9 +61,15 @@ export function Notice({ children }: { readonly children: string }) {
   );
 }
 
-export function AnnotatedScreenshot(props: AnnotatedScreenshotProps) {
+export const AnnotatedScreenshot = memo(function AnnotatedScreenshot(props: AnnotatedScreenshotProps) {
   // A new screen starts afresh: its image is measured again, and may fail to load on its own.
   return <ScreenshotAndFindings key={props.screen.id} {...props} />;
+});
+
+/** The selected id for the pin of `placement`: the id when the pin holds it, else `null`, which holds still. */
+function selectionIn(placement: PinPlacement, selectedId: string | null): string | null {
+  if (selectedId === null) return null;
+  return placement.members.some(({ finding }) => finding.id === selectedId) ? selectedId : null;
 }
 
 function ScreenshotAndFindings({ screen, findings, selectedId }: AnnotatedScreenshotProps) {
@@ -162,20 +176,23 @@ function PinnedScreenshot({ screen, url, findings, selectedId, onError, onMeasur
   const layer = { '--label-max': `${Math.max((box?.width ?? 0) - 2 * LABEL_INSET, 0)}px` } as CSSProperties;
   return (
     <div ref={frame} className={FRAME}>
-      <img
-        ref={image}
-        src={url}
+      <MemoImage
+        url={url}
         alt={`Screenshot of ${screen.title} (${screen.route})`}
-        decoding="async"
+        imageRef={image}
         onLoad={measure}
         onError={onError}
-        className="block h-auto w-full"
       />
       {/* Each pin is placed against the list, which covers the image; the items take no room. */}
       <ul aria-label="Pinned findings" className="absolute inset-0 m-0 list-none p-0" style={layer}>
         {placements.map((placement) => (
           <li key={placement.finding.id}>
-            <Pin screenId={screen.id} placement={placement} box={box ?? NO_BOX} selectedId={selectedId} />
+            <MemoPin
+              screenId={screen.id}
+              placement={placement}
+              box={box ?? NO_BOX}
+              selectedId={selectionIn(placement, selectedId)}
+            />
           </li>
         ))}
       </ul>

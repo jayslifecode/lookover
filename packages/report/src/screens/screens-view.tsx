@@ -1,5 +1,5 @@
 import type { Screen } from '@jayslifecode/lookover-core';
-import { useMemo, useRef } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import type { ReportState } from '@/data/reduce';
 import { findingsOnScreen, firstCapturedScreen, isInspecting, scorecard } from '@/data/selectors';
 import { FindingPanel } from '@/findings/finding-panel';
@@ -18,6 +18,10 @@ import { StateGallery } from './state-gallery';
  * under the top bar beside everything else; from `lg` the panel sits under the screenshot; at phone width
  * everything stacks in that order, the list a strip that scrolls sideways on top. The whole view is the
  * stage of the pin → panel container transform: a choice of another pin grows the panel out of it.
+ *
+ * A choice of finding (`?f=`) renders the panel and the pin ring, not the screenshot, the list, the
+ * scorecard or the gallery; an event of a live run that leaves the screen's findings as they were keeps
+ * their pins where they are.
  */
 
 export interface ScreensViewProps {
@@ -41,6 +45,17 @@ function shownScreen(report: ReportState, screenId: string | null): Screen | nul
   return report.screens.find((screen) => screen.id === screenId);
 }
 
+/**
+ * `items` as they were last time when they are the same items in the same order, so what is memoised on
+ * them holds while the run's state moves on around them.
+ */
+function useSameItems<T>(items: readonly T[]): readonly T[] {
+  const [kept, setKept] = useState(items);
+  const isSame = kept.length === items.length && kept.every((item, index) => item === items[index]);
+  if (!isSame) setKept(items);
+  return isSame ? kept : items;
+}
+
 function ScreenShot({
   report,
   screen,
@@ -50,7 +65,7 @@ function ScreenShot({
   readonly screen: Screen;
   readonly findingId: string | null;
 }) {
-  const findings = useMemo(() => findingsOnScreen(report, screen.id), [report, screen.id]);
+  const findings = useSameItems(useMemo(() => findingsOnScreen(report, screen.id), [report, screen.id]));
   const { width, height } = screen.viewport;
   const isEmpty = findings.length === 0 && screen.status === 'captured' && !isInspecting(report, screen);
   return (
@@ -67,7 +82,13 @@ function ScreenShot({
   );
 }
 
-function ScreenNumbers({ report, screen }: { readonly report: ReportState; readonly screen: Screen }) {
+const ScreenNumbers = memo(function ScreenNumbers({
+  report,
+  screen,
+}: {
+  readonly report: ReportState;
+  readonly screen: Screen;
+}) {
   const card = useMemo(() => scorecard(report, screen.id), [report, screen.id]);
   const gallery = report.inspections.get(screen.id)?.gallery ?? null;
   return (
@@ -76,7 +97,7 @@ function ScreenNumbers({ report, screen }: { readonly report: ReportState; reado
       <StateGallery gallery={gallery} isInspecting={isInspecting(report, screen)} />
     </div>
   );
-}
+});
 
 export function ScreensView({ report, screenId, findingId }: ScreensViewProps) {
   const screen = shownScreen(report, screenId);

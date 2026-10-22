@@ -1,5 +1,5 @@
 import type { Screen, Severity } from '@jayslifecode/lookover-core';
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import type { ReportState } from '@/data/reduce';
 import { formatRoute } from '@/data/route';
 import { isInspecting, SEVERITY_ORDER, scorecard } from '@/data/selectors';
@@ -76,7 +76,8 @@ function ScreenLink({
   );
 }
 
-export function ScreenList({ report, currentId }: ScreenListProps) {
+/** Through `memo`: a choice of finding leaves the list as it is. */
+export const ScreenList = memo(function ScreenList({ report, currentId }: ScreenListProps) {
   const list = useRef<HTMLUListElement>(null);
   // On the strip, the screen shown may be scrolled out of sight: bring it in whenever it changes.
   useEffect(() => {
@@ -102,4 +103,4 @@ export function ScreenList({ report, currentId }: ScreenListProps) {
       </ul>
     </nav>
   );
-}
+});
