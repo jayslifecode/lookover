@@ -35,6 +35,8 @@ const BROWSER_TIMEOUT_MS = 120_000;
 const LOOKOVER_VERSION = '0.0.0-replay';
 const FOCUS_VISIBLE = 'interaction.focus-visible-missing';
 const POSITIVE_TABINDEX = 'interaction.positive-tabindex';
+const CONTRAST_FAIL = 'interaction.text-contrast-fail';
+const LEAKED_EMAIL = 'jay@example.com';
 const STATE_FILE = 'state.json';
 /** A cookie the browser keeps until it closes. */
 const SESSION_LIFETIME = -1;
@@ -51,6 +53,15 @@ function firstLoadOnly(first: string, otherwise: string): FixtureRoute {
 const ROUTES: Readonly<Record<string, FixtureRoute>> = {
   /** Has its controls on the first load (the inspection's); they are gone on every replay. */
   '/vanishing.html': firstLoadOnly('/controls.html', '/console-clean.html'),
+  /** A pale button that quotes an email address: the contrast finding's `observed` quotes its text. */
+  '/leaky.html': (_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    res.end(
+      '<!doctype html><html lang="en"><title>Leaky</title><body style="background:#fff">' +
+        '<button type="button" id="pale" style="color:#c8c8c8;background:#fff;border:1px solid #6b7280;' +
+        `padding:8px 16px;font:16px sans-serif">Write to ${LEAKED_EMAIL}</button></body></html>`,
+    );
+  },
   /** The controls behind the session cookie; without it, a redirect to the login page (not served). */
   '/locked.html': (req, res, serveStatic) => {
     if (hasSessionCookie(req)) {
@@ -194,6 +205,17 @@ describe('runReplay', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(signedOut).toMatchObject({ reproduced: 0, of: 1 });
     expect(signedOut.attempts[0]?.skipped).toBe('gone');
     expect(signedIn).toMatchObject({ reproduced: 1, of: 1 });
+  });
+
+  test('redacts what the attempts saw, as a run redacts what it writes', async () => {
+    const finding = stepFindingOf(await inspectPage(bed, lens, '/leaky.html'), CONTRAST_FAIL);
+
+    const result = await replay({ finding });
+
+    expect(finding.observed).toContain(LEAKED_EMAIL);
+    expect(result).toMatchObject({ reproduced: 1, of: 1 });
+    expect(result.attempts[0]?.observed).toContain('Write to [email]');
+    expect(JSON.stringify(result)).not.toContain(LEAKED_EMAIL);
   });
 
   test('writes nothing under the project directory', async () => {

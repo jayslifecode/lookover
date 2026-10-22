@@ -13,6 +13,7 @@ import {
   type LookoverConfig,
   launchSession,
   type RunContext,
+  redactDeep,
   type Screen,
   usingSession,
   type Viewport,
@@ -127,7 +128,8 @@ export async function inTemporaryRun<T>(
 
 /**
  * The harness, `times` fresh contexts, on each screen the finding was seen on (see `replayScreens`), one
- * screen after the other; the attempts of every target are added up.
+ * screen after the other; the attempts of every target are added up. The result is redacted, as a run's
+ * findings are before anyone sees them: what an attempt saw can quote the page.
  */
 export async function replayIn(run: ReplaySession): Promise<ReplayResult> {
   const { ctx, finding } = run;
@@ -146,12 +148,12 @@ export async function replayIn(run: ReplaySession): Promise<ReplayResult> {
     const result = await harness.reproduce(batchesFor(screen, [finding]));
     attempts = [...attempts, ...[...result.values()].flat()];
   }
-  return {
+  return redactDeep({
     attempts,
     reproduced: attempts.filter((attempt) => attempt.reproduced).length,
     of: attempts.length,
     environment: harness.environment(leadViewport(finding)),
-  };
+  });
 }
 
 /**
