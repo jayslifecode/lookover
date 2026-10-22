@@ -6,6 +6,7 @@ import {
   type Finding,
   type OccurrenceFinding,
   redact,
+  redactDeep,
   type Step,
   type StepFinding,
   sha256,
@@ -18,7 +19,7 @@ import { JUDGE_PROMPT_VERSION } from './prompt.js';
 export const MAX_BUNDLE_MEASUREMENT_CHARS = 2_000;
 /** Crops of the element a bundle attaches: the one at rest and the one in the rule's state. */
 export const MAX_BUNDLE_CROPS = 2;
-/** A crop larger than this is left out of the bundle, and its text names it. */
+/** A crop is attached only when the bytes read for it are under this; a larger one is named in the text. */
 export const MAX_CROP_BYTES = 200_000;
 
 const UNTRUSTED_OPEN = '<untrusted_page_content>';
@@ -55,11 +56,17 @@ export interface BundleHashInput {
 
 interface MeasuredFact {
   label: string;
+  /** Already redacted: it is cut to the budget after redaction, never before. */
   content: string;
 }
 
+interface AttachedCrop {
+  item: EvidenceItem;
+  data: Buffer;
+}
+
 interface CropChoice {
-  attached: EvidenceItem[];
+  attached: AttachedCrop[];
   leftOut: string[];
 }
 
@@ -72,14 +79,12 @@ interface CropChoice {
  */
 export async function bundleFor(input: BundleInput): Promise<JudgeBundle> {
   const { finding, rule, attempts, environment, model, readEvidence } = input;
-  const crops = chooseCrops(finding.evidence);
+  const crops = await chooseCrops(finding.evidence, readEvidence);
   const facts = await measuredFactsOf(finding, readEvidence);
-  const images = await Promise.all(
-    crops.attached.map(async ({ ref }) => ({
-      mediaType: 'image/png' as const,
-      data: (await readEvidence(ref)).toString('base64'),
-    })),
-  );
+  const images = crops.attached.map(({ data }) => ({
+    mediaType: 'image/png' as const,
+    data: data.toString('base64'),
+  }));
   const text = [
     ruleSection(rule),
     findingSection(finding),
@@ -89,7 +94,7 @@ export async function bundleFor(input: BundleInput): Promise<JudgeBundle> {
     environmentSection(environment),
     CLOSING,
   ].join('\n\n');
-  const imageIds = crops.attached.map(({ ref }) => ref.id);
+  const imageIds = crops.attached.map(({ item }) => item.ref.id);
   return { text, images, hash: bundleHash({ promptVersion: JUDGE_PROMPT_VERSION, model, text, imageIds }) };
 }
 
@@ -98,12 +103,17 @@ export function bundleHash({ promptVersion, model, text, imageIds }: BundleHashI
   return sha256(JSON.stringify([promptVersion, model, text, imageIds]));
 }
 
-/**
- * Page text, redacted and wrapped so the model reads it as data. The wrapper's own tags inside it are
- * escaped, so the page cannot close the wrapper and speak outside it.
- */
+/** Page text, redacted and wrapped so the model reads it as data. */
 function untrusted(text: string): string {
-  return `${UNTRUSTED_OPEN}${redact(text).replace(WRAPPER_TAG, '&lt;$1')}${UNTRUSTED_CLOSE}`;
+  return wrap(redact(text));
+}
+
+/**
+ * Text that is already redacted, wrapped so the model reads it as data. The wrapper's own tags inside it
+ * are escaped, so the page cannot close the wrapper and speak outside it.
+ */
+function wrap(redactedText: string): string {
+  return `${UNTRUSTED_OPEN}${redactedText.replace(WRAPPER_TAG, '&lt;$1')}${UNTRUSTED_CLOSE}`;
 }
 
 function ruleSection(rule: Rule): string {
@@ -188,7 +198,11 @@ function viewportText({ name, width, height }: Viewport): string {
   return `${name} (${width}x${height})`;
 }
 
-/** The occurrences' measured values, then the finding's measurement and style evidence, as compact JSON. */
+/**
+ * The occurrences' measured values, then the finding's measurement and style evidence, as compact JSON
+ * redacted with `redactDeep` (so a value under a key such as `authorization` goes too). Redacted here,
+ * before `measuredSection` cuts them: a secret the cut splits would no longer look like one.
+ */
 async function measuredFactsOf(
   finding: Finding,
   readEvidence: (ref: EvidenceRef) => Promise<Buffer>,
@@ -197,7 +211,7 @@ async function measuredFactsOf(
     finding.shape === 'occurrence'
       ? finding.occurrences.map(({ measured }, index) => ({
           label: `place ${index + 1}`,
-          content: JSON.stringify(measured),
+          content: JSON.stringify(redactDeep(measured)),
         }))
       : [];
   const measuredEvidence = finding.evidence.filter(
@@ -206,18 +220,18 @@ async function measuredFactsOf(
   const fromEvidence = await Promise.all(
     measuredEvidence.map(async ({ label, ref }) => ({
       label,
-      content: compactJson((await readEvidence(ref)).toString('utf8')),
+      content: redactedCompactJson((await readEvidence(ref)).toString('utf8')),
     })),
   );
   return [...fromOccurrences, ...fromEvidence];
 }
 
-/** The stored JSON without its indentation; text that does not parse is kept as it is. */
-function compactJson(text: string): string {
+/** The stored JSON, redacted, without its indentation; text that does not parse is redacted as text. */
+function redactedCompactJson(text: string): string {
   try {
-    return JSON.stringify(JSON.parse(text));
+    return JSON.stringify(redactDeep(JSON.parse(text)));
   } catch {
-    return text.trim();
+    return redact(text.trim());
   }
 }
 
@@ -243,37 +257,51 @@ function measuredSection(facts: readonly MeasuredFact[]): string {
       : [];
   return [
     '## Measured facts',
-    ...shown.map(({ label, content }) => `- ${label}: ${untrusted(content)}`),
+    ...shown.map(({ label, content }) => `- ${label}: ${wrap(content)}`),
     ...trimmed,
   ].join('\n');
 }
 
-/** The finding's crops in its own order (the rest crop first), at most two, none over the byte limit. */
-function chooseCrops(evidence: readonly EvidenceItem[]): CropChoice {
+/**
+ * The finding's crops in its own order (the rest crop first), at most two, each under the byte limit. The
+ * limit is checked on the bytes read, not on the size the ref records, and the crops are read one at a
+ * time, only while there is room for another.
+ */
+async function chooseCrops(
+  evidence: readonly EvidenceItem[],
+  readEvidence: (ref: EvidenceRef) => Promise<Buffer>,
+): Promise<CropChoice> {
   const crops = evidence.filter(({ kind, ref }) => kind === 'crop' && ref.kind === 'png');
-  return crops.reduce<CropChoice>(
-    ({ attached, leftOut }, crop) => {
-      if (crop.ref.bytes > MAX_CROP_BYTES) {
-        const reason = `${crop.label} (${crop.ref.bytes} bytes, over the ${MAX_CROP_BYTES}-byte limit)`;
-        return { attached, leftOut: [...leftOut, reason] };
-      }
-      if (attached.length >= MAX_BUNDLE_CROPS) {
-        return {
-          attached,
-          leftOut: [...leftOut, `${crop.label} (at most ${MAX_BUNDLE_CROPS} crops are attached)`],
-        };
-      }
-      return { attached: [...attached, crop], leftOut };
-    },
-    { attached: [], leftOut: [] },
+  return crops.reduce<Promise<CropChoice>>(
+    async (previous, crop) => withCrop(await previous, crop, readEvidence),
+    Promise.resolve({ attached: [], leftOut: [] }),
   );
+}
+
+async function withCrop(
+  { attached, leftOut }: CropChoice,
+  crop: EvidenceItem,
+  readEvidence: (ref: EvidenceRef) => Promise<Buffer>,
+): Promise<CropChoice> {
+  if (attached.length >= MAX_BUNDLE_CROPS) {
+    return {
+      attached,
+      leftOut: [...leftOut, `${crop.label} (at most ${MAX_BUNDLE_CROPS} crops are attached)`],
+    };
+  }
+  const data = await readEvidence(crop.ref);
+  if (data.length >= MAX_CROP_BYTES) {
+    const reason = `${crop.label} (${data.length} bytes; a crop must be under ${MAX_CROP_BYTES})`;
+    return { attached, leftOut: [...leftOut, reason] };
+  }
+  return { attached: [...attached, { item: crop, data }], leftOut };
 }
 
 function cropSection({ attached, leftOut }: CropChoice): string {
   const shown =
     attached.length === 0
       ? 'No crop of the element is attached.'
-      : `Attached, in this order: ${attached.map(({ label }) => label).join(', ')}.`;
+      : `Attached, in this order: ${attached.map(({ item }) => item.label).join(', ')}.`;
   const omitted = leftOut.length === 0 ? [] : [`Left out: ${leftOut.join('; ')}.`];
   return ['## Crops', shown, ...omitted].join('\n');
 }

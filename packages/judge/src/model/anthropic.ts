@@ -15,9 +15,26 @@ export const JUDGE_EFFORT = 'low';
  */
 export const JUDGE_CLIENT_OPTIONS = { maxRetries: 2, timeout: 60_000, logLevel: 'off' } as const;
 
-const VERDICT_FORMAT = zodOutputFormat(verdictSchema);
+const ZOD_VERDICT_FORMAT = zodOutputFormat(verdictSchema);
+/**
+ * The verdict format, except that an answer which does not parse comes back as `null` instead of throwing.
+ * `messages.parse` parses every text block whatever the stop reason, so a throw there would hide a refusal
+ * or an answer cut off at `max_tokens` behind a parse error; `verdictOf` reads the stop reason instead.
+ */
+const VERDICT_FORMAT: AutoParseableOutputFormat<Verdict | null> = {
+  ...ZOD_VERDICT_FORMAT,
+  parse: (content) => {
+    try {
+      return ZOD_VERDICT_FORMAT.parse(content);
+    } catch {
+      return null;
+    }
+  },
+};
+const STOP_END_TURN = 'end_turn';
 const STOP_REFUSAL = 'refusal';
 const NOT_A_VERDICT = 'The judge model answered with something that is not a verdict';
+const UNREADABLE = 'The judge model’s response could not be read';
 
 /** The model side of the judge: one verdict for one bundle, and what it cost in tokens. */
 export interface JudgeModel {
@@ -51,7 +68,7 @@ export class JudgeModelError extends Error {
 
 /** The one request shape the judge sends. */
 export interface JudgeRequest extends Anthropic.MessageCreateParamsNonStreaming {
-  output_config: { format: AutoParseableOutputFormat<Verdict>; effort: typeof JUDGE_EFFORT };
+  output_config: { format: AutoParseableOutputFormat<Verdict | null>; effort: typeof JUDGE_EFFORT };
 }
 
 /** What the judge reads of a response; the cache counts may be missing or `null`. */
@@ -142,17 +159,24 @@ function asJudgeModelError(error: unknown): unknown {
     });
   }
   if (error instanceof AnthropicError) {
-    // The SDK's parse error quotes the answer, which can quote the page: the message stays generic.
-    return new JudgeModelError('invalid-output', NOT_A_VERDICT, { cause: error });
+    // Any other SDK error. Its message may quote the response, which can quote the page: it stays generic.
+    return new JudgeModelError('invalid-output', UNREADABLE, { cause: error });
   }
   return error;
 }
 
+/**
+ * The verdict of a response that ended its turn. Any other stop (a refusal, an answer cut off at
+ * `max_tokens`) throws naming the stop reason, whether or not some text parsed.
+ */
 function verdictOf({ parsed_output, stop_reason }: JudgeResponse): Verdict {
-  if (parsed_output === null) {
-    const reason = stop_reason ?? 'unknown';
+  const reason = stop_reason ?? 'unknown';
+  if (reason !== STOP_END_TURN) {
     const code = reason === STOP_REFUSAL ? 'refusal' : 'invalid-output';
     throw new JudgeModelError(code, `The judge model stopped without a verdict (stop reason: ${reason})`);
+  }
+  if (parsed_output === null) {
+    throw new JudgeModelError('invalid-output', `${NOT_A_VERDICT} (stop reason: ${reason})`);
   }
   const reading = readVerdict(parsed_output);
   if (!reading.ok) {

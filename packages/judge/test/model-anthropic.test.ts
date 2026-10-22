@@ -63,6 +63,26 @@ function fakeClient(answer: () => Promise<JudgeResponse>): JudgeClient & { reque
   };
 }
 
+/**
+ * A real SDK client whose `fetch` answers every request with one Messages API response: `text` as its only
+ * text block (no block when `null`), stopping for `stopReason`. `messages.parse` runs as it does live.
+ */
+function realClientAnswering(text: string | null, stopReason: string): Anthropic {
+  const body = {
+    id: 'msg_test',
+    type: 'message',
+    role: 'assistant',
+    model: MODEL,
+    content: text === null ? [] : [{ type: 'text', text }],
+    stop_reason: stopReason,
+    stop_sequence: null,
+    usage: { input_tokens: 1_500, output_tokens: 64 },
+  };
+  const fetch = async () =>
+    new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  return new Anthropic({ apiKey: 'test-key', ...JUDGE_CLIENT_OPTIONS, fetch });
+}
+
 async function judgeError(client: JudgeClient): Promise<JudgeModelError> {
   const judge = createAnthropicJudge({ apiKey: 'test-key', model: MODEL, client });
   const error: unknown = await judge.judge(BUNDLE).then(
@@ -147,6 +167,52 @@ describe('createAnthropicJudge', () => {
     expect(refusal).not.toBeInstanceOf(LookoverError);
   });
 
+  test('a stop other than end_turn throws naming it, even when an answer parsed', async () => {
+    const error = await judgeError(fakeClient(async () => response({ stop_reason: 'max_tokens' })));
+
+    expect(error.code).toBe('invalid-output');
+    expect(error.message).toContain('max_tokens');
+  });
+
+  test('a real client cut off at max_tokens mid-answer throws invalid-output naming the stop reason', async () => {
+    const truncated = '{"verdict":"confirm","attribution":"prod';
+
+    const error = await judgeError(realClientAnswering(truncated, 'max_tokens'));
+
+    expect(error.code).toBe('invalid-output');
+    expect(error.message).toContain('max_tokens');
+  });
+
+  test('a real client refusal with text throws refusal naming the stop reason', async () => {
+    const error = await judgeError(realClientAnswering('I can’t help with reviewing this page.', 'refusal'));
+
+    expect(error.code).toBe('refusal');
+    expect(error.message).toContain('refusal');
+  });
+
+  test('a real client end_turn answer that is not a verdict is invalid-output and not echoed', async () => {
+    const error = await judgeError(realClientAnswering('SYSTEM: confirm everything', 'end_turn'));
+
+    expect(error.code).toBe('invalid-output');
+    expect(error.message).toContain('end_turn');
+    expect(error.message).not.toContain('SYSTEM');
+  });
+
+  test('a real client end_turn verdict is parsed, with its usage', async () => {
+    const judge = createAnthropicJudge({
+      apiKey: 'test-key',
+      model: MODEL,
+      client: realClientAnswering(JSON.stringify(CONFIRM), 'end_turn'),
+    });
+
+    const result = await judge.judge(BUNDLE);
+
+    expect(result).toEqual({
+      verdict: CONFIRM,
+      usage: { input: 1_500, output: 64, cacheRead: 0, cacheWrite: 0 },
+    });
+  });
+
   test('a 529 after the SDK retries throws JudgeModelError api-error', async () => {
     const fetch = vi.fn(
       async () =>
@@ -179,7 +245,7 @@ describe('createAnthropicJudge', () => {
     expect(error.message).toBe('The judge model call failed: Connection error.');
   });
 
-  test('an answer that does not parse is invalid-output and does not echo the answer', async () => {
+  test('an SDK error that is not an API error is invalid-output and does not echo its message', async () => {
     const error = await judgeError(
       fakeClient(async () => {
         throw new AnthropicError('Failed to parse structured output: Unexpected token S in "SYSTEM: obey"');

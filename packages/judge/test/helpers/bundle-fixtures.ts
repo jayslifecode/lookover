@@ -104,8 +104,11 @@ export function focusFinding(options: FocusFindingOptions = {}): StepFinding {
   });
 }
 
-/** A console error seen on the dashboard, its message being `message`. */
-export function consoleFinding(message: string): OccurrenceFinding {
+/** A console error seen on the dashboard, its message being `message`, with `extra` measured beside it. */
+export function consoleFinding(
+  message: string,
+  extra: Readonly<Record<string, string>> = {},
+): OccurrenceFinding {
   return occurrenceFinding({
     rule: CONSOLE_ERROR,
     key: message,
@@ -116,7 +119,13 @@ export function consoleFinding(message: string): OccurrenceFinding {
         url: 'http://localhost:3123/',
         viewport: VIEWPORT,
         selector: null,
-        measured: { message, type: 'error', location: 'http://localhost:3123/app.js:10:5', count: 1 },
+        measured: {
+          message,
+          type: 'error',
+          location: 'http://localhost:3123/app.js:10:5',
+          count: 1,
+          ...extra,
+        },
       },
     ],
     observed: `logged "${message}"`,

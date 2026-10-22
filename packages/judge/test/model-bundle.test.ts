@@ -106,11 +106,11 @@ describe('bundleFor', () => {
 
   test('attaches at most two crops under the byte limit, rest first', async () => {
     const rest = cropEvidence('1000000000000001', 'at rest', 1_000);
-    const oversized = cropEvidence('2000000000000002', 'hovered', MAX_CROP_BYTES + 1);
-    const focused = cropEvidence('3000000000000003', 'focused', MAX_CROP_BYTES);
+    const atLimit = cropEvidence('2000000000000002', 'hovered', MAX_CROP_BYTES);
+    const focused = cropEvidence('3000000000000003', 'focused', MAX_CROP_BYTES - 1);
     const extra = cropEvidence('4000000000000004', 'pressed', 500);
 
-    const bundle = await focusBundle([rest, oversized, focused, extra, FOCUS_STYLES_EVIDENCE]);
+    const bundle = await focusBundle([rest, atLimit, focused, extra, FOCUS_STYLES_EVIDENCE]);
 
     expect(bundle.images).toHaveLength(MAX_BUNDLE_CROPS);
     expect(bundle.images).toEqual([
@@ -119,9 +119,24 @@ describe('bundleFor', () => {
     ]);
     expect(bundle.text).toMatch(/Attached, in this order: at rest, focused\./);
     expect(bundle.text).toContain(
-      `hovered (${MAX_CROP_BYTES + 1} bytes, over the ${MAX_CROP_BYTES}-byte limit)`,
+      `hovered (${MAX_CROP_BYTES} bytes; a crop must be under ${MAX_CROP_BYTES})`,
     );
     expect(bundle.text).toContain(`pressed (at most ${MAX_BUNDLE_CROPS} crops are attached)`);
+  });
+
+  test('measures the crop it read, not the size its ref claims', async () => {
+    const large = cropEvidence('6000000000000006', 'focused', MAX_CROP_BYTES + 1);
+    const understated: StoredEvidence = {
+      ...large,
+      item: { ...large.item, ref: { ...large.item.ref, bytes: 100 } },
+    };
+
+    const bundle = await focusBundle([understated]);
+
+    expect(bundle.images).toEqual([]);
+    expect(bundle.text).toContain(
+      `focused (${MAX_CROP_BYTES + 1} bytes; a crop must be under ${MAX_CROP_BYTES})`,
+    );
   });
 
   test('says so when the finding has no crop to attach', async () => {
@@ -146,6 +161,37 @@ describe('bundleFor', () => {
       `The measurements are trimmed to ${MAX_BUNDLE_MEASUREMENT_CHARS} characters; ` +
         `${compact.length - MAX_BUNDLE_MEASUREMENT_CHARS} more were left out.`,
     );
+  });
+
+  test('redacts the measured facts before it cuts them', async () => {
+    const email = 'someone.private@example.com';
+    // The email starts ten characters before the cut, so a cut made first would leave
+    // "someone.p…" with no domain for the redaction to recognise.
+    const fillerLength = MAX_BUNDLE_MEASUREMENT_CHARS - 10 - '{"filler":"","contact":"'.length;
+    const value = { filler: 'x'.repeat(fillerLength), contact: email };
+    const straddling = jsonEvidence('7000000000000007', 'measurements', 'the text of the control', value);
+    expect(JSON.stringify(value).slice(0, MAX_BUNDLE_MEASUREMENT_CHARS)).toContain('someone.p');
+
+    const bundle = await focusBundle([straddling]);
+
+    expect(bundle.text).not.toContain('someone.p');
+    expect(bundle.text).toContain('[email]');
+  });
+
+  test('redacts a measured value under a sensitive key', async () => {
+    const finding = consoleFinding('Request failed', { authorization: 'Basic dXNlcjpwYXNz' });
+
+    const bundle = await bundleFor({
+      finding,
+      rule: CONSOLE_ERROR,
+      attempts: attemptsOf({ observed: finding.observed }),
+      environment: ENVIRONMENT,
+      model: MODEL,
+      readEvidence: readerOf([]),
+    });
+
+    expect(bundle.text).not.toContain('dXNlcjpwYXNz');
+    expect(bundle.text).toContain('"authorization":"[redacted]"');
   });
 
   test('keeps short measurements whole, as compact JSON, without a trimming note', async () => {
