@@ -10,6 +10,7 @@ export const FINDINGS_FILE = 'findings.json';
 const LEGACY_VERSION = 1;
 const CURRENT_VERSION = 2;
 const REBUILD_HINT = 'Delete the file and run again to rebuild the findings';
+const NO_FILE_HINT = 'Run lookover run to write one';
 
 /**
  * Writes the findings, redacted, to `<run dir>/findings.json` and to `<lookover dir>/findings.json`
@@ -37,6 +38,19 @@ export async function readLatestFindings(lookoverDir: string): Promise<FindingsF
   const path = resolve(lookoverDir, FINDINGS_FILE);
   const raw = await readIfPresent(path);
   if (raw === null) return null;
+  return parseFindings(raw, path);
+}
+
+/**
+ * Reads the findings file at `path`, such as one run's `<run dir>/findings.json`, as `readLatestFindings`
+ * reads the latest (a version 1 file upgraded in memory). Fails with `E_RUN_FAILED` when there is no file
+ * there or it is not a findings file.
+ */
+export async function readFindingsAt(path: string): Promise<FindingsFile> {
+  const raw = await readIfPresent(path);
+  if (raw === null) {
+    throw new LookoverError('E_RUN_FAILED', `There is no findings file at ${path}`, NO_FILE_HINT);
+  }
   return parseFindings(raw, path);
 }
 

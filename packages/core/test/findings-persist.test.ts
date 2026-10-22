@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { configSchema } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
-import { FINDINGS_FILE, readLatestFindings, writeFindings } from '../src/findings/persist.js';
+import { FINDINGS_FILE, readFindingsAt, readLatestFindings, writeFindings } from '../src/findings/persist.js';
 import type { Finding, FindingsFile } from '../src/findings/types.js';
 import { createRun } from '../src/run/run-context.js';
 import {
@@ -258,5 +258,46 @@ describe('findings persistence', () => {
         expect((error as LookoverError).hint).toBe('Delete the file and run again to rebuild the findings');
       },
     );
+  });
+
+  describe('readFindingsAt', () => {
+    test("reads one run's findings file as readLatestFindings reads the latest", async () => {
+      const ctx = await createRun({ cwd, config });
+      const file = findingsFile(ctx.runId);
+      const { runPath } = await writeFindings(ctx, file);
+
+      expect(await readFindingsAt(runPath)).toEqual(file);
+    });
+
+    test('upgrades a version 1 file in memory', async () => {
+      const ctx = await createRun({ cwd, config });
+      const path = join(ctx.dir, 'findings.json');
+      const legacy = { version: 1, runId: ctx.runId, createdAt: 'then', findings: [], worthALook: [] };
+      await writeFile(path, JSON.stringify(legacy));
+
+      expect(await readFindingsAt(path)).toMatchObject({
+        version: 2,
+        rejected: [],
+        intended: [],
+        judge: null,
+      });
+    });
+
+    test('fails with E_RUN_FAILED naming the path when there is no file there', async () => {
+      const path = join(cwd, '.lookover', 'runs', 'nope', 'findings.json');
+
+      const error = await readFindingsAt(path).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(LookoverError);
+      expect(error).toMatchObject({ code: 'E_RUN_FAILED', message: `There is no findings file at ${path}` });
+      expect((error as LookoverError).hint).toBe('Run lookover run to write one');
+    });
+
+    test('fails with E_RUN_FAILED for a file that is not a findings file', async () => {
+      const path = join(cwd, 'findings.json');
+      await writeFile(path, '[]');
+
+      await expect(readFindingsAt(path)).rejects.toMatchObject({ code: 'E_RUN_FAILED' });
+    });
   });
 });

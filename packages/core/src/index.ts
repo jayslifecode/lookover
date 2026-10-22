@@ -49,7 +49,7 @@ export type {
   Reproduction,
   ReproductionTarget,
 } from './findings/lens.js';
-export { FINDINGS_FILE, readLatestFindings, writeFindings } from './findings/persist.js';
+export { FINDINGS_FILE, readFindingsAt, readLatestFindings, writeFindings } from './findings/persist.js';
 export type {
   Attempt,
   Attribution,
@@ -124,6 +124,7 @@ export type { CreateRunOptions, RunContext } from './run/run-context.js';
 export { createRun } from './run/run-context.js';
 export type { RunLogOptions } from './run/run-log.js';
 export { RunLog } from './run/run-log.js';
+export { launchSession, usingSession } from './run/session-launch.js';
 export type { WriteFileAtomicOptions } from './util/fs.js';
 export { isMissingFile, writeFileAtomic } from './util/fs.js';
 export { sha256, shortId } from './util/hash.js';
