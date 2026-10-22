@@ -1,0 +1,85 @@
+/*
+ * The glass surface of spec §11, ported from the motion study's `.glass`, `.spot` and `.lens`. Only the
+ * top bar, the pins and the finding panel are glass; everything read in bulk is solid. A blurred layer
+ * never changes size, position or filter while visible: only the spot moves, with `transform`.
+ *
+ * `glass.tsx` picks one look per surface (`data-glass`): `frosted`, `lens` (frosted plus the `#lens`
+ * displacement, where the browser supports it) or `solid`. The media and `@supports` rules below make a
+ * surface solid even before script decides.
+ */
+
+@layer components {
+  .glass {
+    position: relative;
+    isolation: isolate;
+    contain: paint;
+    background: var(--glass-tint);
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
+    backdrop-filter: blur(18px) saturate(170%);
+    border: 1px solid var(--glass-edge);
+    box-shadow: var(--glass-shadow);
+  }
+
+  /* The specular sheen along the top edge. Below the content (z-index -1 inside the isolated surface). */
+  .glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, var(--glass-sheen), transparent 42%);
+    mask: linear-gradient(#000, rgba(0, 0, 0, 0.3));
+  }
+
+  /* The pointer-following highlight: a fixed-size element moved with translate3d (sheen.ts). */
+  .glass-spot {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: -1;
+    width: 260px;
+    height: 180px;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(closest-side, var(--glass-spot), transparent);
+    transform: translate3d(-130px, -90px, 0);
+    will-change: transform, opacity;
+    transition: opacity 0.25s var(--ease-out);
+  }
+
+  .glass:hover > .glass-spot {
+    opacity: 1;
+  }
+
+  /* Refraction, Chromium only: a static SVG displacement through backdrop-filter (the #lens filter). */
+  .glass-lens {
+    -webkit-backdrop-filter: blur(18px) saturate(170%) url(#lens);
+    backdrop-filter: blur(18px) saturate(170%) url(#lens);
+  }
+
+  .glass-solid {
+    background: var(--bg-2);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: var(--bg-2);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce), (prefers-reduced-motion: reduce) {
+    .glass {
+      background: var(--bg-2);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    .glass-spot {
+      display: none;
+    }
+  }
+}

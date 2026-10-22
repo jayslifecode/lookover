@@ -1,3 +1,183 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "../glass/glass.css";
+
+/*
+ * The report's two palettes (spec §11), as in the motion study (docs/superpowers/specs/
+ * 2026-10-20-report-motion-study.html), under `[data-theme]` on <html>. `use-theme.ts` sets the
+ * attribute. Tailwind and shadcn read them through `@theme inline`, so a utility such as `bg-bg-1` or
+ * shadcn's `bg-primary` follows the theme without a `dark:` variant.
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-0: #060a13;
+  --bg-1: #0b1222;
+  --bg-2: #111b31;
+  --line: rgba(148, 163, 184, 0.14);
+  --line-strong: rgba(148, 163, 184, 0.26);
+  --ink: #e7ebf3;
+  --ink-2: #9aa7bd;
+  --ink-3: #6b7890;
+  --accent: #5b8def;
+  --accent-ink: #0b1222;
+  --high: #f0616d;
+  --medium: #efb75a;
+  --low: #7dd3a8;
+  --pass: #34c38f;
+  /*
+   * The motion study's tint is 0.55. Raised to 0.8 (spec §11: "the tint opacity is raised until it
+   * passes") so --ink on glass holds 4.85:1 over pure white with the sheen and the spot at full
+   * strength; at 0.55 it was 2.5:1. Text on glass uses --ink only.
+   */
+  --glass-tint: rgba(11, 18, 34, 0.8);
+  --glass-edge: rgba(255, 255, 255, 0.14);
+  --glass-sheen: rgba(255, 255, 255, 0.08);
+  --glass-spot: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  --glow-a: rgba(91, 141, 239, 0.2);
+  --glow-b: rgba(129, 96, 255, 0.14);
+  --pill-edge: color-mix(in oklab, var(--accent) 58%, transparent);
+  --pill-a: color-mix(in oklab, var(--accent) 36%, transparent);
+  --pill-b: color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-0: #eef1f7;
+  --bg-1: #f6f8fc;
+  --bg-2: #ffffff;
+  --line: rgba(15, 23, 42, 0.1);
+  --line-strong: rgba(15, 23, 42, 0.18);
+  --ink: #0f172a;
+  --ink-2: #475569;
+  --ink-3: #7a879c;
+  --accent: #2f6be0;
+  --accent-ink: #ffffff;
+  --high: #c8323f;
+  --medium: #b4730b;
+  --low: #1e8a5a;
+  --pass: #1a8a56;
+  /* --ink on this tint holds 5.9:1 over pure black, 16:1 with the sheen and the spot. */
+  --glass-tint: rgba(255, 255, 255, 0.58);
+  --glass-edge: rgba(255, 255, 255, 0.9);
+  --glass-sheen: rgba(255, 255, 255, 0.55);
+  --glass-spot: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 24px 60px rgba(15, 23, 42, 0.16), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  --glow-a: rgba(47, 107, 224, 0.16);
+  --glow-b: rgba(129, 96, 255, 0.12);
+  --pill-edge: color-mix(in oklab, var(--accent) 45%, transparent);
+  --pill-a: color-mix(in oklab, var(--accent) 22%, white);
+  --pill-b: color-mix(in oklab, var(--accent) 14%, white);
+}
+
+@theme inline {
+  --color-bg-0: var(--bg-0);
+  --color-bg-1: var(--bg-1);
+  --color-bg-2: var(--bg-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-high: var(--high);
+  --color-medium: var(--medium);
+  --color-low: var(--low);
+  --color-pass: var(--pass);
+  --color-glass-tint: var(--glass-tint);
+  --color-glass-edge: var(--glass-edge);
+  --color-glass-sheen: var(--glass-sheen);
+  --color-glass-spot: var(--glass-spot);
+  --color-glow-a: var(--glow-a);
+  --color-glow-b: var(--glow-b);
+  --color-pill-edge: var(--pill-edge);
+  --color-pill-a: var(--pill-a);
+  --color-pill-b: var(--pill-b);
+  --shadow-glass: var(--glass-shadow);
+  --color-background: var(--bg-0);
+  --color-foreground: var(--ink);
+  --color-card: var(--bg-1);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--bg-2);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-ink);
+  --color-secondary: var(--bg-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--line);
+  --color-muted-foreground: var(--ink-2);
+  --color-accent-foreground: var(--accent-ink);
+  --color-destructive: var(--high);
+  --color-border: var(--line);
+  --color-input: var(--line-strong);
+  --color-ring: var(--accent);
+  --font-sans: "Manrope Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-sans);
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 18px;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.22, 1.25, 0.36, 1);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(900px 520px at 12% -10%, var(--glow-a), transparent 60%),
+      radial-gradient(700px 480px at 95% 0%, var(--glow-b), transparent 60%), var(--bg-0);
+  }
+
+  /* Every control shows where keyboard focus is: a 2 px accent outline, 2 px off the control. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* The theme switch is a circular reveal of the new page over the old one (use-theme.ts). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* Reduced motion: nothing animates, whatever a utility or a component asks for. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: must win over every utility and inline animation */
+    animation: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: must win over every utility and inline transition */
+    transition: none !important;
+  }
+}
