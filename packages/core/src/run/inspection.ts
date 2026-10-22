@@ -1,5 +1,6 @@
 import type { InstrumentedPage } from '../browser/session.js';
 import { LookoverError } from '../errors.js';
+import type { EvidenceRef } from '../evidence/store.js';
 import { mergeFindings } from '../findings/id.js';
 import type { Judge } from '../findings/judge.js';
 import type { Lens, LensContext, LensResult, LensSkip } from '../findings/lens.js';
@@ -27,10 +28,18 @@ interface ScreenYield {
   findings: readonly Finding[];
   worthALook: readonly Finding[];
   skipped: readonly LensSkip[];
+  /** The first gallery a lens wrote for the screen. */
+  gallery: EvidenceRef | null;
   error: string | null;
 }
 
-const NOTHING_YIELDED: ScreenYield = { findings: [], worthALook: [], skipped: [], error: null };
+const NOTHING_YIELDED: ScreenYield = {
+  findings: [],
+  worthALook: [],
+  skipped: [],
+  gallery: null,
+  error: null,
+};
 
 /**
  * The per-screen inspection inside the crawl, and the run's merged findings. For each captured screen:
@@ -38,7 +47,8 @@ const NOTHING_YIELDED: ScreenYield = { findings: [], worthALook: [], skipped: []
  * each with its own deadline `PER_SCREEN_BUDGET_MS` ahead and the capture viewport restored after it
  * whatever it did. The screen's findings are then merged into the run's (see `mergeFindings`): each
  * candidate id seen for the first time is logged as `finding.candidate`, carrying the finding as merged
- * so far; worth-a-look entries are kept apart and not logged. Then comes `screen.inspected`, and last the
+ * so far; worth-a-look entries are kept apart and not logged. Then comes `screen.inspected`, carrying the
+ * first gallery a lens wrote for the screen, and last the
  * judge, when there is one, is handed the screen's own candidates and worth-a-look entries (each merged
  * within the screen, not yet into the run's).
  *
@@ -88,6 +98,7 @@ export class Inspection {
       candidates: findings.length,
       worthALook: worthALook.length,
       skipped: [...yielded.skipped],
+      gallery: yielded.gallery,
       error: yielded.error,
     });
     this.options.judge?.onScreenInspected(screen, findings, worthALook);
@@ -193,8 +204,11 @@ function compareText(a: string, b: string): number {
   return a < b ? -1 : 1;
 }
 
-/** What an observer or a lens reported; only lenses skip anything. */
-type Reported = Pick<ObserverResult, 'findings' | 'worthALook'> & { skipped?: readonly LensSkip[] };
+/** What an observer or a lens reported; only lenses skip anything or write a gallery. */
+type Reported = Pick<ObserverResult, 'findings' | 'worthALook'> & {
+  skipped?: readonly LensSkip[];
+  gallery?: EvidenceRef | null;
+};
 
 function including(yielded: ScreenYield, result: Reported): ScreenYield {
   return {
@@ -202,5 +216,6 @@ function including(yielded: ScreenYield, result: Reported): ScreenYield {
     findings: [...yielded.findings, ...result.findings],
     worthALook: [...yielded.worthALook, ...result.worthALook],
     skipped: [...yielded.skipped, ...(result.skipped ?? [])],
+    gallery: yielded.gallery ?? result.gallery ?? null,
   };
 }

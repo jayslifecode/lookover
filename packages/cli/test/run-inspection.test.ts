@@ -68,6 +68,7 @@ function inspected(screenId: string, candidates: number, error: string | null = 
     candidates,
     worthALook: 0,
     skipped: [],
+    gallery: null,
     error,
   };
 }

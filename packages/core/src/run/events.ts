@@ -1,3 +1,4 @@
+import type { EvidenceRef } from '../evidence/store.js';
 import type { Finding, JudgeTotals } from '../findings/types.js';
 import type { RouteInfo, Screen, Viewport } from '../map/types.js';
 
@@ -26,8 +27,9 @@ export type RunEventBody =
   | { type: 'finding.candidate'; finding: Finding }
   /**
    * A screen has been inspected by the observers and the lenses. `candidates` and `worthALook` count what
-   * the screen yielded, `skipped` is what the lenses left out and why, and `error` is the first line of
-   * the message when the inspection stopped on an error.
+   * the screen yielded, `skipped` is what the lenses left out and why, `gallery` is the screen's state
+   * gallery (the first one a lens wrote; `null` when none did), and `error` is the first line of the
+   * message when the inspection stopped on an error.
    */
   | {
       type: 'screen.inspected';
@@ -36,6 +38,7 @@ export type RunEventBody =
       candidates: number;
       worthALook: number;
       skipped: { reason: string; count: number }[];
+      gallery: EvidenceRef | null;
       error: string | null;
     }
   /** A finding after the judge or the user decided on it, whole, so the report needs nothing else. */

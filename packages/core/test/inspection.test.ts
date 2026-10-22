@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
+import type { EvidenceRef } from '../src/evidence/store.js';
 import type { Lens, LensContext, LensResult, Reproduction } from '../src/findings/lens.js';
 import type { Finding } from '../src/findings/types.js';
 import { crawl } from '../src/map/crawler.js';
@@ -184,7 +185,14 @@ describe('Inspection', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(first?.finding.shape === 'occurrence' && first.finding.occurrences.length).toBe(1);
     expect(eventsOf(events, 'screen.inspected')).toEqual(
       screenIds.map((screenId) =>
-        expect.objectContaining({ screenId, candidates: 1, worthALook: 1, skipped: [], error: null }),
+        expect.objectContaining({
+          screenId,
+          candidates: 1,
+          worthALook: 1,
+          skipped: [],
+          gallery: null,
+          error: null,
+        }),
       ),
     );
 
@@ -249,12 +257,14 @@ describe('Inspection', { timeout: BROWSER_TIMEOUT_MS }, () => {
         screenId: failed,
         candidates: 1,
         skipped: [],
+        gallery: null,
         error: 'could not measure the page',
       }),
       expect.objectContaining({
         screenId: next,
         candidates: 2,
         skipped: [{ reason: 'time-budget', count: 2 }],
+        gallery: null,
         error: null,
       }),
     ]);
@@ -262,6 +272,35 @@ describe('Inspection', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(inspection.file().findings.map((finding) => finding.id)).toEqual([
       'console-error-1',
       `step-${next}`,
+    ]);
+  });
+
+  test("screen.inspected carries the screen's gallery: the first one a lens wrote, else null", async () => {
+    const written = new Map<string, EvidenceRef>();
+    let index = 0;
+    const withoutGallery = fakeLens(async () => NOTHING_FOUND);
+    // Writes a gallery on the first screen only, so the second has none.
+    const firstScreenOnly = fakeLens(async ({ ctx, screen }) => {
+      index += 1;
+      if (index > 1) return NOTHING_FOUND;
+      const gallery = await ctx.evidence.putJson(`gallery-${screen.id}`, { screenId: screen.id });
+      written.set(screen.id, gallery);
+      return { ...NOTHING_FOUND, gallery };
+    });
+    const later = fakeLens(async ({ ctx, screen }) => ({
+      ...NOTHING_FOUND,
+      gallery: index > 1 ? null : await ctx.evidence.putJson(`gallery-later-${screen.id}`, {}),
+    }));
+
+    const { screens, events } = await inspectSite({ lenses: [withoutGallery, firstScreenOnly, later] });
+
+    const [first, second] = screens.map((screen) => screen.id);
+    expect(first === undefined ? undefined : written.get(first)?.path).toMatch(/^evidence\/gallery-/);
+    expect(
+      eventsOf(events, 'screen.inspected').map(({ screenId, gallery }) => ({ screenId, gallery })),
+    ).toEqual([
+      { screenId: first, gallery: first === undefined ? undefined : written.get(first) },
+      { screenId: second, gallery: null },
     ]);
   });
 

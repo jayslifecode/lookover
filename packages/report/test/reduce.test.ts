@@ -94,6 +94,7 @@ test("screen.inspected folds each screen's skips into the run's tally, once per 
         candidates: 0,
         worthALook: 0,
         skipped,
+        gallery: null,
         error: null,
       },
       seq,
