@@ -1,7 +1,11 @@
 export type { ScreenBatch } from './batch.js';
 export { batchesFor } from './batch.js';
 export { JUDGE_CONCURRENCY, REPRODUCTION_ATTEMPTS } from './constants.js';
+export type { DecideOptions, ModelVerdict } from './decide.js';
+export { decideOccurrence, decideStep, modelUnavailableNote } from './decide.js';
 export { captureEnvironment } from './environment.js';
 export type { HarnessOptions } from './harness.js';
 export { Harness, isReproduced, targetKey } from './harness.js';
 export * from './model/index.js';
+export type { PipelineHarness, PipelineOptions } from './pipeline.js';
+export { JudgePipeline } from './pipeline.js';

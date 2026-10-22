@@ -61,8 +61,11 @@ export function clampVerdict(verdict: Verdict): Verdict {
   };
 }
 
-/** At most `max` characters (code points, so no emoji is split), ending in an ellipsis when cut. */
-function clip(text: string, max: number): string {
+/**
+ * `text` trimmed, at most `max` characters (code points, so no emoji is split), ending in an ellipsis
+ * when cut. The pipeline cuts its own notes with it too.
+ */
+export function clip(text: string, max: number): string {
   const trimmed = text.trim();
   const characters = Array.from(trimmed);
   if (characters.length <= max) return trimmed;
