@@ -1,0 +1,34 @@
+{
+  "name": "@jayslifecode/lookover-judge",
+  "version": "0.0.0",
+  "description": "Lookover judge: reproduces each candidate finding in fresh browser contexts before it is reported.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.1",
+    "@jayslifecode/lookover-core": "workspace:*",
+    "@jayslifecode/lookover-lenses": "workspace:*",
+    "zod": "^4.6"
+  },
+  "devDependencies": {
+    "@jayslifecode/lookover-test-support": "workspace:*",
+    "esbuild": "^0.28.2"
+  }
+}

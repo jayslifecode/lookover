@@ -15,7 +15,10 @@ import { measureStatic } from './static.js';
 import { type TabWalkResult, tabWalk } from './tab-walk.js';
 import { sweepViewports } from './viewports.js';
 
-/** The catalogue's `interaction.*` rules, in its order: every rule the interaction lens can report. */
+/**
+ * The catalogue's `interaction.*` rules, in its order: every rule the interaction lens can report. It is
+ * also the order of the steps that report them (states, static, Tab walk, sweep), as `Lens.rules` must be.
+ */
 export const INTERACTION_RULES: readonly string[] = [
   'interaction.focus-visible-missing',
   'interaction.focus-indicator-contrast',

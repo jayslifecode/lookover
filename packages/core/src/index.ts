@@ -80,7 +80,7 @@ export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './m
 export { extractForms } from './map/forms.js';
 export { DESTRUCTIVE_LINK_PATTERN, isDestructiveLink } from './map/links.js';
 export type { Timing } from './map/navigation.js';
-export { navigate } from './map/navigation.js';
+export { describeError, navigate } from './map/navigation.js';
 export {
   discoverNextRoutes,
   matchRoute,

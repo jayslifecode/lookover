@@ -1,0 +1,50 @@
+<!-- biome-ignore-all lint/a11y: this page is the inaccessible markup the rules exist to find -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Controls fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        color: #111827;
+        font: 16px/1.5 sans-serif;
+      }
+      button,
+      input {
+        display: block;
+        margin: 12px 0;
+        padding: 8px 16px;
+        border: 1px solid #6b7280;
+        border-radius: 6px;
+        background-color: #f9fafb;
+        color: #111827;
+        font: inherit;
+      }
+      button:hover,
+      input:hover {
+        background-color: #e5e7eb;
+      }
+      /* The focus mark is taken away and nothing replaces it. */
+      #none {
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <button type="button" id="none">No ring</button>
+      <!-- Two controls that jump the Tab order: one positive-tabindex finding with two occurrences. -->
+      <input id="pos-two" tabindex="2" aria-label="Filter" />
+      <input id="pos-one" tabindex="1" aria-label="Search" />
+    </main>
+    <script>
+      console.error('Report locale missing for 3 rows');
+      setTimeout(() => {
+        throw new TypeError('rows is undefined');
+      }, 0);
+    </script>
+  </body>
+</html>

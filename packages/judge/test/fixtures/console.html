@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Console fixture</title>
+  </head>
+  <body>
+    <main>Console fixture</main>
+    <script>
+      console.error('Report locale missing for 3 rows');
+      console.warn('Column "owner" is deprecated');
+      // Dev-server chatter, logged at the levels the observer listens to, so only the noise filter drops it.
+      console.warn('[Fast Refresh] rebuilding');
+      console.error('Download the React DevTools for a better development experience');
+      setTimeout(() => {
+        throw new TypeError('rows is undefined');
+      }, 0);
+    </script>
+  </body>
+</html>

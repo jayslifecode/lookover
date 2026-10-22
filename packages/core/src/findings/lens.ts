@@ -58,12 +58,15 @@ export interface Reproduction {
  */
 export interface Lens {
   readonly name: LensName;
-  /** The catalogue rule ids the lens can report. */
+  /**
+   * The catalogue rule ids the lens can report, in the order of the steps that report them: the judge
+   * measures a screen's findings again on one page in this order.
+   */
   readonly rules: readonly string[];
   inspect(context: LensContext): Promise<LensResult>;
   /**
    * Measures one of its findings again on a freshly loaded page: `context.screen` is the screen as
-   * re-captured there (new element refs), `context.viewports[0]` the finding's viewport. The lens
+   * re-captured there (new element refs), `context.viewports[0]` the capture viewport. The lens
    * re-runs the step that owns the rule, restricted to the target as far as the step allows.
    */
   reproduce(target: ReproductionTarget, context: LensContext): Promise<Reproduction>;
