@@ -363,6 +363,7 @@ describe('runReview', { timeout: BROWSER_TIMEOUT_MS }, () => {
           gallery: null,
           skipped: [],
         }),
+        reproduce: async () => ({ reproduced: false, observed: null, skipped: null, evidence: [] }),
       };
 
       const result = await runReview(ctx, {

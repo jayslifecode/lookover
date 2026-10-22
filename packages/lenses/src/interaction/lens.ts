@@ -1,5 +1,13 @@
-import type { Lens, LensContext, LensResult, LensSkip } from '@jayslifecode/lookover-core';
+import type {
+  Lens,
+  LensContext,
+  LensResult,
+  LensSkip,
+  Reproduction,
+  ReproductionTarget,
+} from '@jayslifecode/lookover-core';
 import { evaluateSource } from './measure.js';
+import { reproduceInteraction } from './reproduce.js';
 import { tally } from './skips.js';
 import { captureStates, type StateGallery } from './states.js';
 import { BLUR_SOURCE } from './states-in-page.js';
@@ -36,7 +44,8 @@ const RESET_FOCUS_AND_SCROLL_SOURCE = `() => { (${BLUR_SOURCE})(); window.scroll
  * order. A step that would start after `context.deadline` is skipped whole
  * (`time-budget:<step>`); one that has started stops itself at the deadline. The states and the focus
  * order are written as the screen's gallery (`gallery-<screenId>.json`). Missing hover states are
- * lower-confidence and go to `worthALook`; everything else is a finding.
+ * lower-confidence and go to `worthALook`; everything else is a finding. `reproduce` measures one finding
+ * again through the step that reports its rule (see `reproduceInteraction`).
  */
 export class InteractionLens implements Lens {
   readonly name = 'interaction';
@@ -68,6 +77,10 @@ export class InteractionLens implements Lens {
         ...(sweep?.skipped ?? [timeBudget('viewports')]),
       ]),
     };
+  }
+
+  reproduce(target: ReproductionTarget, context: LensContext): Promise<Reproduction> {
+    return reproduceInteraction(target, context);
   }
 }
 

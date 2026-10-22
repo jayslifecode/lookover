@@ -40,7 +40,14 @@ export { diffFindings } from './findings/diff.js';
 export type { FixPromptInput } from './findings/fix-prompt.js';
 export { fixPromptFor } from './findings/fix-prompt.js';
 export { findingId, mergeFindings } from './findings/id.js';
-export type { Lens, LensContext, LensResult, LensSkip } from './findings/lens.js';
+export type {
+  Lens,
+  LensContext,
+  LensResult,
+  LensSkip,
+  Reproduction,
+  ReproductionTarget,
+} from './findings/lens.js';
 export { FINDINGS_FILE, readLatestFindings, writeFindings } from './findings/persist.js';
 export type {
   Attempt,
@@ -72,6 +79,8 @@ export { crawl } from './map/crawler.js';
 export { extractElements, INTERACTIVE_ROLES, MAX_ELEMENTS_PER_SCREEN } from './map/elements.js';
 export { extractForms } from './map/forms.js';
 export { DESTRUCTIVE_LINK_PATTERN, isDestructiveLink } from './map/links.js';
+export type { Timing } from './map/navigation.js';
+export { navigate } from './map/navigation.js';
 export {
   discoverNextRoutes,
   matchRoute,
@@ -99,6 +108,7 @@ export type {
 export { isFailedScreen } from './map/types.js';
 export { ConsoleObserver } from './observers/console.js';
 export { defaultObservers } from './observers/index.js';
+export { reproduceObservation } from './observers/reproduce.js';
 export { RequestObserver } from './observers/requests.js';
 export { TextObserver } from './observers/text.js';
 export type { Observer, ObserverResult } from './observers/types.js';

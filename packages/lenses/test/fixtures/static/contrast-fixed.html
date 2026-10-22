@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Contrast fixture, fixed</title>
+    <style>
+      body {
+        margin: 24px;
+        background: #ffffff;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        display: block;
+        margin-bottom: 40px;
+        padding: 12px 24px;
+        border: 0;
+        background: #ffffff;
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- contrast.html after the fix: gray-900 on gray-200 is well over 4.5:1 -->
+    <button type="button" id="fail" style="color: #111827; background: #e5e7eb">Grey on grey</button>
+    <!-- 4.23:1 at 16 px: under 4.5 but not under 3 -->
+    <button type="button" id="low" style="color: #7b7b7b">Nearly legible</button>
+    <!-- 3.19:1, but 20 px bold is large text, which needs 3 -->
+    <button type="button" id="large-ok" style="color: #909090; font-size: 20px; font-weight: 700">
+      Large and bold
+    </button>
+    <!-- the colour behind this text is a gradient: no ratio can be trusted -->
+    <button
+      type="button"
+      id="on-image"
+      style="color: #ffffff; background-image: linear-gradient(90deg, #1e3a8a, #93c5fd)"
+    >
+      Over a gradient
+    </button>
+    <button type="button" id="ok" style="color: #111827">Plain and dark</button>
+    <!-- faded text on a control nobody can use: inactive components have no contrast requirement -->
+    <button type="button" id="disabled-faint" disabled style="color: #c0c0c0">Unavailable</button>
+    <!-- no text of its own to judge -->
+    <button type="button" id="silent" aria-label="Close" style="width: 48px; height: 48px"></button>
+  </body>
+</html>

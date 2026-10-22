@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Forced states fixture, fixed</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background-color: #fff;
+        color: #111827;
+        font: 16px/1.5 sans-serif;
+      }
+      button {
+        display: block;
+        margin: 12px 0;
+        padding: 8px 16px;
+        border: 1px solid #6b7280;
+        border-radius: 6px;
+        background-color: #f9fafb;
+        color: #111827;
+        font: inherit;
+      }
+      a {
+        display: inline-block;
+        margin: 8px;
+      }
+      /*
+       * A hover fill on every button but #nohover and the two that show hover another way (by class, so
+       * #hover:hover still wins).
+       */
+      button:not(.nohover, .hover-scale, .hover-gradient):hover {
+        background-color: #e5e7eb;
+      }
+      #hover:hover {
+        background-color: #dbeafe;
+      }
+      #ok:focus-visible {
+        outline: 2px solid #1d4ed8;
+        outline-offset: 2px;
+      }
+      #shadow {
+        outline: none;
+      }
+      #shadow:focus-visible {
+        box-shadow: 0 0 0 3px #1d4ed8;
+      }
+      #after {
+        position: relative;
+        outline: none;
+      }
+      #after::after {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 8px;
+      }
+      #after:focus-visible::after {
+        outline: 2px solid #1d4ed8;
+      }
+      /* ring.html after the fix: the focus mark is taken away, and a ring of blue-700 on white replaces it. */
+      #none {
+        outline: none;
+      }
+      #none:focus-visible {
+        outline: 2px solid #1d4ed8;
+        outline-offset: 2px;
+      }
+      /* A ring of gray-200 on white: about 1.24:1. */
+      #faint {
+        outline: none;
+      }
+      #faint:focus-visible {
+        outline: 2px solid #e5e7eb;
+        outline-offset: 2px;
+      }
+      /* The hover and pressed colours fade in and out, so each is only there once its transition has run. */
+      #eased {
+        transition: background-color 1s;
+      }
+      #eased:active {
+        background-color: #bfdbfe;
+      }
+      /* The cursor changes on hover, and that is a state change. */
+      #link-plain {
+        cursor: default;
+      }
+      #link-plain:hover {
+        cursor: pointer;
+      }
+      /* The underline thickens on hover. */
+      #link-thick {
+        text-decoration-thickness: 1px;
+      }
+      #link-thick:hover {
+        text-decoration-thickness: 2px;
+      }
+      /* Grows on hover through the individual `scale` property, as Tailwind v4's `hover:scale-105` does. */
+      #hover-scale:hover {
+        scale: 1.05;
+      }
+      /* Shows a gradient on hover. */
+      #hover-gradient:hover {
+        background-image: linear-gradient(#dbeafe, #bfdbfe);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <!-- Focused as the page loads, so it shows its focus ring before anything is forced. -->
+      <!-- biome-ignore lint/a11y/noAutofocus: the capture must not take a focused control's ring for its rest state -->
+      <input id="search" class="search" aria-label="Search" autofocus />
+      <button type="button" id="ok" class="ok">Outline ring</button>
+      <button type="button" id="shadow" class="shadow">Shadow ring</button>
+      <button type="button" id="after" class="after">Ring on ::after</button>
+      <button type="button" id="none" class="none">No ring</button>
+      <button type="button" id="faint" class="faint">Faint ring</button>
+      <button type="button" id="hover" class="hover">Hover colour</button>
+      <button type="button" id="nohover" class="nohover">No hover</button>
+      <button type="button" id="eased" class="eased">Eased hover</button>
+      <button type="button" id="off" class="off" disabled>Disabled</button>
+      <!-- Each link has its own class, so each one is a gallery signature of its own. -->
+      <a id="link-plain" class="plain" href="#plain">Pointer on hover</a>
+      <a id="link-bare" class="bare" href="#bare">No hover rule</a>
+      <a id="link-thick" class="thick" href="#thick">Thicker underline</a>
+      <!-- The 13th and 14th signatures, so they are not cropped. -->
+      <button type="button" id="hover-scale" class="hover-scale">Grows on hover</button>
+      <button type="button" id="hover-gradient" class="hover-gradient">Gradient on hover</button>
+    </main>
+  </body>
+</html>

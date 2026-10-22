@@ -33,6 +33,7 @@ export {
 } from './interaction/in-page.js';
 export { INTERACTION_RULES, InteractionLens } from './interaction/lens.js';
 export { evaluateSource, measureOn } from './interaction/measure.js';
+export { reproduceInteraction } from './interaction/reproduce.js';
 export type {
   FocusLook,
   FocusMarkOn,
@@ -54,7 +55,7 @@ export {
   MAX_STATE_ELEMENTS,
   stateDiffers,
 } from './interaction/states.js';
-export type { StaticResult } from './interaction/static.js';
+export type { StaticOptions, StaticResult } from './interaction/static.js';
 export { MAX_CONTRAST_ELEMENTS, MUST_BE_FOCUSABLE_ROLES, measureStatic } from './interaction/static.js';
 export type { ActiveElement, FocusHiddenReason } from './interaction/tab-in-page.js';
 export { ACTIVE_ELEMENT_SOURCE, DEV_OVERLAY_TAGS } from './interaction/tab-in-page.js';

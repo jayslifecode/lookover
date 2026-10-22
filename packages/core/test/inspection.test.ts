@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { BrowserSession, type InstrumentedPage } from '../src/browser/session.js';
 import { configSchema } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
-import type { Lens, LensContext, LensResult } from '../src/findings/lens.js';
+import type { Lens, LensContext, LensResult, Reproduction } from '../src/findings/lens.js';
 import type { Finding } from '../src/findings/types.js';
 import { crawl } from '../src/map/crawler.js';
 import type { Screen, Viewport } from '../src/map/types.js';
@@ -32,6 +32,7 @@ const CLOCK_TOLERANCE_MS = 100;
 const LENS_SLEEP_MS = 300;
 
 const NOTHING_FOUND: LensResult = { findings: [], worthALook: [], gallery: null, skipped: [] };
+const NOT_REPRODUCED: Reproduction = { reproduced: false, observed: null, skipped: null, evidence: [] };
 const NOTHING_OBSERVED: ObserverResult = { findings: [], worthALook: [], evidence: [] };
 
 function eventsOf<T extends RunEvent['type']>(
@@ -42,7 +43,7 @@ function eventsOf<T extends RunEvent['type']>(
 }
 
 function fakeLens(inspect: (context: LensContext) => Promise<LensResult>): Lens {
-  return { name: 'interaction', rules: [], inspect };
+  return { name: 'interaction', rules: [], inspect, reproduce: async () => NOT_REPRODUCED };
 }
 
 function fakeObserver(

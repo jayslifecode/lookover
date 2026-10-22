@@ -80,6 +80,14 @@ const CONTRAST_WHAT = 'text colour, background colour and contrast ratio';
 const TARGET_SIZE_WHAT = 'size and the distance to the nearest other target';
 const KEYBOARD_WHAT = 'whether the element can receive focus';
 
+export interface StaticOptions {
+  /**
+   * Judges only the elements with this selector, as the judge does to reproduce one finding; every
+   * element is still a neighbour for target size. Positive tabindex is measured page-wide either way.
+   */
+  only?: string;
+}
+
 export interface StaticResult {
   findings: Finding[];
   skipped: LensSkip[];
@@ -102,15 +110,19 @@ const NOTHING: StaticResult = { findings: [], skipped: [] };
  * that cannot be trusted is skipped with its reason rather than guessed at (see `judgeContrast`); the
  * exemptions are in `isExemptFromTargetSize`, `judgeTargetSize` and `judgeKeyboard`. Each per-element
  * rule stops at `context.deadline` and counts the elements it did not reach (`time-budget:<rule>`).
+ * With `options.only`, the per-element rules judge the elements with that selector alone.
  */
 export async function measureStatic(
   context: LensContext,
   elements: readonly ElementRef[],
+  options: StaticOptions = {},
 ): Promise<StaticResult> {
+  const { only } = options;
+  const judged = only === undefined ? elements : elements.filter(({ selector }) => selector === only);
   const parts = [
-    await measureContrast(context, elements),
-    await measureTargetSize(context, elements),
-    await measureKeyboard(context, elements),
+    await measureContrast(context, judged),
+    await measureTargetSize(context, judged, elements),
+    await measureKeyboard(context, judged),
     await measurePositiveTabindex(context),
   ];
   const all = parts.reduce(merge, NOTHING);
@@ -126,13 +138,17 @@ async function measureContrast(context: LensContext, elements: readonly ElementR
   return overCap > 0 ? merge(result, skipped(SKIP_CONTRAST_CAP, overCap)) : result;
 }
 
-function measureTargetSize(context: LensContext, elements: readonly ElementRef[]): Promise<StaticResult> {
-  const boxes = elements.map((element) => element.box);
-  return judgeEach(context, 'target-size', elements, (element, index) =>
+/** Each of `judged` against the boxes of every other element of the screen (`all`). */
+function measureTargetSize(
+  context: LensContext,
+  judged: readonly ElementRef[],
+  all: readonly ElementRef[],
+): Promise<StaticResult> {
+  return judgeEach(context, 'target-size', judged, (element) =>
     judgeTargetSize(
       context,
       element,
-      boxes.filter((_, at) => at !== index),
+      all.filter((other) => other !== element).map(({ box }) => box),
     ),
   );
 }
@@ -146,14 +162,14 @@ async function judgeEach(
   context: LensContext,
   rule: string,
   elements: readonly ElementRef[],
-  judge: (element: ElementRef, index: number) => Promise<StaticResult>,
+  judge: (element: ElementRef) => Promise<StaticResult>,
 ): Promise<StaticResult> {
   let result = NOTHING;
   for (const [index, element] of elements.entries()) {
     if (performance.now() >= context.deadline) {
       return merge(result, skipped(`time-budget:${rule}`, elements.length - index));
     }
-    result = merge(result, await judge(element, index));
+    result = merge(result, await judge(element));
   }
   return result;
 }

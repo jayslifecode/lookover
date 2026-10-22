@@ -40,6 +40,11 @@ const FONTS_READY_SOURCE = '() => document.fonts.ready.then(() => undefined)';
 export interface SweepOptions {
   /** How long each reload may take; `RELOAD_TIMEOUT_MS` by default. */
   reloadTimeoutMs?: number;
+  /**
+   * Sweeps only the viewport of this name, as the judge does to reproduce one finding: as the page is
+   * when it is the first, reloaded at it otherwise.
+   */
+  only?: string;
 }
 
 export interface SweepResult {
@@ -62,6 +67,12 @@ type Reloaded = 'on-screen' | 'redirected' | 'failed';
 interface Swept {
   result: SweepResult;
   restore: Restore;
+}
+
+/** A viewport the sweep measures, and its place in `context.viewports` (0 is the capture one). */
+interface Planned {
+  viewport: Viewport;
+  index: number;
 }
 
 /**
@@ -88,23 +99,37 @@ interface Swept {
  * again. A reload that throws (it takes longer than `options.reloadTimeoutMs`, 15 s by default, or the
  * document fails to load) ends the sweep the same way, counted as `viewport-reload-failed`, and what was
  * measured before it is kept. The reload back at the first viewport is checked the same way.
+ *
+ * With `options.only`, the viewport of that name is the only one swept (none, when no viewport has it).
  */
 export async function sweepViewports(context: LensContext, options: SweepOptions = {}): Promise<SweepResult> {
   const [first] = context.viewports;
   if (first === undefined) return NOTHING;
   const timeoutMs = options.reloadTimeoutMs ?? RELOAD_TIMEOUT_MS;
-  const { result, restore } = await sweepEach(context, timeoutMs);
+  const { result, restore } = await sweepEach(context, plan(context.viewports, options.only), timeoutMs);
   const restored = await restoreFirst(context, first, restore, timeoutMs);
   return { ...result, skipped: tally([...result.skipped, ...restored]) };
 }
 
-async function sweepEach(context: LensContext, timeoutMs: number): Promise<Swept> {
-  const { viewports } = context;
+/** The viewports to sweep, in order: every one, or only the one named `only`. */
+function plan(viewports: readonly Viewport[], only: string | undefined): Planned[] {
+  const planned = viewports.map((viewport, index) => ({ viewport, index }));
+  return only === undefined ? planned : planned.filter(({ viewport }) => viewport.name === only);
+}
+
+async function sweepEach(
+  context: LensContext,
+  planned: readonly Planned[],
+  timeoutMs: number,
+): Promise<Swept> {
   let result = NOTHING;
-  for (const [index, viewport] of viewports.entries()) {
-    const left = viewports.length - index;
+  for (const [at, { viewport, index }] of planned.entries()) {
+    const left = planned.length - at;
     if (performance.now() >= context.deadline) {
-      return { result: withSkip(result, SKIP_TIME_BUDGET, left), restore: index > 1 ? 'reload' : 'nothing' };
+      return {
+        result: withSkip(result, SKIP_TIME_BUDGET, left),
+        restore: restoreAfter(planned.slice(0, at)),
+      };
     }
     const reloaded = index === 0 ? 'on-screen' : await reloadAt(context, viewport, timeoutMs);
     if (reloaded === 'failed')
@@ -113,7 +138,12 @@ async function sweepEach(context: LensContext, timeoutMs: number): Promise<Swept
     if (measured === null) return { result: withSkip(result, SKIP_REDIRECTED, left), restore: 'resize' };
     result = merge(result, measured);
   }
-  return { result, restore: viewports.length > 1 ? 'reload' : 'nothing' };
+  return { result, restore: restoreAfter(planned) };
+}
+
+/** Once these viewports were measured, the first is reloaded when the page was reloaded at another. */
+function restoreAfter(measured: readonly Planned[]): Restore {
+  return measured.some(({ index }) => index > 0) ? 'reload' : 'nothing';
 }
 
 /** Puts the first viewport back; the skip of a reload back that landed elsewhere or threw. */
