@@ -137,3 +137,23 @@ test('what cannot be loaded is kept as a plain message; a failed run without a f
     { source: 'events', message: 'The event stream was closed' },
   ]);
 });
+
+test('an event of a known type without its payload is reported, and the run is still followed', async () => {
+  const server = fakeServer({ manifest: { status: 'running' } });
+  const report = started(server.api);
+  await vi.waitFor(() => expect(server.subscribe).toHaveBeenCalled());
+  const [runStarted, , third] = EVENTS;
+  const broken = { type: 'finding.judged', seq: 2, at: MANIFEST.startedAt, runId: MANIFEST.runId };
+
+  server.emit([runStarted, broken as unknown as RunEvent, third].filter((event) => event !== undefined));
+
+  const state = report.getSnapshot();
+  expect(state.errors).toEqual([
+    {
+      source: 'events',
+      message: expect.stringMatching(/^The run event 2 \(finding\.judged\) could not be read: /u),
+    },
+  ]);
+  expect(state.judged.size).toBe(0);
+  expect(state.lastSeq).toBe(third?.seq);
+});

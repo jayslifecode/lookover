@@ -91,13 +91,21 @@ export function createReportStore(server: ReportApi = api): ReportStore {
   };
 
   const follow = (signal: AbortSignal) => {
-    const onEvent = (event: RunEvent) => {
-      const wasClosed = isRunClosed(state);
-      update((current) => reduce(current, event));
-      if (!wasClosed && isRunClosed(state)) loadFindings(signal);
-    };
     const onError = (message: string) =>
       update((current) => withError(current, { source: 'events', message }));
+    const onEvent = (event: RunEvent) => {
+      const wasClosed = isRunClosed(state);
+      let next: ReportState;
+      try {
+        next = reduce(state, event);
+      } catch (error) {
+        // An event of a known type without its payload: say so, and keep following the run.
+        onError(`The run event ${event.seq} (${event.type}) could not be read: ${messageOf(error)}`);
+        return;
+      }
+      update(() => next);
+      if (!wasClosed && isRunClosed(state)) loadFindings(signal);
+    };
     closeStream = server.subscribe(onEvent, onError, state.lastSeq);
   };
 

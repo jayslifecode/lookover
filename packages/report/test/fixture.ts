@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type {
   Finding,
   FindingStatus,
@@ -15,12 +17,13 @@ import type {
  * its own findings with only the fields a test cares about changed, so every other field is real.
  */
 
-const FIXTURES = new URL('../fixtures/', import.meta.url);
+/** A plain path: under jsdom the global `URL` is jsdom's, which Node's file APIs do not take. */
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');
 const SYNTHETIC_RUN_ID = 'test-run';
 const EPOCH = Date.parse('2026-10-22T10:00:00.000Z');
 
 function readFixture(path: string): string {
-  return readFileSync(new URL(path, FIXTURES), 'utf8');
+  return readFileSync(join(FIXTURES, path), 'utf8');
 }
 
 export function fixtureEvents(): RunEvent[] {

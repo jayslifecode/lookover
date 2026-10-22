@@ -20,6 +20,7 @@ import {
 } from './fixture';
 
 const ids = (findings: readonly { id: string }[]) => findings.map((finding) => finding.id);
+const compareKeys = (a = '', b = '') => (a === b ? 0 : a < b ? -1 : 1);
 
 /** The fixture run as the report holds it once it has finished: its events, then its findings file. */
 function fixtureState() {
@@ -62,7 +63,8 @@ test('a group takes its severity and its lead from its most severe finding, the 
 });
 
 test("the fixture run reads as one group per signature, the bench's 24 small targets as two groups", () => {
-  const result = fixFirst(groups(confirmedFindings(fixtureState())));
+  const confirmed = confirmedFindings(fixtureState());
+  const result = fixFirst(groups(confirmed));
   expect(result.map((group) => [group.severity, group.count, group.screens.length])).toEqual([
     ['high', 1, 1],
     ['high', 1, 1],
@@ -70,9 +72,28 @@ test("the fixture run reads as one group per signature, the bench's 24 small tar
     ['medium', 12, 1],
     ['medium', 12, 1],
   ]);
-  expect(
-    result.slice(3).map((group) => (group.lead.shape === 'step' ? group.lead.target?.componentName : null)),
-  ).toEqual(['LinkComponent', 'CopyEmailButton']);
+  // The two tie on everything but their signature, so the key decides, whatever order they came in.
+  const [links, buttons] = result.slice(3).map((group) => group.key);
+  expect(compareKeys(links, buttons)).toBeLessThan(0);
+  expect(fixFirst(groups(confirmed.toReversed())).map((group) => group.key)).toEqual(
+    result.map((group) => group.key),
+  );
+});
+
+test('fix-first breaks a tie on every other rule by the group key, so the order is total', () => {
+  const tied = (id: string, signature: string) =>
+    stepFinding({
+      id,
+      severity: 'medium',
+      signature,
+      ruleId: 'interaction.target-size',
+      title: 'Same title',
+    });
+  const forward = fixFirst(groups([tied('b', 'sig-b'), tied('a', 'sig-a'), tied('c', 'sig-c')]));
+  const backward = fixFirst(groups([tied('c', 'sig-c'), tied('a', 'sig-a'), tied('b', 'sig-b')]));
+
+  expect(forward.map((group) => group.label)).toEqual(['sig-a', 'sig-b', 'sig-c']);
+  expect(backward.map((group) => group.label)).toEqual(['sig-a', 'sig-b', 'sig-c']);
 });
 
 test('fix-first orders by severity, then screens affected, then rule id, then title', () => {

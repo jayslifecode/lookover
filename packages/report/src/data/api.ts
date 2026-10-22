@@ -147,11 +147,15 @@ export async function fetchPreviousFindings(signal?: AbortSignal): Promise<Findi
   }
 }
 
-/** Where the report loads `ref` from; `null` for a ref outside the run's evidence/. */
+/** Path segments that would step out of evidence/, or name no file. */
+const UNSAFE_SEGMENTS: ReadonlySet<string> = new Set(['', '.', '..']);
+
+/** Where the report loads `ref` from; `null` for a ref outside the run's evidence/ (`..` included). */
 export function evidenceUrl(ref: Pick<EvidenceRef, 'path'>): string | null {
   if (!ref.path.startsWith(EVIDENCE_PATH_PREFIX)) return null;
-  const rest = ref.path.slice(EVIDENCE_PATH_PREFIX.length).split('/').map(encodeURIComponent).join('/');
-  return `${API_PATHS.evidence}${rest}`;
+  const segments = ref.path.slice(EVIDENCE_PATH_PREFIX.length).split('/');
+  if (segments.some((segment) => UNSAFE_SEGMENTS.has(segment))) return null;
+  return `${API_PATHS.evidence}${segments.map(encodeURIComponent).join('/')}`;
 }
 
 /**

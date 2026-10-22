@@ -207,7 +207,7 @@ test('a drag starts after 5 px, captures the pointer, and the release snaps to t
   tablist.setPointerCapture = capture;
   tab('Screens').focus();
 
-  fireEvent.pointerDown(tablist, { clientX: 53, pointerId: 7 });
+  fireEvent.pointerDown(tablist, { clientX: 53, pointerId: 7, isPrimary: true });
   fireEvent.pointerMove(tablist, { clientX: 56, pointerId: 7 });
   expect(capture).not.toHaveBeenCalled();
   fireEvent.pointerMove(tablist, { clientX: 240, pointerId: 7 });
@@ -222,6 +222,36 @@ test('a drag starts after 5 px, captures the pointer, and the release snaps to t
   expect(document.activeElement).toBe(tab('Drift'));
   frames.run();
   expect(pillOf(tablist)?.style.clipPath).toBe(clipOn(2));
+});
+
+test('a press released off the bar ends: the loop stops, and a later move does not drag the pill', () => {
+  stubMatchMedia({});
+  const frames = stubFrames();
+  render(<Views />);
+  const tablist = screen.getByRole('tablist');
+  const pill = pillOf(tablist) as HTMLElement;
+  const capture = vi.fn();
+  tablist.setPointerCapture = capture;
+
+  // A right click does not press the pill: its release goes to the context menu.
+  fireEvent.pointerDown(tab('Screens'), { clientX: 53, pointerId: 3, button: 2, isPrimary: true });
+  expect(frames.request).not.toHaveBeenCalled();
+
+  // Two presses with no release between them (the first one's release was never heard).
+  fireEvent.pointerDown(tab('Screens'), { clientX: 53, pointerId: 7, isPrimary: true });
+  fireEvent.pointerDown(tab('Screens'), { clientX: 53, pointerId: 8, isPrimary: true });
+  fireEvent.pointerMove(tablist, { clientX: 55, pointerId: 8 });
+  // The pointer left the bar downward and was released over the page.
+  fireEvent.pointerUp(document.body, { clientX: 55, pointerId: 8 });
+
+  expect(frames.run()).toBeLessThan(240);
+  expect(pill.style.transform).toBe('scale(1.0000, 1.0000)');
+  fireEvent.pointerMove(tablist, { clientX: 240, pointerId: 8 });
+  frames.run();
+  expect(capture).not.toHaveBeenCalled();
+  // Only the resting pill's lean toward the pointer, 6 px at most: nothing drags it.
+  expect(pill.style.clipPath).toBe(`inset(0 ${(BAR_WIDTH - 107).toFixed(2)}px 0 11.00px round 999px)`);
+  expect(selected()).toEqual([tab('Screens')]);
 });
 
 test('a selection made elsewhere (the route changed) moves the pill without motion', () => {
@@ -253,7 +283,7 @@ test('under reduced motion the pill jumps: no animation frame is asked for, the 
   fireEvent.keyDown(tab('Findings'), { key: 'ArrowRight' });
   expect(pill.style.clipPath).toBe(clipOn(2));
   fireEvent.pointerMove(tablist, { clientX: 20 });
-  fireEvent.pointerDown(tablist, { clientX: 20, pointerId: 1 });
+  fireEvent.pointerDown(tablist, { clientX: 20, pointerId: 1, isPrimary: true });
   fireEvent.pointerMove(tablist, { clientX: 120, pointerId: 1 });
   fireEvent.pointerUp(tablist, { clientX: 120, pointerId: 1 });
 

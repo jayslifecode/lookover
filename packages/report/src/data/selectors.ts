@@ -118,11 +118,15 @@ function compareGroups(a: FindingGroup, b: FindingGroup): number {
     severityRank(a.severity) - severityRank(b.severity) ||
     b.screens.length - a.screens.length ||
     compareText(a.lead.rule.id, b.lead.rule.id) ||
-    compareText(a.lead.title, b.lead.title)
+    compareText(a.lead.title, b.lead.title) ||
+    compareText(a.key, b.key)
   );
 }
 
-/** Most severe first, then the most screens affected, then by rule id, then by title. */
+/**
+ * Most severe first, then the most screens affected, then by rule id, then by title, then by the group's
+ * key: a total order, so it does not depend on the order the findings arrived in.
+ */
 export function fixFirst(findingGroups: readonly FindingGroup[]): FindingGroup[] {
   return findingGroups.toSorted(compareGroups);
 }

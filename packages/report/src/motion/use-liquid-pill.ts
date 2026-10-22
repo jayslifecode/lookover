@@ -20,17 +20,13 @@ const PRESS_LIFT = 1.06;
 const PRESS_SQUASH = 0.96;
 const TRAVEL_LIFT = 1.04;
 const TRAVEL_SHADOW = 'drop-shadow(0 6px 10px rgba(0,0,0,.28))';
-/** The shadow shows while the pill is lifted more than this. */
-const SHADOW_FROM_SCALE = 1.004;
+const SHADOW_FROM_SCALE = 1.004; // the shadow shows while the pill is lifted more than this
 const LANDED_PX = 1.5;
-/** A move shorter than this, both edges together, is not a travel: the pill does not lift. */
-const TRAVEL_FROM_PX = 6;
+const TRAVEL_FROM_PX = 6; // a shorter move (both edges together) is not a travel: no lift
 const MIN_WIDTH_PX = 8;
-/** Seconds of the edges' mean velocity the highlight lags behind. */
-const HIGHLIGHT_LAG_S = 0.012;
+const HIGHLIGHT_LAG_S = 0.012; // seconds of the edges' mean velocity the highlight lags behind
 const MAX_HIGHLIGHT_LAG_PX = 10;
-/** The lean is this share of the pointer's distance from the pill's centre. */
-const HOVER_LEAN_RATIO = 1 / 12;
+const HOVER_LEAN_RATIO = 1 / 12; // the lean's share of the pointer's distance from the pill's centre
 const MAX_LEAN_PX = 6;
 const DRAG_FROM_PX = 5;
 const RELEASE_PROJECTION_S = 0.08;
@@ -269,7 +265,10 @@ class PillMotion {
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
-    if (prefersReducedMotion() || this.layout.boxes[this.active] === undefined) return;
+    // Only a primary press: a right or ctrl click's release goes to a context menu, not to the page.
+    const isPress = event.button === 0 && event.isPrimary && !event.ctrlKey;
+    if (!isPress || prefersReducedMotion() || this.layout.boxes[this.active] === undefined) return;
+    this.endPress?.();
     const { bar } = this.elements;
     const { lift, squash } = this.springs;
     const startX = event.clientX;
@@ -292,15 +291,16 @@ class PillMotion {
       this.endPress?.();
       this.onPressEnd();
     };
+    // The release is heard on the window: it can come off the bar, before any capture began.
     this.endPress = () => {
       bar.removeEventListener('pointermove', onMove);
-      bar.removeEventListener('pointerup', onUp);
-      bar.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       this.endPress = null;
     };
     bar.addEventListener('pointermove', onMove);
-    bar.addEventListener('pointerup', onUp);
-    bar.addEventListener('pointercancel', onUp);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   private onPressEnd(): void {
