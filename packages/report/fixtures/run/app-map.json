@@ -1,0 +1,1481 @@
+{
+  "version": 1,
+  "runId": "20261022-195459-canl",
+  "createdAt": "2026-10-22T10:55:14.563Z",
+  "baseUrl": "http://localhost:3123",
+  "routes": [
+    {
+      "pattern": "/",
+      "source": "filesystem",
+      "file": "app/page.tsx"
+    },
+    {
+      "pattern": "/login",
+      "source": "filesystem",
+      "file": "app/login/page.tsx"
+    },
+    {
+      "pattern": "/organisations",
+      "source": "filesystem",
+      "file": "app/organisations/page.tsx"
+    },
+    {
+      "pattern": "/organisations/[id]",
+      "source": "filesystem",
+      "file": "app/organisations/[id]/page.tsx"
+    },
+    {
+      "pattern": "/organisations/new",
+      "source": "filesystem",
+      "file": "app/organisations/new/page.tsx"
+    },
+    {
+      "pattern": "/reports",
+      "source": "filesystem",
+      "file": "app/reports/page.tsx"
+    },
+    {
+      "pattern": "/settings",
+      "source": "filesystem",
+      "file": "app/settings/page.tsx"
+    }
+  ],
+  "screens": [
+    {
+      "id": "4a17c4d0a2",
+      "url": "http://localhost:3123/",
+      "route": "/",
+      "title": "Dashboard",
+      "status": "captured",
+      "error": null,
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 900
+      },
+      "screenshot": {
+        "id": "21899b14c3bb01ab",
+        "path": "evidence/21899b14c3bb01ab.png",
+        "bytes": 54371,
+        "kind": "png"
+      },
+      "elements": [
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Lookover Bench",
+          "tag": "a",
+          "box": {
+            "x": 296,
+            "y": 16,
+            "width": 134.109375,
+            "height": 28
+          },
+          "backendNodeId": 34,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Dashboard",
+          "tag": "a",
+          "box": {
+            "x": 755.0625,
+            "y": 21,
+            "width": 72.015625,
+            "height": 17
+          },
+          "backendNodeId": 38,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(2) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Organisations",
+          "tag": "a",
+          "box": {
+            "x": 843.078125,
+            "y": 21,
+            "width": 91.640625,
+            "height": 17
+          },
+          "backendNodeId": 40,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(3) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Reports",
+          "tag": "a",
+          "box": {
+            "x": 950.71875,
+            "y": 21,
+            "width": 51.796875,
+            "height": 17
+          },
+          "backendNodeId": 42,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(4) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Settings",
+          "tag": "a",
+          "box": {
+            "x": 1018.515625,
+            "y": 21,
+            "width": 54.9375,
+            "height": 17
+          },
+          "backendNodeId": 44,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/logout\"]",
+          "role": "link",
+          "name": "Sign out",
+          "tag": "a",
+          "box": {
+            "x": 1089.453125,
+            "y": 21,
+            "width": 54.546875,
+            "height": 17
+          },
+          "backendNodeId": 46,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"stat-organisations\"]",
+          "role": "button",
+          "name": "Organisations 12",
+          "tag": "div",
+          "box": {
+            "x": 296,
+            "y": 157,
+            "width": 416,
+            "height": 94
+          },
+          "backendNodeId": 51,
+          "disabled": false,
+          "focusable": false
+        },
+        {
+          "selector": "[data-testid=\"stat-latest-registration\"]",
+          "role": "button",
+          "name": "Latest registration 2025-04-08",
+          "tag": "div",
+          "box": {
+            "x": 728,
+            "y": 157,
+            "width": 416,
+            "height": 94
+          },
+          "backendNodeId": 54,
+          "disabled": false,
+          "focusable": false
+        },
+        {
+          "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > section:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Organisations",
+          "tag": "a",
+          "box": {
+            "x": 296,
+            "y": 378,
+            "width": 102.890625,
+            "height": 18
+          },
+          "backendNodeId": 62,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/organisations/new\"]",
+          "role": "link",
+          "name": "New organisation",
+          "tag": "a",
+          "box": {
+            "x": 296,
+            "y": 410,
+            "width": 128.953125,
+            "height": 18
+          },
+          "backendNodeId": 65,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > section:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(3) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Reports",
+          "tag": "a",
+          "box": {
+            "x": 296,
+            "y": 442,
+            "width": 58.21875,
+            "height": 18
+          },
+          "backendNodeId": 67,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > section:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(4) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Settings",
+          "tag": "a",
+          "box": {
+            "x": 296,
+            "y": 474,
+            "width": 61.671875,
+            "height": 18
+          },
+          "backendNodeId": 70,
+          "disabled": false,
+          "focusable": true
+        }
+      ],
+      "forms": [],
+      "tokens": [
+        {
+          "property": "color",
+          "value": "lab(7.78673 1.82345 -15.0537)",
+          "count": 25
+        },
+        {
+          "property": "color",
+          "value": "rgb(29, 78, 216)",
+          "count": 9
+        },
+        {
+          "property": "color",
+          "value": "lab(35.5623 -1.74978 -15.4316)",
+          "count": 6
+        },
+        {
+          "property": "color",
+          "value": "lab(26.9569 -1.47016 -15.6993)",
+          "count": 1
+        },
+        {
+          "property": "background-color",
+          "value": "rgb(255, 255, 255)",
+          "count": 3
+        },
+        {
+          "property": "font-size",
+          "value": "16px",
+          "count": 22
+        },
+        {
+          "property": "font-size",
+          "value": "14px",
+          "count": 14
+        },
+        {
+          "property": "font-size",
+          "value": "18px",
+          "count": 2
+        },
+        {
+          "property": "font-size",
+          "value": "30px",
+          "count": 2
+        },
+        {
+          "property": "font-size",
+          "value": "24px",
+          "count": 1
+        },
+        {
+          "property": "font-family",
+          "value": "-apple-system",
+          "count": 41
+        },
+        {
+          "property": "border-radius",
+          "value": "8px",
+          "count": 2
+        },
+        {
+          "property": "padding",
+          "value": "16px",
+          "count": 2
+        },
+        {
+          "property": "padding",
+          "value": "16px 24px",
+          "count": 1
+        },
+        {
+          "property": "padding",
+          "value": "32px 24px",
+          "count": 1
+        },
+        {
+          "property": "margin",
+          "value": "0px 0px 32px",
+          "count": 3
+        },
+        {
+          "property": "margin",
+          "value": "0px 0px 8px",
+          "count": 3
+        },
+        {
+          "property": "margin",
+          "value": "0px 272px",
+          "count": 2
+        },
+        {
+          "property": "margin",
+          "value": "4px 0px 0px",
+          "count": 2
+        },
+        {
+          "property": "margin",
+          "value": "0px 0px 12px",
+          "count": 1
+        }
+      ],
+      "links": [
+        "http://localhost:3123/",
+        "http://localhost:3123/organisations",
+        "http://localhost:3123/reports",
+        "http://localhost:3123/settings",
+        "http://localhost:3123/logout",
+        "http://localhost:3123/organisations/new"
+      ],
+      "redirectedFrom": null,
+      "discoveredFrom": null,
+      "capturedAt": "2026-10-22T10:55:01.730Z"
+    },
+    {
+      "id": "57682dba9d",
+      "url": "http://localhost:3123/login",
+      "route": "/login",
+      "title": "Sign in · Lookover Bench",
+      "status": "captured",
+      "error": null,
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 900
+      },
+      "screenshot": {
+        "id": "28f6389d79ff655b",
+        "path": "evidence/28f6389d79ff655b.png",
+        "bytes": 23868,
+        "kind": "png"
+      },
+      "elements": [
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Lookover Bench",
+          "tag": "a",
+          "box": {
+            "x": 296,
+            "y": 16,
+            "width": 134.109375,
+            "height": 28
+          },
+          "backendNodeId": 476,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Dashboard",
+          "tag": "a",
+          "box": {
+            "x": 755.0625,
+            "y": 21,
+            "width": 72.015625,
+            "height": 17
+          },
+          "backendNodeId": 480,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/organisations\"]",
+          "role": "link",
+          "name": "Organisations",
+          "tag": "a",
+          "box": {
+            "x": 843.078125,
+            "y": 21,
+            "width": 91.640625,
+            "height": 17
+          },
+          "backendNodeId": 482,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/reports\"]",
+          "role": "link",
+          "name": "Reports",
+          "tag": "a",
+          "box": {
+            "x": 950.71875,
+            "y": 21,
+            "width": 51.796875,
+            "height": 17
+          },
+          "backendNodeId": 484,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/settings\"]",
+          "role": "link",
+          "name": "Settings",
+          "tag": "a",
+          "box": {
+            "x": 1018.515625,
+            "y": 21,
+            "width": 54.9375,
+            "height": 17
+          },
+          "backendNodeId": 486,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/logout\"]",
+          "role": "link",
+          "name": "Sign out",
+          "tag": "a",
+          "box": {
+            "x": 1089.453125,
+            "y": 21,
+            "width": 54.546875,
+            "height": 17
+          },
+          "backendNodeId": 488,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "#email",
+          "role": "textbox",
+          "name": "Email",
+          "tag": "input",
+          "box": {
+            "x": 553,
+            "y": 198,
+            "width": 334,
+            "height": 38
+          },
+          "backendNodeId": 499,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "#password",
+          "role": "textbox",
+          "name": "Password",
+          "tag": "input",
+          "box": {
+            "x": 553,
+            "y": 280,
+            "width": 334,
+            "height": 38
+          },
+          "backendNodeId": 503,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > form:nth-of-type(1) > button:nth-of-type(1)",
+          "role": "button",
+          "name": "Sign in",
+          "tag": "button",
+          "box": {
+            "x": 553,
+            "y": 338,
+            "width": 76.625,
+            "height": 36
+          },
+          "backendNodeId": 505,
+          "disabled": false,
+          "focusable": true
+        }
+      ],
+      "forms": [
+        {
+          "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > form:nth-of-type(1)",
+          "action": "",
+          "method": "post",
+          "fields": [
+            {
+              "selector": "#email",
+              "name": "email",
+              "label": "Email",
+              "labelSource": "label",
+              "type": "email",
+              "required": true,
+              "pattern": null,
+              "minLength": null,
+              "maxLength": null,
+              "min": null,
+              "max": null,
+              "inputMode": null
+            },
+            {
+              "selector": "#password",
+              "name": "password",
+              "label": "Password",
+              "labelSource": "label",
+              "type": "password",
+              "required": true,
+              "pattern": null,
+              "minLength": null,
+              "maxLength": null,
+              "min": null,
+              "max": null,
+              "inputMode": null
+            }
+          ],
+          "submit": {
+            "selector": "body > main:nth-of-type(1) > div:nth-of-type(1) > form:nth-of-type(1) > button:nth-of-type(1)",
+            "role": "button",
+            "name": "Sign in",
+            "tag": "button",
+            "box": {
+              "x": 553,
+              "y": 338,
+              "width": 76.625,
+              "height": 36
+            },
+            "disabled": false,
+            "focusable": true
+          }
+        }
+      ],
+      "tokens": [
+        {
+          "property": "color",
+          "value": "lab(7.78673 1.82345 -15.0537)",
+          "count": 18
+        },
+        {
+          "property": "color",
+          "value": "rgb(29, 78, 216)",
+          "count": 5
+        },
+        {
+          "property": "color",
+          "value": "lab(16.132 -0.318035 -14.6672)",
+          "count": 2
+        },
+        {
+          "property": "color",
+          "value": "rgb(255, 255, 255)",
+          "count": 1
+        },
+        {
+          "property": "background-color",
+          "value": "rgb(255, 255, 255)",
+          "count": 4
+        },
+        {
+          "property": "background-color",
+          "value": "rgb(29, 78, 216)",
+          "count": 1
+        },
+        {
+          "property": "font-size",
+          "value": "14px",
+          "count": 16
+        },
+        {
+          "property": "font-size",
+          "value": "16px",
+          "count": 8
+        },
+        {
+          "property": "font-size",
+          "value": "18px",
+          "count": 1
+        },
+        {
+          "property": "font-size",
+          "value": "24px",
+          "count": 1
+        },
+        {
+          "property": "font-family",
+          "value": "-apple-system",
+          "count": 26
+        },
+        {
+          "property": "border-radius",
+          "value": "6px",
+          "count": 3
+        },
+        {
+          "property": "border-radius",
+          "value": "8px",
+          "count": 1
+        },
+        {
+          "property": "padding",
+          "value": "8px 12px",
+          "count": 2
+        },
+        {
+          "property": "padding",
+          "value": "16px 24px",
+          "count": 1
+        },
+        {
+          "property": "padding",
+          "value": "24px",
+          "count": 1
+        },
+        {
+          "property": "padding",
+          "value": "32px 24px",
+          "count": 1
+        },
+        {
+          "property": "padding",
+          "value": "8px 16px",
+          "count": 1
+        },
+        {
+          "property": "margin",
+          "value": "0px 0px 20px",
+          "count": 2
+        },
+        {
+          "property": "margin",
+          "value": "0px 0px 4px",
+          "count": 2
+        },
+        {
+          "property": "margin",
+          "value": "0px 272px",
+          "count": 2
+        },
+        {
+          "property": "margin",
+          "value": "0px 0px 24px",
+          "count": 1
+        },
+        {
+          "property": "margin",
+          "value": "0px 232px",
+          "count": 1
+        }
+      ],
+      "links": [
+        "http://localhost:3123/",
+        "http://localhost:3123/organisations",
+        "http://localhost:3123/reports",
+        "http://localhost:3123/settings",
+        "http://localhost:3123/logout"
+      ],
+      "redirectedFrom": null,
+      "discoveredFrom": null,
+      "capturedAt": "2026-10-22T10:55:03.209Z"
+    },
+    {
+      "id": "38a8049145",
+      "url": "http://localhost:3123/organisations",
+      "route": "/organisations",
+      "title": "Organisations · Lookover Bench",
+      "status": "captured",
+      "error": null,
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 900
+      },
+      "screenshot": {
+        "id": "e8cd5ec74fc6eac9",
+        "path": "evidence/e8cd5ec74fc6eac9.png",
+        "bytes": 120958,
+        "kind": "png"
+      },
+      "elements": [
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Lookover Bench",
+          "tag": "a",
+          "box": {
+            "x": 296,
+            "y": 16,
+            "width": 134.109375,
+            "height": 28
+          },
+          "backendNodeId": 901,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "body > header:nth-of-type(1) > div:nth-of-type(1) > nav:nth-of-type(1) > ul:nth-of-type(1) > li:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Dashboard",
+          "tag": "a",
+          "box": {
+            "x": 755.0625,
+            "y": 21,
+            "width": 72.015625,
+            "height": 17
+          },
+          "backendNodeId": 905,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/organisations\"]",
+          "role": "link",
+          "name": "Organisations",
+          "tag": "a",
+          "box": {
+            "x": 843.078125,
+            "y": 21,
+            "width": 91.640625,
+            "height": 17
+          },
+          "backendNodeId": 907,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/reports\"]",
+          "role": "link",
+          "name": "Reports",
+          "tag": "a",
+          "box": {
+            "x": 950.71875,
+            "y": 21,
+            "width": 51.796875,
+            "height": 17
+          },
+          "backendNodeId": 909,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/settings\"]",
+          "role": "link",
+          "name": "Settings",
+          "tag": "a",
+          "box": {
+            "x": 1018.515625,
+            "y": 21,
+            "width": 54.9375,
+            "height": 17
+          },
+          "backendNodeId": 911,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/logout\"]",
+          "role": "link",
+          "name": "Sign out",
+          "tag": "a",
+          "box": {
+            "x": 1089.453125,
+            "y": 21,
+            "width": 54.546875,
+            "height": 17
+          },
+          "backendNodeId": 913,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[href=\"/organisations/new\"]",
+          "role": "link",
+          "name": "New organisation",
+          "tag": "a",
+          "box": {
+            "x": 997.1875,
+            "y": 93,
+            "width": 146.8125,
+            "height": 36
+          },
+          "backendNodeId": 918,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Northwind Logistics",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 199,
+            "width": 131.46875,
+            "height": 17
+          },
+          "backendNodeId": 932,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Northwind Logistics\"]",
+          "role": "link",
+          "name": "Edit Northwind Logistics",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 200,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 938,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Northwind Logistics\"]",
+          "role": "button",
+          "name": "Copy email for Northwind Logistics",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 200,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 941,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(2) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Bluefin Analytics",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 236,
+            "width": 110.234375,
+            "height": 17
+          },
+          "backendNodeId": 947,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Bluefin Analytics\"]",
+          "role": "link",
+          "name": "Edit Bluefin Analytics",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 237,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 953,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Bluefin Analytics\"]",
+          "role": "button",
+          "name": "Copy email for Bluefin Analytics",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 237,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 956,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(3) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Copperleaf Studio",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 273,
+            "width": 119.65625,
+            "height": 17
+          },
+          "backendNodeId": 962,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Copperleaf Studio\"]",
+          "role": "link",
+          "name": "Edit Copperleaf Studio",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 274,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 968,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Copperleaf Studio\"]",
+          "role": "button",
+          "name": "Copy email for Copperleaf Studio",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 274,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 971,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(4) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Delta Harbour Trading",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 310,
+            "width": 146.0625,
+            "height": 17
+          },
+          "backendNodeId": 977,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Delta Harbour Trading\"]",
+          "role": "link",
+          "name": "Edit Delta Harbour Trading",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 311,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 983,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Delta Harbour Trading\"]",
+          "role": "button",
+          "name": "Copy email for Delta Harbour Trading",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 311,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 986,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(5) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Evergreen Clinics",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 347,
+            "width": 114.53125,
+            "height": 17
+          },
+          "backendNodeId": 992,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Evergreen Clinics\"]",
+          "role": "link",
+          "name": "Edit Evergreen Clinics",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 348,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 998,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Evergreen Clinics\"]",
+          "role": "button",
+          "name": "Copy email for Evergreen Clinics",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 348,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1001,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(6) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Foxglove Education",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 384,
+            "width": 127.953125,
+            "height": 17
+          },
+          "backendNodeId": 1007,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Foxglove Education\"]",
+          "role": "link",
+          "name": "Edit Foxglove Education",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 385,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1013,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Foxglove Education\"]",
+          "role": "button",
+          "name": "Copy email for Foxglove Education",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 385,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1016,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(7) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Granite Peak Builders",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 421,
+            "width": 141.625,
+            "height": 17
+          },
+          "backendNodeId": 1022,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Granite Peak Builders\"]",
+          "role": "link",
+          "name": "Edit Granite Peak Builders",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 422,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1028,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Granite Peak Builders\"]",
+          "role": "button",
+          "name": "Copy email for Granite Peak Builders",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 422,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1031,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(8) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Harbourlight Media",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 458,
+            "width": 127.015625,
+            "height": 17
+          },
+          "backendNodeId": 1037,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Harbourlight Media\"]",
+          "role": "link",
+          "name": "Edit Harbourlight Media",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 459,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1043,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Harbourlight Media\"]",
+          "role": "button",
+          "name": "Copy email for Harbourlight Media",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 459,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1046,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(9) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Ironbark Engineering",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 495,
+            "width": 137.25,
+            "height": 17
+          },
+          "backendNodeId": 1052,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Ironbark Engineering\"]",
+          "role": "link",
+          "name": "Edit Ironbark Engineering",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 496,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1058,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Ironbark Engineering\"]",
+          "role": "button",
+          "name": "Copy email for Ironbark Engineering",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 496,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1061,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(10) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Juniper Foods",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 532,
+            "width": 93.78125,
+            "height": 17
+          },
+          "backendNodeId": 1067,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Juniper Foods\"]",
+          "role": "link",
+          "name": "Edit Juniper Foods",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 533,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1073,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Juniper Foods\"]",
+          "role": "button",
+          "name": "Copy email for Juniper Foods",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 533,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1076,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(11) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Kestrel Aviation",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 569,
+            "width": 102.359375,
+            "height": 17
+          },
+          "backendNodeId": 1082,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Kestrel Aviation\"]",
+          "role": "link",
+          "name": "Edit Kestrel Aviation",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 570,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1088,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Kestrel Aviation\"]",
+          "role": "button",
+          "name": "Copy email for Kestrel Aviation",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 570,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1091,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "[data-testid=\"organisations-table\"] > tbody:nth-of-type(1) > tr:nth-of-type(12) > td:nth-of-type(1) > a:nth-of-type(1)",
+          "role": "link",
+          "name": "Lumen Energy",
+          "tag": "a",
+          "box": {
+            "x": 313,
+            "y": 606,
+            "width": 94.375,
+            "height": 17
+          },
+          "backendNodeId": 1097,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "a[aria-label=\"Edit Lumen Energy\"]",
+          "role": "link",
+          "name": "Edit Lumen Energy",
+          "tag": "a",
+          "box": {
+            "x": 1060.671875,
+            "y": 607,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1103,
+          "disabled": false,
+          "focusable": true
+        },
+        {
+          "selector": "button[aria-label=\"Copy email for Lumen Energy\"]",
+          "role": "button",
+          "name": "Copy email for Lumen Energy",
+          "tag": "button",
+          "box": {
+            "x": 1080.671875,
+            "y": 607,
+            "width": 16,
+            "height": 16
+          },
+          "backendNodeId": 1106,
+          "disabled": false,
+          "focusable": true
+        }
+      ],
+      "forms": [],
+      "tokens": [
+        {
+          "property": "color",
+          "value": "lab(7.78673 1.82345 -15.0537)",
+          "count": 101
+        },
+        {
+          "property": "color",
+          "value": "lab(26.9569 -1.47016 -15.6993)",
+          "count": 55
+        },
+        {
+          "property": "color",
+          "value": "rgb(29, 78, 216)",
+          "count": 17
+        },
+        {
+          "property": "color",
+          "value": "rgb(255, 255, 255)",
+          "count": 1
+        },
+        {
+          "property": "background-color",
+          "value": "rgb(255, 255, 255)",
+          "count": 2
+        },
+        {
+          "property": "background-color",
+          "value": "lab(96.286 -0.852436 -2.46847)",
+          "count": 1
+        },
+        {
+          "property": "background-color",
+          "value": "rgb(29, 78, 216)",
+          "count": 1
+        },
+        {
+          "property": "font-size",
+          "value": "14px",
+          "count": 165
+        },
+        {
+          "property": "font-size",
+          "value": "16px",
+          "count": 7
+        },
+        {
+          "property": "font-size",
+          "value": "18px",
+          "count": 1
+        },
+        {
+          "property": "font-size",
+          "value": "24px",
+          "count": 1
+        },
+        {
+          "property": "font-family",
+          "value": "-apple-system",
+          "count": 174
+        },
+        {
+          "property": "border-radius",
+          "value": "6px",
+          "count": 1
+        },
+        {
+          "property": "border-radius",
+          "value": "8px",
+          "count": 1
+        },
+        {
+          "property": "padding",
+          "value": "8px 16px",
+          "count": 66
+        },
+        {
+          "property": "padding",
+          "value": "16px 24px",
+          "count": 1
+        },
+        {
+          "property": "padding",
+          "value": "32px 24px",
+          "count": 1
+        },
+        {
+          "property": "margin",
+          "value": "0px 272px",
+          "count": 2
+        },
+        {
+          "property": "margin",
+          "value": "0px 0px 24px",
+          "count": 1
+        }
+      ],
+      "links": [
+        "http://localhost:3123/",
+        "http://localhost:3123/organisations",
+        "http://localhost:3123/reports",
+        "http://localhost:3123/settings",
+        "http://localhost:3123/logout",
+        "http://localhost:3123/organisations/new",
+        "http://localhost:3123/organisations/1",
+        "http://localhost:3123/organisations/2",
+        "http://localhost:3123/organisations/3",
+        "http://localhost:3123/organisations/4",
+        "http://localhost:3123/organisations/5",
+        "http://localhost:3123/organisations/6",
+        "http://localhost:3123/organisations/7",
+        "http://localhost:3123/organisations/8",
+        "http://localhost:3123/organisations/9",
+        "http://localhost:3123/organisations/10",
+        "http://localhost:3123/organisations/11",
+        "http://localhost:3123/organisations/12"
+      ],
+      "redirectedFrom": null,
+      "discoveredFrom": null,
+      "capturedAt": "2026-10-22T10:55:04.918Z"
+    }
+  ]
+}

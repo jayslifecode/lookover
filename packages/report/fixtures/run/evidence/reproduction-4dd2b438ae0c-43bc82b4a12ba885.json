@@ -1,0 +1,33 @@
+{
+  "attempt": 1,
+  "target": "4dd2b438ae0c",
+  "url": "http://localhost:3123/organisations",
+  "reproduction": {
+    "reproduced": true,
+    "observed": "16×16 px, nearest other target 12 px away",
+    "skipped": null,
+    "evidence": [
+      {
+        "kind": "measurements",
+        "label": "size and the distance to the nearest other target",
+        "ref": {
+          "id": "39e8b027da07ec63",
+          "path": "evidence/measurements-39e8b027da07ec63.json",
+          "bytes": 111,
+          "kind": "json"
+        }
+      }
+    ]
+  },
+  "environment": {
+    "browser": "chromium 156.0.8078.4",
+    "os": "darwin 25.0.0 arm64",
+    "node": "v24.15.0",
+    "lookover": "0.0.0",
+    "viewport": {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900
+    }
+  }
+}

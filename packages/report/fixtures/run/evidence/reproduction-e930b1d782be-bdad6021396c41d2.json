@@ -1,0 +1,33 @@
+{
+  "attempt": 2,
+  "target": "e930b1d782be|38a8049145|[data-testid=\"organisations-table\"]|mobile",
+  "url": "http://localhost:3123/organisations",
+  "reproduction": {
+    "reproduced": true,
+    "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
+    "skipped": null,
+    "evidence": [
+      {
+        "kind": "screenshot",
+        "label": "mobile 390×844",
+        "ref": {
+          "id": "20c45df40ed7235b",
+          "path": "evidence/20c45df40ed7235b.png",
+          "bytes": 119258,
+          "kind": "png"
+        }
+      }
+    ]
+  },
+  "environment": {
+    "browser": "chromium 156.0.8078.4",
+    "os": "darwin 25.0.0 arm64",
+    "node": "v24.15.0",
+    "lookover": "0.0.0",
+    "viewport": {
+      "name": "mobile",
+      "width": 390,
+      "height": 844
+    }
+  }
+}

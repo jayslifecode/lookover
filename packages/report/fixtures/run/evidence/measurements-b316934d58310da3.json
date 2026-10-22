@@ -1,0 +1,6 @@
+{
+  "selector": "button[aria-label=\"Copy email for Copperleaf Studio\"]",
+  "width": 16,
+  "height": 16,
+  "nearest": 12
+}

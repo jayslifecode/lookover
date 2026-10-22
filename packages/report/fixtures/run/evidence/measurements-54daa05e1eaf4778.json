@@ -1,0 +1,6 @@
+{
+  "selector": "[data-testid=\"stat-organisations\"]",
+  "role": "button",
+  "tag": "div",
+  "focusable": false
+}

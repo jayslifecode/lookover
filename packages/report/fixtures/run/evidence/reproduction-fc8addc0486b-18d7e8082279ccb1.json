@@ -1,0 +1,33 @@
+{
+  "attempt": 2,
+  "target": "fc8addc0486b|4a17c4d0a2||desktop",
+  "url": "http://localhost:3123/",
+  "reproduction": {
+    "reproduced": true,
+    "observed": "GET /api/stats answered 500",
+    "skipped": null,
+    "evidence": [
+      {
+        "kind": "requests",
+        "label": "Network requests on /",
+        "ref": {
+          "id": "ecf8ce6e74ef1a55",
+          "path": "evidence/requests-4a17c4d0a2-ecf8ce6e74ef1a55.json",
+          "bytes": 4764,
+          "kind": "json"
+        }
+      }
+    ]
+  },
+  "environment": {
+    "browser": "chromium 156.0.8078.4",
+    "os": "darwin 25.0.0 arm64",
+    "node": "v24.15.0",
+    "lookover": "0.0.0",
+    "viewport": {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900
+    }
+  }
+}

@@ -1,0 +1,595 @@
+{
+  "version": 2,
+  "runId": "20261022-195451-z1gy",
+  "createdAt": "2026-10-22T10:54:57.455Z",
+  "findings": [
+    {
+      "shape": "occurrence",
+      "id": "fc8addc0486b",
+      "key": "GET localhost:3123/api/stats → 500",
+      "source": "observers",
+      "rule": {
+        "id": "observers.request-server-error",
+        "source": "catalogue"
+      },
+      "severity": "high",
+      "status": "confirmed",
+      "judgement": {
+        "reproduced": 1,
+        "of": 1,
+        "attempts": [
+          {
+            "index": 1,
+            "occurrence": {
+              "screenId": "4a17c4d0a2",
+              "selector": null,
+              "viewport": "desktop"
+            },
+            "reproduced": true,
+            "observed": "GET /api/stats answered 500",
+            "skipped": null,
+            "durationMs": 898,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 1",
+                "ref": {
+                  "id": "4fb88ca7a535014b",
+                  "path": "evidence/reproduction-fc8addc0486b-4fb88ca7a535014b.json",
+                  "bytes": 750,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "requests",
+                "label": "Network requests on /",
+                "ref": {
+                  "id": "0cf142f10f6ec887",
+                  "path": "evidence/requests-4a17c4d0a2-0cf142f10f6ec887.json",
+                  "bytes": 4967,
+                  "kind": "json"
+                }
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "occurrence": {
+              "screenId": "4a17c4d0a2",
+              "selector": null,
+              "viewport": "desktop"
+            },
+            "reproduced": true,
+            "observed": "GET /api/stats answered 500",
+            "skipped": null,
+            "durationMs": 810,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 2",
+                "ref": {
+                  "id": "56d3948c7635c04d",
+                  "path": "evidence/reproduction-fc8addc0486b-56d3948c7635c04d.json",
+                  "bytes": 750,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "requests",
+                "label": "Network requests on /",
+                "ref": {
+                  "id": "0d06c0f2165f8b9e",
+                  "path": "evidence/requests-4a17c4d0a2-0d06c0f2165f8b9e.json",
+                  "bytes": 4966,
+                  "kind": "json"
+                }
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "occurrence": {
+              "screenId": "4a17c4d0a2",
+              "selector": null,
+              "viewport": "desktop"
+            },
+            "reproduced": true,
+            "observed": "GET /api/stats answered 500",
+            "skipped": null,
+            "durationMs": 861,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 3",
+                "ref": {
+                  "id": "ee0010812dd69e47",
+                  "path": "evidence/reproduction-fc8addc0486b-ee0010812dd69e47.json",
+                  "bytes": 750,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "requests",
+                "label": "Network requests on /",
+                "ref": {
+                  "id": "73542967a740cb13",
+                  "path": "evidence/requests-4a17c4d0a2-73542967a740cb13.json",
+                  "bytes": 4966,
+                  "kind": "json"
+                }
+              }
+            ]
+          }
+        ],
+        "decidedBy": "harness",
+        "attribution": "product-defect",
+        "oracle": null,
+        "note": null,
+        "model": null,
+        "usage": null,
+        "estimatedUsd": null,
+        "cached": false,
+        "droppedOccurrences": [],
+        "environment": {
+          "browser": "chromium 156.0.8078.4",
+          "os": "darwin 25.0.0 arm64",
+          "node": "v24.15.0",
+          "lookover": "0.0.0",
+          "viewport": {
+            "name": "desktop",
+            "width": 1440,
+            "height": 900
+          }
+        },
+        "judgedAt": "2026-10-22T10:54:58.425Z"
+      },
+      "title": "A request the page made failed on the server",
+      "expected": "Every request the page makes is answered without a server error, that is, without a status of 500 or higher.",
+      "observed": "GET /api/stats answered 500",
+      "whyItMatters": "The server broke while handling the request, so the data or action the page asked for did not happen. Users see an empty list, a spinner that never ends or a save that silently fails.",
+      "evidence": [
+        {
+          "kind": "requests",
+          "label": "Network requests on /",
+          "ref": {
+            "id": "b9a1167ceab64fa4",
+            "path": "evidence/requests-4a17c4d0a2-b9a1167ceab64fa4.json",
+            "bytes": 4967,
+            "kind": "json"
+          }
+        }
+      ],
+      "fixPrompt": "In / (http://localhost:3123/), GET /api/stats answered 500.\nOccurrences (1):\n/ page — method=GET, url=http://localhost:3123/api/stats, status=500, failure=null, resourceType=fetch\nRule: A request the page made failed on the server. Expected: Every request the page makes is answered without a server error, that is, without a status of 500 or higher. The server broke while handling the request, so the data or action the page asked for did not happen. Users see an empty list, a spinner that never ends or a save that silently fails.\nFix: Fix the server code behind this request so it stops failing, and make the page show a clear message when a request fails anyway.\nTell me which file you changed.",
+      "createdAt": "2026-10-22T10:54:55.030Z",
+      "occurrences": [
+        {
+          "screenId": "4a17c4d0a2",
+          "route": "/",
+          "url": "http://localhost:3123/",
+          "viewport": {
+            "name": "desktop",
+            "width": 1440,
+            "height": 900
+          },
+          "selector": null,
+          "measured": {
+            "method": "GET",
+            "url": "http://localhost:3123/api/stats",
+            "status": 500,
+            "failure": null,
+            "resourceType": "fetch"
+          }
+        }
+      ]
+    },
+    {
+      "shape": "step",
+      "id": "da77d007d373",
+      "key": "/|[data-testid=\"stat-organisations\"]",
+      "source": "interaction",
+      "rule": {
+        "id": "interaction.keyboard-unreachable",
+        "source": "catalogue"
+      },
+      "severity": "high",
+      "status": "confirmed",
+      "judgement": {
+        "reproduced": 3,
+        "of": 3,
+        "attempts": [
+          {
+            "index": 1,
+            "occurrence": null,
+            "reproduced": true,
+            "observed": "cannot receive keyboard focus",
+            "skipped": null,
+            "durationMs": 898,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 1",
+                "ref": {
+                  "id": "212d2c146c1117c8",
+                  "path": "evidence/reproduction-da77d007d373-212d2c146c1117c8.json",
+                  "bytes": 744,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "measurements",
+                "label": "whether the element can receive focus",
+                "ref": {
+                  "id": "54daa05e1eaf4778",
+                  "path": "evidence/measurements-54daa05e1eaf4778.json",
+                  "bytes": 115,
+                  "kind": "json"
+                }
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "occurrence": null,
+            "reproduced": true,
+            "observed": "cannot receive keyboard focus",
+            "skipped": null,
+            "durationMs": 812,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 2",
+                "ref": {
+                  "id": "5f38a7bbcf7171f8",
+                  "path": "evidence/reproduction-da77d007d373-5f38a7bbcf7171f8.json",
+                  "bytes": 744,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "measurements",
+                "label": "whether the element can receive focus",
+                "ref": {
+                  "id": "54daa05e1eaf4778",
+                  "path": "evidence/measurements-54daa05e1eaf4778.json",
+                  "bytes": 115,
+                  "kind": "json"
+                }
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "occurrence": null,
+            "reproduced": true,
+            "observed": "cannot receive keyboard focus",
+            "skipped": null,
+            "durationMs": 863,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 3",
+                "ref": {
+                  "id": "f6e318edfed9f6da",
+                  "path": "evidence/reproduction-da77d007d373-f6e318edfed9f6da.json",
+                  "bytes": 744,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "measurements",
+                "label": "whether the element can receive focus",
+                "ref": {
+                  "id": "54daa05e1eaf4778",
+                  "path": "evidence/measurements-54daa05e1eaf4778.json",
+                  "bytes": 115,
+                  "kind": "json"
+                }
+              }
+            ]
+          }
+        ],
+        "decidedBy": "harness",
+        "attribution": "product-defect",
+        "oracle": null,
+        "note": null,
+        "model": null,
+        "usage": null,
+        "estimatedUsd": null,
+        "cached": false,
+        "droppedOccurrences": [],
+        "environment": {
+          "browser": "chromium 156.0.8078.4",
+          "os": "darwin 25.0.0 arm64",
+          "node": "v24.15.0",
+          "lookover": "0.0.0",
+          "viewport": {
+            "name": "desktop",
+            "width": 1440,
+            "height": 900
+          }
+        },
+        "judgedAt": "2026-10-22T10:54:58.423Z"
+      },
+      "title": "Control cannot be reached with the keyboard",
+      "expected": "Everything you can click can also be reached with the Tab key and used with Enter or Space.",
+      "observed": "cannot receive keyboard focus",
+      "whyItMatters": "People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.",
+      "evidence": [
+        {
+          "kind": "measurements",
+          "label": "whether the element can receive focus",
+          "ref": {
+            "id": "54daa05e1eaf4778",
+            "path": "evidence/measurements-54daa05e1eaf4778.json",
+            "bytes": 115,
+            "kind": "json"
+          }
+        }
+      ],
+      "fixPrompt": "In / (http://localhost:3123/), the button \"Organisations 12\" (selector `[data-testid=\"stat-organisations\"]`, React component StatCard) cannot receive keyboard focus.\nRule: Control cannot be reached with the keyboard. Expected: Everything you can click can also be reached with the Tab key and used with Enter or Space. People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.\nFix: Make this control a real `<button>` or `<a href>` element, or at least give it `tabindex=0` and key handlers for Enter and Space. Reference: WCAG 2.2 2.1.1 Keyboard (https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html).\nKeep the control's accessible name, then tell me which file you changed.",
+      "createdAt": "2026-10-22T10:54:55.574Z",
+      "screenId": "4a17c4d0a2",
+      "target": {
+        "selector": "[data-testid=\"stat-organisations\"]",
+        "role": "button",
+        "name": "Organisations 12",
+        "componentName": "StatCard",
+        "signature": "div.bg-white.border.border-slate-200.cursor-pointer.hover:bg-slate-50.p-4.rounded-lg",
+        "box": {
+          "x": 296,
+          "y": 157,
+          "width": 416,
+          "height": 94
+        }
+      },
+      "trace": {
+        "route": "/",
+        "url": "http://localhost:3123/",
+        "viewport": {
+          "name": "desktop",
+          "width": 1440,
+          "height": 900
+        },
+        "steps": [
+          {
+            "kind": "navigate",
+            "url": "http://localhost:3123/"
+          },
+          {
+            "kind": "set-viewport",
+            "viewport": {
+              "name": "desktop",
+              "width": 1440,
+              "height": 900
+            }
+          },
+          {
+            "kind": "measure",
+            "what": "whether the element can receive focus"
+          }
+        ]
+      }
+    },
+    {
+      "shape": "step",
+      "id": "e9839cc1b237",
+      "key": "/|[data-testid=\"stat-latest-registration\"]",
+      "source": "interaction",
+      "rule": {
+        "id": "interaction.keyboard-unreachable",
+        "source": "catalogue"
+      },
+      "severity": "high",
+      "status": "confirmed",
+      "judgement": {
+        "reproduced": 3,
+        "of": 3,
+        "attempts": [
+          {
+            "index": 1,
+            "occurrence": null,
+            "reproduced": true,
+            "observed": "cannot receive keyboard focus",
+            "skipped": null,
+            "durationMs": 897,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 1",
+                "ref": {
+                  "id": "f802b2af5ffccafe",
+                  "path": "evidence/reproduction-e9839cc1b237-f802b2af5ffccafe.json",
+                  "bytes": 744,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "measurements",
+                "label": "whether the element can receive focus",
+                "ref": {
+                  "id": "fc53cb2cde9945db",
+                  "path": "evidence/measurements-fc53cb2cde9945db.json",
+                  "bytes": 121,
+                  "kind": "json"
+                }
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "occurrence": null,
+            "reproduced": true,
+            "observed": "cannot receive keyboard focus",
+            "skipped": null,
+            "durationMs": 810,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 2",
+                "ref": {
+                  "id": "7b7be35eac2fd00d",
+                  "path": "evidence/reproduction-e9839cc1b237-7b7be35eac2fd00d.json",
+                  "bytes": 744,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "measurements",
+                "label": "whether the element can receive focus",
+                "ref": {
+                  "id": "fc53cb2cde9945db",
+                  "path": "evidence/measurements-fc53cb2cde9945db.json",
+                  "bytes": 121,
+                  "kind": "json"
+                }
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "occurrence": null,
+            "reproduced": true,
+            "observed": "cannot receive keyboard focus",
+            "skipped": null,
+            "durationMs": 861,
+            "evidence": [
+              {
+                "kind": "measurements",
+                "label": "reproduction 3",
+                "ref": {
+                  "id": "13b47cec2fb3c339",
+                  "path": "evidence/reproduction-e9839cc1b237-13b47cec2fb3c339.json",
+                  "bytes": 744,
+                  "kind": "json"
+                }
+              },
+              {
+                "kind": "measurements",
+                "label": "whether the element can receive focus",
+                "ref": {
+                  "id": "fc53cb2cde9945db",
+                  "path": "evidence/measurements-fc53cb2cde9945db.json",
+                  "bytes": 121,
+                  "kind": "json"
+                }
+              }
+            ]
+          }
+        ],
+        "decidedBy": "harness",
+        "attribution": "product-defect",
+        "oracle": null,
+        "note": null,
+        "model": null,
+        "usage": null,
+        "estimatedUsd": null,
+        "cached": false,
+        "droppedOccurrences": [],
+        "environment": {
+          "browser": "chromium 156.0.8078.4",
+          "os": "darwin 25.0.0 arm64",
+          "node": "v24.15.0",
+          "lookover": "0.0.0",
+          "viewport": {
+            "name": "desktop",
+            "width": 1440,
+            "height": 900
+          }
+        },
+        "judgedAt": "2026-10-22T10:54:58.424Z"
+      },
+      "title": "Control cannot be reached with the keyboard",
+      "expected": "Everything you can click can also be reached with the Tab key and used with Enter or Space.",
+      "observed": "cannot receive keyboard focus",
+      "whyItMatters": "People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.",
+      "evidence": [
+        {
+          "kind": "measurements",
+          "label": "whether the element can receive focus",
+          "ref": {
+            "id": "fc53cb2cde9945db",
+            "path": "evidence/measurements-fc53cb2cde9945db.json",
+            "bytes": 121,
+            "kind": "json"
+          }
+        }
+      ],
+      "fixPrompt": "In / (http://localhost:3123/), the button \"Latest registration 2025-04-08\" (selector `[data-testid=\"stat-latest-registration\"]`, React component StatCard) cannot receive keyboard focus.\nRule: Control cannot be reached with the keyboard. Expected: Everything you can click can also be reached with the Tab key and used with Enter or Space. People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.\nFix: Make this control a real `<button>` or `<a href>` element, or at least give it `tabindex=0` and key handlers for Enter and Space. Reference: WCAG 2.2 2.1.1 Keyboard (https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html).\nKeep the control's accessible name, then tell me which file you changed.",
+      "createdAt": "2026-10-22T10:54:55.576Z",
+      "screenId": "4a17c4d0a2",
+      "target": {
+        "selector": "[data-testid=\"stat-latest-registration\"]",
+        "role": "button",
+        "name": "Latest registration 2025-04-08",
+        "componentName": "StatCard",
+        "signature": "div.bg-white.border.border-slate-200.cursor-pointer.hover:bg-slate-50.p-4.rounded-lg",
+        "box": {
+          "x": 728,
+          "y": 157,
+          "width": 416,
+          "height": 94
+        }
+      },
+      "trace": {
+        "route": "/",
+        "url": "http://localhost:3123/",
+        "viewport": {
+          "name": "desktop",
+          "width": 1440,
+          "height": 900
+        },
+        "steps": [
+          {
+            "kind": "navigate",
+            "url": "http://localhost:3123/"
+          },
+          {
+            "kind": "set-viewport",
+            "viewport": {
+              "name": "desktop",
+              "width": 1440,
+              "height": 900
+            }
+          },
+          {
+            "kind": "measure",
+            "what": "whether the element can receive focus"
+          }
+        ]
+      }
+    }
+  ],
+  "worthALook": [],
+  "skipped": [
+    {
+      "reason": "text-colour-uncertain:descendant",
+      "count": 2
+    }
+  ],
+  "rejected": [],
+  "intended": [],
+  "judge": {
+    "model": null,
+    "calls": 0,
+    "cacheHits": 0,
+    "usage": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0
+    },
+    "estimatedUsd": null,
+    "unavailable": "no-api-key"
+  },
+  "environment": {
+    "browser": "chromium 156.0.8078.4",
+    "os": "darwin 25.0.0 arm64",
+    "node": "v24.15.0",
+    "lookover": "0.0.0",
+    "viewport": {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900
+    }
+  }
+}

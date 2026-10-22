@@ -1,0 +1,6 @@
+{
+  "selector": "[data-testid=\"stat-latest-registration\"]",
+  "role": "button",
+  "tag": "div",
+  "focusable": false
+}

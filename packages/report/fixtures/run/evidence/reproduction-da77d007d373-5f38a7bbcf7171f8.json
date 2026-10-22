@@ -1,0 +1,33 @@
+{
+  "attempt": 2,
+  "target": "da77d007d373",
+  "url": "http://localhost:3123/",
+  "reproduction": {
+    "reproduced": true,
+    "observed": "cannot receive keyboard focus",
+    "skipped": null,
+    "evidence": [
+      {
+        "kind": "measurements",
+        "label": "whether the element can receive focus",
+        "ref": {
+          "id": "54daa05e1eaf4778",
+          "path": "evidence/measurements-54daa05e1eaf4778.json",
+          "bytes": 115,
+          "kind": "json"
+        }
+      }
+    ]
+  },
+  "environment": {
+    "browser": "chromium 156.0.8078.4",
+    "os": "darwin 25.0.0 arm64",
+    "node": "v24.15.0",
+    "lookover": "0.0.0",
+    "viewport": {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900
+    }
+  }
+}
