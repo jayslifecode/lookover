@@ -11,3 +11,13 @@ export { Harness, isReproduced, targetKey } from './harness.js';
 export * from './model/index.js';
 export type { PipelineHarness, PipelineOptions } from './pipeline.js';
 export { JudgePipeline } from './pipeline.js';
+export type { ReplayOptions, ReplayResult } from './replay.js';
+export {
+  attemptLines,
+  DEFAULT_REPLAY_TIMES,
+  isFullyReproduced,
+  replayHeading,
+  replayScreens,
+  replaySummary,
+  runReplay,
+} from './replay.js';

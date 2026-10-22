@@ -6,7 +6,6 @@ import {
   type Attempt,
   defaultObservers,
   type EvidenceItem,
-  type Finding,
   type InstrumentedPage,
   type Lens,
   LookoverError,
@@ -15,7 +14,6 @@ import {
   type OccurrenceFinding,
   PER_SCREEN_BUDGET_MS,
   type ReproductionTarget,
-  type Screen,
   type StepFinding,
   type Timing,
 } from '@jayslifecode/lookover-core';
@@ -30,13 +28,19 @@ import {
   REPRODUCTION_ATTEMPTS,
   targetKey,
 } from '../src/index.js';
-import { DEFAULT_TEST_VIEWPORT, openTestBed, screenOf, type TestBed } from './helpers/session.js';
+import {
+  type Inspected,
+  inspectPage,
+  occurrenceFindingOf,
+  SCREEN_ID,
+  stepFindingOf,
+} from './helpers/inspect.js';
+import { DEFAULT_TEST_VIEWPORT, openTestBed, type TestBed } from './helpers/session.js';
 
 type Page = InstrumentedPage['page'];
 
 const FIXTURE_DIR = fileURLToPath(new URL('./fixtures', import.meta.url));
 const BROWSER_TIMEOUT_MS = 120_000;
-const SCREEN_ID = 'screen-1';
 const LOOKOVER_VERSION = '0.0.0-test';
 const TIMING: Timing = { settleMs: 500, navigationTimeoutMs: 15_000 };
 const FOCUS_VISIBLE = 'interaction.focus-visible-missing';
@@ -66,24 +70,6 @@ const ROUTES: Readonly<Record<string, FixtureRoute>> = {
   /** Has its controls on the first load; they are gone on the five after it. */
   '/vanishing.html': oncePer(LOADS_PER_FIRST_VARIANT, '/controls.html', '/console-clean.html'),
 };
-
-/** What the crawl saw on a screen: the screen as captured and every candidate on it, worth-a-look included. */
-interface Inspected {
-  screen: Screen;
-  findings: Finding[];
-}
-
-function stepFindingOf({ findings }: Inspected, ruleId: string): StepFinding {
-  const found = findings.find((finding) => finding.rule.id === ruleId);
-  if (found?.shape !== 'step') throw new Error(`no ${ruleId} step finding`);
-  return found;
-}
-
-function occurrenceFindingOf({ findings }: Inspected, ruleId: string): OccurrenceFinding {
-  const found = findings.find((finding) => finding.rule.id === ruleId);
-  if (found?.shape !== 'occurrence') throw new Error(`no ${ruleId} occurrence finding`);
-  return found;
-}
 
 function occurrenceTargets(finding: OccurrenceFinding): ReproductionTarget[] {
   return finding.occurrences.map((occurrence) => ({ finding, occurrence }));
@@ -129,31 +115,8 @@ describe('Harness', { timeout: BROWSER_TIMEOUT_MS }, () => {
   }
 
   /** Captures `path` on a fresh page as the crawl does, and runs the observers and the lens on it. */
-  async function inspected(path: string): Promise<Inspected> {
-    const ipage = await bed.session.newIsolatedPage(DEFAULT_TEST_VIEWPORT);
-    try {
-      const observers = defaultObservers(bed.ctx);
-      for (const observer of observers) observer.attach(ipage);
-      const failure = await navigate(ipage.page, `${bed.url}${path}`, TIMING);
-      if (failure !== null) throw new Error(`could not load ${path}: ${failure}`);
-      const screen = await screenOf(ipage, SCREEN_ID, DEFAULT_TEST_VIEWPORT);
-      let findings: Finding[] = [];
-      for (const observer of observers) {
-        const collected = await observer.collect(screen);
-        findings = [...findings, ...collected.findings, ...collected.worthALook];
-      }
-      const inspection = await lens.inspect({
-        ctx: bed.ctx,
-        screen,
-        ipage,
-        viewports: [DEFAULT_TEST_VIEWPORT],
-        interaction: 'full',
-        deadline: Number.POSITIVE_INFINITY,
-      });
-      return { screen, findings: [...findings, ...inspection.findings, ...inspection.worthALook] };
-    } finally {
-      await ipage.close();
-    }
+  function inspected(path: string): Promise<Inspected> {
+    return inspectPage(bed, lens, path);
   }
 
   function openContexts(): number | undefined {
