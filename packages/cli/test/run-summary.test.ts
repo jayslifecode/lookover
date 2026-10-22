@@ -1,13 +1,36 @@
-import type { Finding } from '@jayslifecode/lookover-core';
+import type { Finding, JudgeTotals } from '@jayslifecode/lookover-core';
 import { describe, expect, test } from 'vitest';
 import {
   blockedHostsWarning,
   CANDIDATES_NOTE,
+  findingsNote,
   formatDuration,
+  HARNESS_ONLY_NOTE,
+  judgeSummary,
   progressLine,
   summaryRows,
 } from '../src/commands/run-summary.js';
-import { appMap, element, findingsFile, form, screen, stepCandidate } from './run-fixtures.js';
+import {
+  appMap,
+  element,
+  findingsFile,
+  form,
+  HARNESS_ONLY,
+  judged,
+  judgedFile,
+  screen,
+  stepCandidate,
+} from './run-fixtures.js';
+
+/** What a run that asked the judge model cost, as the brief's example. */
+const MODEL_TOTALS: JudgeTotals = {
+  model: 'claude-sonnet-5-5',
+  calls: 34,
+  cacheHits: 3,
+  usage: { input: 48_000, output: 9_000, cacheRead: 4_000, cacheWrite: 204 },
+  estimatedUsd: 0.1903,
+  unavailable: null,
+};
 
 /** `count` distinct candidates, numbered from `first`; what they are does not matter to a count. */
 function candidates(count: number, first = 0): Finding[] {
@@ -139,7 +162,7 @@ describe('summaryRows', () => {
       },
     };
 
-    test('adds the candidates, the worth-a-look entries, the skips and the findings file after the other rows', () => {
+    test('in a --no-judge run, adds the candidates, the worth-a-look entries, the skips, the judge and the findings file', () => {
       const rows = summaryRows(inspected);
 
       expect(rows.slice(0, 8)).toEqual(summaryRows(summary));
@@ -147,7 +170,52 @@ describe('summaryRows', () => {
         ['Candidates', '3'],
         ['Worth a look', '2'],
         ['Skipped', 'time-budget 12 · focus-indicator-ua-ring 9 · background-uncertain:overlapped 4'],
+        ['Judge', 'off (--no-judge)'],
         ['Findings', '.lookover/findings.json'],
+      ]);
+    });
+
+    test('in a judged run, counts the confirmed, rejected and intended findings, then the rest and the judge', () => {
+      const file = judgedFile({
+        findings: candidates(4).map((finding) => judged(finding)),
+        rejected: candidates(2, 4).map((finding) => judged(finding, { status: 'rejected', reproduced: 1 })),
+        intended: [
+          { ...stepCandidate({ ruleId: 'interaction.target-size', selector: '#i' }), status: 'intended' },
+        ],
+        worthALook: candidates(5, 6),
+        skipped: skipped.slice(3),
+      });
+
+      const rows = summaryRows({ ...inspected, inspection: { ...inspected.inspection, findings: file } });
+
+      expect(rows.slice(0, 8)).toEqual(summaryRows(summary));
+      expect(rows.slice(8)).toEqual([
+        ['Confirmed', '4'],
+        ['Rejected', '2'],
+        ['Intended', '1'],
+        ['Worth a look', '5'],
+        ['Skipped', 'gone 1'],
+        ['Judge', 'harness only (no ANTHROPIC_API_KEY)'],
+        ['Findings', '.lookover/findings.json'],
+      ]);
+    });
+
+    test('in a judged run, a candidate the judge never decided on does not count as confirmed', () => {
+      const file = judgedFile({ findings: [judged(candidates(1)[0] as Finding), ...candidates(1, 1)] });
+
+      const rows = summaryRows({ ...inspected, inspection: { ...inspected.inspection, findings: file } });
+
+      expect(rows).toContainEqual(['Confirmed', '1']);
+    });
+
+    test('in a judged run, shows what the judge model cost', () => {
+      const file = judgedFile({ judge: MODEL_TOTALS });
+
+      const rows = summaryRows({ ...inspected, inspection: { ...inspected.inspection, findings: file } });
+
+      expect(rows).toContainEqual([
+        'Judge',
+        'claude-sonnet-5-5 · 34 calls (3 cached) · 61,204 tokens · ≈ $0.19',
       ]);
     });
 
@@ -186,6 +254,69 @@ describe('CANDIDATES_NOTE', () => {
     expect(CANDIDATES_NOTE).toBe(
       'Candidates are measured but not yet judged or reproduced; the judge arrives in the next release.',
     );
+  });
+});
+
+describe('HARNESS_ONLY_NOTE', () => {
+  test('says the findings were reproduced but not reviewed by the model, and how to turn it on', () => {
+    expect(HARNESS_ONLY_NOTE).toBe(
+      'Findings were reproduced 3 times each but not reviewed by the judge model; set ANTHROPIC_API_KEY to enable it.',
+    );
+  });
+});
+
+describe('judgeSummary', () => {
+  test('names the model, its calls and cache hits, the tokens and the estimated cost', () => {
+    expect(judgeSummary(MODEL_TOTALS)).toBe(
+      'claude-sonnet-5-5 · 34 calls (3 cached) · 61,204 tokens · ≈ $0.19',
+    );
+  });
+
+  test('uses the singular for one call', () => {
+    const one: JudgeTotals = {
+      ...MODEL_TOTALS,
+      calls: 1,
+      cacheHits: 0,
+      usage: { input: 900, output: 99, cacheRead: 0, cacheWrite: 0 },
+      estimatedUsd: 0.0028,
+    };
+
+    expect(judgeSummary(one)).toBe('claude-sonnet-5-5 · 1 call (0 cached) · 999 tokens · ≈ $0.00');
+  });
+
+  test('says the cost is unknown for a model the price table does not know', () => {
+    expect(judgeSummary({ ...MODEL_TOTALS, model: 'claude-next', estimatedUsd: null })).toBe(
+      'claude-next · 34 calls (3 cached) · 61,204 tokens · cost unknown',
+    );
+  });
+
+  test('says so when the model stopped answering during the run', () => {
+    expect(judgeSummary({ ...MODEL_TOTALS, unavailable: 'api-error' })).toBe(
+      'claude-sonnet-5-5 · 34 calls (3 cached) · 61,204 tokens · ≈ $0.19 · stopped after an API error',
+    );
+  });
+
+  test('says the harness decided alone when there was no API key', () => {
+    expect(judgeSummary(HARNESS_ONLY)).toBe('harness only (no ANTHROPIC_API_KEY)');
+  });
+
+  test('says the judge was off for a run that was not judged', () => {
+    expect(judgeSummary(null)).toBe('off (--no-judge)');
+  });
+});
+
+describe('findingsNote', () => {
+  test('is the candidates note for a run that was not judged', () => {
+    expect(findingsNote(null)).toBe(CANDIDATES_NOTE);
+  });
+
+  test('is the harness-only note when the harness decided alone for want of a key', () => {
+    expect(findingsNote(HARNESS_ONLY)).toBe(HARNESS_ONLY_NOTE);
+  });
+
+  test('is nothing when the judge model reviewed the findings', () => {
+    expect(findingsNote(MODEL_TOTALS)).toBeNull();
+    expect(findingsNote({ ...MODEL_TOTALS, unavailable: 'api-error' })).toBeNull();
   });
 });
 

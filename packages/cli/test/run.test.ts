@@ -10,6 +10,7 @@ import {
   collectRepeated,
   configForRun,
   createLens,
+  JUDGE_FLAG_HELP,
   LENS_FLAG_HELP,
   mergeHosts,
   parseRunFlags,
@@ -48,7 +49,7 @@ describe('collectRepeated', () => {
 });
 
 describe('parseRunFlags', () => {
-  test('defaults to headless, the configured screen budget, no extra hosts, prompting and the interaction lens', () => {
+  test('defaults to headless, the configured screen budget, no extra hosts, prompting, the interaction lens, the configured judge and the report', () => {
     expect(parseRunFlags({})).toEqual({
       isHeaded: false,
       maxScreens: undefined,
@@ -57,7 +58,30 @@ describe('parseRunFlags', () => {
       isYes: false,
       isMapOnly: false,
       lenses: ['interaction'],
+      isJudged: true,
+      judgeModel: undefined,
+      shouldReport: true,
+      shouldOpen: true,
     });
+  });
+
+  test('--no-judge, --no-report and --no-open are passed through', () => {
+    expect(parseRunFlags({ judge: false, report: false, open: false })).toMatchObject({
+      isJudged: false,
+      shouldReport: false,
+      shouldOpen: false,
+    });
+  });
+
+  test('--judge-model names the model, trimmed', () => {
+    expect(parseRunFlags({ judgeModel: ' claude-opus-5-5 ' }).judgeModel).toBe('claude-opus-5-5');
+  });
+
+  test.each(['', '   '])('rejects --judge-model %o', (value) => {
+    const error = lookoverErrorOf(() => parseRunFlags({ judgeModel: value }));
+
+    expect(error.code).toBe('E_USAGE');
+    expect(error.message).toBe('--judge-model is empty');
   });
 
   test('lowercases, trims and deduplicates host flags', () => {
@@ -322,6 +346,26 @@ describe('lookover run', () => {
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
+  });
+
+  test('--help describes --no-judge, --judge-model, --no-report and --no-open', async () => {
+    const result = await runCli(dir, ['run', '--help']);
+
+    expect(result.code).toBe(0);
+    const help = result.stdout.replace(/\s+/g, ' ');
+    expect(help).toContain(`--no-judge ${JUDGE_FLAG_HELP.noJudge}`);
+    expect(help).toContain(`--judge-model <id> ${JUDGE_FLAG_HELP.judgeModel}`);
+    expect(help).toContain(`--no-report ${JUDGE_FLAG_HELP.noReport}`);
+    expect(help).toContain(`--no-open ${JUDGE_FLAG_HELP.noOpen}`);
+  });
+
+  test('exits 2 with E_USAGE on an empty --judge-model, before reading the config', async () => {
+    const result = await runCli(dir, ['run', '--judge-model', ' ']);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('E_USAGE');
+    expect(result.stderr).toContain('--judge-model is empty');
+    expect(result.stderr).not.toContain('E_CONFIG_NOT_FOUND');
   });
 
   test('--help describes --lens with the lenses there are', async () => {

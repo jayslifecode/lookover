@@ -7,6 +7,8 @@ import {
   FINDINGS_FILE,
   type FindingsFile,
   isFailedScreen,
+  type Judge,
+  type Lens,
   loadConfig,
   type ReviewResult,
   type RunContext,
@@ -16,12 +18,14 @@ import {
 } from '@jayslifecode/lookover-core';
 import type { Command } from 'commander';
 import * as ui from '../ui.js';
-import { candidateLines, groupCandidates } from './run-findings.js';
+import { findingLines } from './run-findings.js';
 import { type HostKinds, hostLabel, labelUnconfirmedHosts, withObservedHost } from './run-hosts.js';
+import { createJudge } from './run-judge.js';
 import {
   collectRepeated,
   configForRun,
   createLens,
+  JUDGE_FLAG_HELP,
   LENS_FLAG_HELP,
   parseRunFlags,
   type RunFlags,
@@ -31,11 +35,18 @@ import {
 import { createConfirmHosts, RunCancelledError, shouldPrompt } from './run-prompts.js';
 import {
   blockedHostsWarning,
-  CANDIDATES_NOTE,
+  findingsNote,
   type InspectionSummary,
   progressLine,
   summaryRows,
 } from './run-summary.js';
+
+/** What inspects each screen and judges what it yields; nothing for `--map-only`, which only maps. */
+interface Inspectors {
+  readonly lenses: readonly Lens[];
+  /** `undefined` with `--no-judge` (and `--map-only`): the candidates are written as measured. */
+  readonly judge: Judge | undefined;
+}
 
 /**
  * Prints a line per captured screen (with its candidates, once it has been inspected), counts the
@@ -50,11 +61,12 @@ interface Progress {
   readonly flushInFlight: () => void;
 }
 
-export function registerRun(program: Command): void {
+/** `lookoverVersion` is recorded in every judgement's environment. */
+export function registerRun(program: Command, lookoverVersion: string): void {
   program
     .command('run')
     .description(
-      'Open every screen of the app in a real browser, inspect it, and write .lookover/app-map.json and findings.json',
+      'Open every screen of the app in a real browser, inspect it, reproduce what it finds, and write .lookover/app-map.json and findings.json',
     )
     .option('--headed', 'show the browser window')
     .option('--max-screens <n>', 'capture at most this many screens (overrides maxScreens)')
@@ -74,24 +86,31 @@ export function registerRun(program: Command): void {
     )
     .option('--map-only', 'only map the app: run no lenses and no observers, so there are no candidates')
     .option('--lens <name>', LENS_FLAG_HELP, collectRepeated)
-    .action(runRun);
+    .option('--no-judge', JUDGE_FLAG_HELP.noJudge)
+    .option('--judge-model <id>', JUDGE_FLAG_HELP.judgeModel)
+    .option('--no-report', JUDGE_FLAG_HELP.noReport)
+    .option('--no-open', JUDGE_FLAG_HELP.noOpen)
+    .action((flags: RunFlags) => runRun(flags, lookoverVersion));
 }
 
 /**
  * `lookover run`: loads the config (the acknowledgement gate refuses an unacknowledged `full` run),
  * maps the app and inspects each screen with this run's flags applied (`--map-only` skips the
- * inspection), prints the summary with the candidates and saves the confirmed backend hosts to the
- * config. Errors propagate to `ui.fail`, which picks the exit code.
+ * inspection), judges the candidates while the crawl goes on (`--no-judge` leaves them as measured),
+ * prints the summary with the confirmed findings (or the candidates) and saves the confirmed backend
+ * hosts to the config. `--no-report` and `--no-open` are accepted and change nothing until the report
+ * exists. Errors propagate to `ui.fail`, which picks the exit code.
  */
-export async function runRun(flags: RunFlags): Promise<void> {
+export async function runRun(flags: RunFlags, lookoverVersion: string): Promise<void> {
   const cwd = process.cwd();
   const options = parseRunFlags(flags);
   const { config } = await loadConfig(cwd);
   const ctx = await createRun({ cwd, config: configForRun(config, options), onSubscriberError });
+  const inspectors = await createInspectors(ctx, options, lookoverVersion);
   ui.info(`Mapping ${config.baseUrl} (run ${ctx.runId})`);
   const progress = createProgress(!options.isMapOnly);
   const startedAt = performance.now();
-  const result = await discover(ctx, cwd, options, progress);
+  const result = await discover(ctx, cwd, options, progress, inspectors);
   const durationMs = performance.now() - startedAt;
 
   const savedHosts = await saveConfirmedHosts(cwd, config, [
@@ -116,9 +135,33 @@ export async function runRun(flags: RunFlags): Promise<void> {
     }),
   );
   if (!options.isMapOnly) {
-    reportCandidates(result.findings);
+    reportFindings(result.findings);
   }
   reportHosts(savedHosts, result.blockedUnconfirmedHosts, progress.labelHost);
+}
+
+/**
+ * The run's lenses, and the judge that reproduces what they and the observers find through those same
+ * lenses. Fails with `E_RUN_FAILED` when the project's decisions cannot be read.
+ */
+async function createInspectors(
+  ctx: RunContext,
+  options: RunOptions,
+  lookoverVersion: string,
+): Promise<Inspectors> {
+  if (options.isMapOnly) {
+    return { lenses: [], judge: undefined };
+  }
+  const lenses = options.lenses.map(createLens);
+  const judge = await createJudge({
+    ctx,
+    lenses,
+    config: ctx.config,
+    env: process.env,
+    flags: options,
+    lookoverVersion,
+  });
+  return { lenses, judge };
 }
 
 /**
@@ -130,6 +173,7 @@ async function discover(
   cwd: string,
   options: RunOptions,
   progress: Progress,
+  { lenses, judge }: Inspectors,
 ): Promise<ReviewResult> {
   const isInteractive = shouldPrompt({
     isYes: options.isYes,
@@ -140,8 +184,9 @@ async function discover(
     return await runReview(ctx, {
       cwd,
       ...(options.isHeaded ? { headless: false } : {}),
-      lenses: options.isMapOnly ? [] : options.lenses.map(createLens),
+      lenses,
       ...(options.isMapOnly ? { observers: [] } : {}),
+      ...(judge === undefined ? {} : { judge }),
       hooks: {
         confirmHosts: createConfirmHosts(isInteractive, progress.labelHost),
         onEvent: progress.onEvent,
@@ -200,17 +245,23 @@ function reportInspected(screen: Screen, candidates: number, error: string | nul
   }
 }
 
-/** The candidates by rule, then the note that nothing has judged them yet. */
-function reportCandidates(findings: FindingsFile): void {
-  const lines = candidateLines(groupCandidates(findings));
+/**
+ * The confirmed findings by rule (the rejected ones are only counted, in the table), or the candidates
+ * of a run that was not judged; then the note on how far they were judged, when there is one.
+ */
+function reportFindings(findings: FindingsFile): void {
+  const lines = findingLines(findings);
   if (lines.length > 0) {
     ui.info('');
     for (const line of lines) {
       ui.info(line);
     }
   }
-  ui.info('');
-  ui.info(CANDIDATES_NOTE);
+  const note = findingsNote(findings.judge);
+  if (note !== null) {
+    ui.info('');
+    ui.info(note);
+  }
 }
 
 function reportHosts(

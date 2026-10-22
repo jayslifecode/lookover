@@ -60,6 +60,9 @@ importers:
       '@jayslifecode/lookover-core':
         specifier: workspace:*
         version: link:../core
+      '@jayslifecode/lookover-judge':
+        specifier: workspace:*
+        version: link:../judge
       '@jayslifecode/lookover-lenses':
         specifier: workspace:*
         version: link:../lenses

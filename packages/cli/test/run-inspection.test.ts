@@ -10,20 +10,26 @@ import {
   runReview,
   type Screen,
 } from '@jayslifecode/lookover-core';
+import { JudgePipeline } from '@jayslifecode/lookover-judge';
 import { InteractionLens } from '@jayslifecode/lookover-lenses';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { runRun } from '../src/commands/run.js';
 import type { RunFlags } from '../src/commands/run-options.js';
-import { CANDIDATES_NOTE } from '../src/commands/run-summary.js';
+import { CANDIDATES_NOTE, HARNESS_ONLY_NOTE } from '../src/commands/run-summary.js';
 import {
   appMap,
   element,
   findingsFile,
   form,
+  HARNESS_ONLY,
+  judged,
+  judgedFile,
   occurrenceCandidate,
   screen,
   stepCandidate,
 } from './run-fixtures.js';
+
+const VERSION = '9.9.9';
 
 // The one mock of this suite is the engine: it opens a real browser, which `run.test.ts` and the
 // end-to-end suite cover. Everything else here is the CLI's own code on a real project directory.
@@ -88,11 +94,14 @@ describe('lookover run with the engine stubbed', () => {
       stderr.push(String(chunk));
       return true;
     });
+    // A developer's key must not change what these tests see; the judge never runs here anyway.
+    vi.stubEnv('ANTHROPIC_API_KEY', '');
     vi.mocked(runReview).mockReset();
   });
 
   afterEach(async () => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -113,7 +122,7 @@ describe('lookover run with the engine stubbed', () => {
       };
       return result;
     });
-    await runRun({ yes: true, ...flags });
+    await runRun({ yes: true, ...flags }, VERSION);
     const [call] = vi.mocked(runReview).mock.calls;
     if (call === undefined) {
       throw new Error('runReview was not called');
@@ -135,6 +144,32 @@ describe('lookover run with the engine stubbed', () => {
 
       expect(options.lenses).toHaveLength(1);
       expect(options.lenses?.[0]).toBeInstanceOf(InteractionLens);
+    });
+
+    test('judges the candidates with a judge pipeline', async () => {
+      const { options } = await run({}, { events: [] });
+
+      expect(options.judge).toBeInstanceOf(JudgePipeline);
+    });
+
+    test('--no-judge asks for no judge', async () => {
+      const { options } = await run({ judge: false }, { events: [] });
+
+      expect(options.judge).toBeUndefined();
+      expect(options.lenses?.[0]).toBeInstanceOf(InteractionLens);
+    });
+
+    test('--map-only asks for no judge either: there is nothing to judge', async () => {
+      const { options } = await run({ mapOnly: true }, { events: [] });
+
+      expect(options.judge).toBeUndefined();
+    });
+
+    test('--no-report and --no-open change nothing the engine is asked yet', async () => {
+      const { options } = await run({ report: false, open: false }, { events: [] });
+
+      expect(options.judge).toBeInstanceOf(JudgePipeline);
+      expect(options.lenses).toHaveLength(1);
     });
 
     test('--map-only asks for no lenses and no observers', async () => {
@@ -180,7 +215,7 @@ describe('lookover run with the engine stubbed', () => {
         };
       });
 
-      await runRun({ yes: true });
+      await runRun({ yes: true }, VERSION);
 
       expect(printedWhenCaptured).not.toContain('/settings');
       expect(stdout.join('')).toContain('✓ /settings  1 element · 1 form · 0 candidates');
@@ -199,7 +234,7 @@ describe('lookover run with the engine stubbed', () => {
         return Promise.reject(new Error('the browser closed'));
       });
 
-      await expect(runRun({ yes: true })).rejects.toThrow('the browser closed');
+      await expect(runRun({ yes: true }, VERSION)).rejects.toThrow('the browser closed');
 
       const lines = stdout.join('').split('\n');
       expect(lines.filter((line) => line.startsWith('✓ /'))).toEqual([
@@ -260,7 +295,95 @@ describe('lookover run with the engine stubbed', () => {
     });
   });
 
-  describe('summary', () => {
+  /** The position of each row in `lines`, counted from the first. */
+  function rowOffsets(lines: readonly string[], keys: readonly string[]): number[] {
+    const positions = keys.map((key) => lines.findIndex((line) => line.startsWith(`  ${key} `)));
+    expect(positions[0]).toBeGreaterThan(0);
+    return positions.map((position) => position - (positions[0] ?? 0));
+  }
+
+  /** What `lookover run` printed after the summary table, blank lines left out. */
+  function afterTable(lines: readonly string[]): string[] {
+    const lastRow = lines.findIndex((line) => /^ {2}Findings {2,}\S/.test(line));
+    return lines.slice(lastRow + 1).filter((line) => line !== '');
+  }
+
+  describe('summary of a judged run', () => {
+    const findings = judgedFile({
+      findings: [
+        judged(
+          stepCandidate({
+            ruleId: 'interaction.focus-visible-missing',
+            route: '/settings',
+            selector: '#save',
+          }),
+        ),
+        judged(
+          stepCandidate({ ruleId: 'interaction.focus-visible-missing', route: '/login', selector: '#go' }),
+        ),
+        judged(occurrenceCandidate('observers.console-error', ['a', 'b'])),
+      ],
+      rejected: [
+        judged(stepCandidate({ ruleId: 'interaction.target-size', route: '/flaky' }), {
+          status: 'rejected',
+          reproduced: 2,
+        }),
+      ],
+      worthALook: [stepCandidate({ ruleId: 'interaction.hover-state-missing', severity: 'low' })],
+    });
+    const events = [captured({ id: 'a', route: '/a' }), inspected('a', 4)];
+
+    test('adds the confirmed, rejected, intended, worth-a-look, skipped, judge and findings rows after the duration', async () => {
+      const { stdout: lines } = await run({}, { events, findings });
+
+      const keys = [
+        'Duration',
+        'Confirmed',
+        'Rejected',
+        'Intended',
+        'Worth a look',
+        'Skipped',
+        'Judge',
+        'Findings',
+      ];
+      expect(rowOffsets(lines, keys)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Confirmed +3$/));
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Rejected +1$/));
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Intended +0$/));
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Worth a look +1$/));
+      expect(lines).toContainEqual(
+        expect.stringMatching(/^ {2}Judge +harness only \(no ANTHROPIC_API_KEY\)$/),
+      );
+      expect(lines.join('\n')).not.toMatch(/^ {2}Candidates /m);
+    });
+
+    test('lists the confirmed findings by rule with their reproductions, not the rejected ones, then the harness-only note', async () => {
+      const { stdout: lines } = await run({}, { events, findings });
+
+      expect(afterTable(lines)).toEqual([
+        '  high    interaction.focus-visible-missing  2  /settings button "Save"     reproduced 3/3',
+        '  medium  observers.console-error            1  2 occurrences on 2 screens  reproduced 3/3',
+        HARNESS_ONLY_NOTE,
+      ]);
+    });
+
+    test('prints no note under the findings when the judge model reviewed them', async () => {
+      const judge = { ...HARNESS_ONLY, model: 'claude-sonnet-5-5', unavailable: null, estimatedUsd: 0 };
+      const { stdout: lines } = await run({}, { events, findings: { ...findings, judge } });
+
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Judge +claude-sonnet-5-5 · 0 calls/));
+      expect(afterTable(lines)).toHaveLength(2);
+    });
+
+    test('prints only the note when nothing was confirmed', async () => {
+      const { stdout: lines } = await run({}, { events, findings: { ...findings, findings: [] } });
+
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Confirmed +0$/));
+      expect(afterTable(lines)).toEqual([HARNESS_ONLY_NOTE]);
+    });
+  });
+
+  describe('summary of a --no-judge run', () => {
     const findings = findingsFile(
       [
         stepCandidate({ ruleId: 'interaction.focus-visible-missing', route: '/settings', selector: '#save' }),
@@ -271,25 +394,22 @@ describe('lookover run with the engine stubbed', () => {
     );
     const events = [captured({ id: 'a', route: '/a' }), inspected('a', 3)];
 
-    test('adds the candidates, worth-a-look, skipped and findings rows right after the duration', async () => {
-      const { stdout: lines } = await run({}, { events, findings });
+    test('adds the candidates, worth-a-look, skipped, judge and findings rows right after the duration', async () => {
+      const { stdout: lines } = await run({ judge: false }, { events, findings });
 
-      const positions = ['Duration', 'Candidates', 'Worth a look', 'Skipped', 'Findings'].map((key) =>
-        lines.findIndex((line) => line.startsWith(`  ${key} `)),
-      );
-      expect(positions[0]).toBeGreaterThan(0);
-      expect(positions.map((position) => position - (positions[0] ?? 0))).toEqual([0, 1, 2, 3, 4]);
+      const keys = ['Duration', 'Candidates', 'Worth a look', 'Skipped', 'Judge', 'Findings'];
+      expect(rowOffsets(lines, keys)).toEqual([0, 1, 2, 3, 4, 5]);
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Candidates +3$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Worth a look +1$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Skipped +none$/));
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Judge +off \(--no-judge\)$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Findings +\.lookover\/findings\.json$/));
     });
 
     test('lists the candidates by rule after the table, then the note', async () => {
-      const { stdout: lines } = await run({}, { events, findings });
+      const { stdout: lines } = await run({ judge: false }, { events, findings });
 
-      const lastRow = lines.findIndex((line) => /^ {2}Findings {2,}\S/.test(line));
-      expect(lines.slice(lastRow + 1).filter((line) => line !== '')).toEqual([
+      expect(afterTable(lines)).toEqual([
         '  high    interaction.focus-visible-missing  2  /settings button "Save"',
         '  medium  observers.console-error            1  2 occurrences on 2 screens',
         CANDIDATES_NOTE,
@@ -297,7 +417,7 @@ describe('lookover run with the engine stubbed', () => {
     });
 
     test('says there are no candidates but still prints the note when nothing was found', async () => {
-      const { stdout: lines } = await run({}, { events });
+      const { stdout: lines } = await run({ judge: false }, { events });
 
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Candidates {2,}0$/));
       expect(lines).toContain(CANDIDATES_NOTE);
@@ -308,7 +428,9 @@ describe('lookover run with the engine stubbed', () => {
 
       const text = lines.join('\n');
       expect(text).toMatch(/^ {2}Screens +1$/m);
-      expect(text).not.toMatch(/Candidates|Worth a look|Skipped|Findings|interaction\.focus-visible-missing/);
+      expect(text).not.toMatch(
+        /Candidates|Confirmed|Worth a look|Skipped|Judge|Findings|interaction\.focus-visible-missing/,
+      );
       expect(text).not.toContain(CANDIDATES_NOTE);
     });
   });

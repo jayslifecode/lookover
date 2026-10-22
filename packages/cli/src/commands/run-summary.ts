@@ -4,9 +4,12 @@ import {
   confirmHostCommand,
   type FindingsFile,
   isFailedScreen,
+  type JudgeTotals,
   type Screen,
   type SkipTally,
+  type TokenUsage,
 } from '@jayslifecode/lookover-core';
+import { REPRODUCTION_ATTEMPTS } from '@jayslifecode/lookover-judge';
 
 /** What the summary adds for a run that inspected its screens (not a `--map-only` run). */
 export interface InspectionSummary {
@@ -29,9 +32,29 @@ export interface RunSummary {
   readonly inspection?: InspectionSummary;
 }
 
-/** Printed after the candidates: they are measurements, nothing has judged or reproduced them yet. */
+/** Printed after the candidates of a `--no-judge` run: they are measurements, nothing judged or reproduced them. */
 export const CANDIDATES_NOTE =
   'Candidates are measured but not yet judged or reproduced; the judge arrives in the next release.';
+
+/** Printed after the confirmed findings of a run without `ANTHROPIC_API_KEY`: the harness decided alone. */
+export const HARNESS_ONLY_NOTE = `Findings were reproduced ${REPRODUCTION_ATTEMPTS} times each but not reviewed by the judge model; set ANTHROPIC_API_KEY to enable it.`;
+
+/** The Judge row of a run that was not judged. */
+const JUDGE_OFF = 'off (--no-judge)';
+/** The Judge row of a run judged without the model, by why the model was not used. */
+const HARNESS_ONLY: Readonly<Record<NonNullable<JudgeTotals['unavailable']> | 'unknown', string>> = {
+  'no-api-key': 'harness only (no ANTHROPIC_API_KEY)',
+  disabled: 'harness only (the judge model is turned off)',
+  'api-error': 'harness only (the judge model failed)',
+  unknown: 'harness only',
+};
+/** Ends the Judge row when the model failed partway, so the rest was decided by reproduction alone. */
+const STOPPED_AFTER_API_ERROR = 'stopped after an API error';
+const UNKNOWN_COST = 'cost unknown';
+const JUDGE_SEPARATOR = ' · ';
+const CENTS_DIGITS = 2;
+/** Token counts are grouped by thousands the same way whatever the user's locale. */
+const TOKEN_FORMAT = new Intl.NumberFormat('en-US');
 
 const NO_HOSTS = 'none';
 const NO_SKIPS = 'none';
@@ -85,17 +108,71 @@ export function summaryRows(summary: RunSummary): [string, string][] {
   ];
 }
 
+/**
+ * What became of the candidates, the worth-a-look entries, the skips, the judge and the findings file. A
+ * judged run counts its confirmed, rejected and intended findings; a `--no-judge` run its candidates.
+ */
 function inspectionRows({ cwd, inspection }: RunSummary): [string, string][] {
   if (inspection === undefined) {
     return [];
   }
   const { findings, findingsPath } = inspection;
   return [
-    ['Candidates', String(findings.findings.length)],
+    ...outcomeRows(findings),
     ['Worth a look', String(findings.worthALook.length)],
     ['Skipped', skippedSummary(findings.skipped ?? [])],
+    ['Judge', judgeSummary(findings.judge)],
     ['Findings', displayPath(cwd, findingsPath)],
   ];
+}
+
+/** A candidate the judge never decided on is in `findings` too, but it is not confirmed. */
+function outcomeRows(file: FindingsFile): [string, string][] {
+  if (file.judge === null) {
+    return [['Candidates', String(file.findings.length)]];
+  }
+  const confirmed = file.findings.filter((finding) => finding.status === 'confirmed');
+  return [
+    ['Confirmed', String(confirmed.length)],
+    ['Rejected', String(file.rejected.length)],
+    ['Intended', String(file.intended.length)],
+  ];
+}
+
+/**
+ * The Judge row: `claude-sonnet-5-5 · 34 calls (3 cached) · 61,204 tokens · ≈ $0.19` when the model was
+ * asked (ending `· stopped after an API error` when it failed partway), `harness only (no
+ * ANTHROPIC_API_KEY)` when the harness decided alone, `off (--no-judge)` for a run that was not judged.
+ */
+export function judgeSummary(judge: JudgeTotals | null): string {
+  if (judge === null) {
+    return JUDGE_OFF;
+  }
+  if (judge.model === null) {
+    return HARNESS_ONLY[judge.unavailable ?? 'unknown'];
+  }
+  return [
+    judge.model,
+    `${count(judge.calls, 'call')} (${judge.cacheHits} cached)`,
+    `${TOKEN_FORMAT.format(totalTokens(judge.usage))} tokens`,
+    judge.estimatedUsd === null ? UNKNOWN_COST : `≈ $${judge.estimatedUsd.toFixed(CENTS_DIGITS)}`,
+    ...(judge.unavailable === 'api-error' ? [STOPPED_AFTER_API_ERROR] : []),
+  ].join(JUDGE_SEPARATOR);
+}
+
+/**
+ * What is printed under the findings list: the candidates note for a run that was not judged, the
+ * harness-only note for one judged without `ANTHROPIC_API_KEY`, nothing when the model reviewed them.
+ */
+export function findingsNote(judge: JudgeTotals | null): string | null {
+  if (judge === null) {
+    return CANDIDATES_NOTE;
+  }
+  return judge.model === null && judge.unavailable === 'no-api-key' ? HARNESS_ONLY_NOTE : null;
+}
+
+function totalTokens(usage: TokenUsage): number {
+  return usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
 }
 
 /**

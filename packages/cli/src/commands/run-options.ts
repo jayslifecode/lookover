@@ -21,6 +21,13 @@ export interface RunFlags {
   readonly yes?: boolean;
   readonly mapOnly?: boolean;
   readonly lens?: readonly string[];
+  /** `false` for `--no-judge`. */
+  readonly judge?: boolean;
+  readonly judgeModel?: string;
+  /** `false` for `--no-report`. */
+  readonly report?: boolean;
+  /** `false` for `--no-open`. */
+  readonly open?: boolean;
 }
 
 /** The flags, validated: hosts normalised and deduplicated, the screen budget a number. */
@@ -35,7 +42,23 @@ export interface RunOptions {
   readonly isMapOnly: boolean;
   /** The lenses to run, each once; `--map-only` runs none of them. */
   readonly lenses: readonly LensName[];
+  /** Reproduce and judge the candidates; `--no-judge` leaves them as measured (the plan-02 behaviour). */
+  readonly isJudged: boolean;
+  /** Overrides `config.model.judge` for this run; `undefined` keeps the config's. */
+  readonly judgeModel: string | undefined;
+  /** Serve the live report while the run goes on (used once the report exists). */
+  readonly shouldReport: boolean;
+  /** Open the served report in the browser (used once the report exists). */
+  readonly shouldOpen: boolean;
 }
+
+/** The judge and report flags in `lookover run --help`. */
+export const JUDGE_FLAG_HELP = {
+  noJudge: 'list the candidates as measured: reproduce nothing and ask no judge model',
+  judgeModel: 'the judge model for this run (overrides model.judge in the config)',
+  noReport: 'do not serve the live report during the run',
+  noOpen: 'serve the report but do not open it in the browser',
+} as const;
 
 /** A repeatable host flag and what its values may look like. */
 interface HostFlag {
@@ -92,7 +115,26 @@ export function parseRunFlags(flags: RunFlags): RunOptions {
     isYes: flags.yes === true,
     isMapOnly: flags.mapOnly === true,
     lenses: parseLenses(flags.lens),
+    isJudged: flags.judge !== false,
+    judgeModel: parseJudgeModel(flags.judgeModel),
+    shouldReport: flags.report !== false,
+    shouldOpen: flags.open !== false,
   };
+}
+
+function parseJudgeModel(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const model = value.trim();
+  if (model === '') {
+    throw new LookoverError(
+      'E_USAGE',
+      '--judge-model is empty',
+      'Name a model, e.g. --judge-model claude-sonnet-5-5',
+    );
+  }
+  return model;
 }
 
 /** A new instance of the lens `name`. Throws `E_USAGE` for a lens that does not exist yet. */

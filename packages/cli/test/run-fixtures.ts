@@ -1,10 +1,13 @@
 import type {
   AppMap,
+  Attempt,
   ElementRef,
   ElementTarget,
+  Environment,
   Finding,
   FindingsFile,
   FormInfo,
+  JudgeTotals,
   Occurrence,
   OccurrenceFinding,
   Screen,
@@ -164,4 +167,81 @@ export function findingsFile(
     judge: null,
     environment: null,
   };
+}
+
+const ATTEMPTS = 3;
+const JUDGED_AT = '2026-10-22T00:01:00.000Z';
+export const ENVIRONMENT: Environment = {
+  browser: 'chromium 140.0.7339.16',
+  os: 'darwin 25.0.0 arm64',
+  node: 'v24.10.0',
+  lookover: '0.0.0',
+  viewport: DESKTOP,
+};
+
+/** What the judge cost in a run without `ANTHROPIC_API_KEY`: nothing, the harness decided alone. */
+export const HARNESS_ONLY: JudgeTotals = {
+  model: null,
+  calls: 0,
+  cacheHits: 0,
+  usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  estimatedUsd: null,
+  unavailable: 'no-api-key',
+};
+
+export interface JudgedOptions {
+  readonly status?: 'confirmed' | 'rejected';
+  /** How many of the three attempts reproduced the finding (each occurrence's, for an occurrence finding). */
+  readonly reproduced?: number;
+}
+
+/** Three attempts at one target, the first `reproduced` of them seeing the finding again. */
+function attemptsAt(occurrence: Attempt['occurrence'], reproduced: number): Attempt[] {
+  return Array.from({ length: ATTEMPTS }, (_, index) => ({
+    index: index + 1,
+    occurrence,
+    reproduced: index < reproduced,
+    observed: index < reproduced ? 'observed' : null,
+    skipped: null,
+    durationMs: 100,
+    evidence: [],
+  }));
+}
+
+/** `finding` as the harness judged it: three attempts at each of its targets, and the status they give. */
+export function judged<T extends Finding>(finding: T, options: JudgedOptions = {}): T {
+  const { status = 'confirmed', reproduced = ATTEMPTS } = options;
+  const targets: Attempt['occurrence'][] =
+    finding.shape === 'step'
+      ? [null]
+      : finding.occurrences.map(({ screenId, selector, viewport }) => ({
+          screenId,
+          selector,
+          viewport: viewport.name,
+        }));
+  return {
+    ...finding,
+    status,
+    judgement: {
+      reproduced: finding.shape === 'step' ? reproduced : reproduced === ATTEMPTS ? targets.length : 0,
+      of: finding.shape === 'step' ? ATTEMPTS : targets.length,
+      attempts: targets.flatMap((occurrence) => attemptsAt(occurrence, reproduced)),
+      decidedBy: 'harness',
+      attribution: status === 'confirmed' ? 'product-defect' : 'timing',
+      oracle: null,
+      note: null,
+      model: null,
+      usage: null,
+      estimatedUsd: null,
+      cached: false,
+      droppedOccurrences: [],
+      environment: ENVIRONMENT,
+      judgedAt: JUDGED_AT,
+    },
+  };
+}
+
+/** The findings file of a judged run: `findings` holds what was confirmed; harness only unless `judge` says. */
+export function judgedFile(overrides: Partial<FindingsFile> = {}): FindingsFile {
+  return { ...findingsFile([]), judge: HARNESS_ONLY, environment: ENVIRONMENT, ...overrides };
 }

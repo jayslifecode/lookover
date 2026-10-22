@@ -1,6 +1,98 @@
+import type { OccurrenceFinding } from '@jayslifecode/lookover-core';
 import { describe, expect, test } from 'vitest';
-import { candidateLines, groupCandidates } from '../src/commands/run-findings.js';
-import { findingsFile, occurrenceCandidate, stepCandidate } from './run-fixtures.js';
+import {
+  candidateLines,
+  findingLines,
+  groupCandidates,
+  groupConfirmed,
+} from '../src/commands/run-findings.js';
+import { findingsFile, judged, judgedFile, occurrenceCandidate, stepCandidate } from './run-fixtures.js';
+
+describe('groupConfirmed', () => {
+  test('groups the confirmed findings by rule, with how often the first was reproduced', () => {
+    const groups = groupConfirmed(
+      judgedFile({
+        findings: [
+          judged(stepCandidate({ ruleId: 'interaction.focus-visible-missing', selector: '#a' })),
+          judged(stepCandidate({ ruleId: 'interaction.focus-visible-missing', selector: '#b' })),
+          judged(occurrenceCandidate('observers.console-error', ['a', 'b'])),
+        ],
+      }),
+    );
+
+    expect(groups.map(({ ruleId, count, attempts }) => ({ ruleId, count, attempts }))).toEqual([
+      { ruleId: 'interaction.focus-visible-missing', count: 2, attempts: { reproduced: 3, of: 3 } },
+      { ruleId: 'observers.console-error', count: 1, attempts: { reproduced: 3, of: 3 } },
+    ]);
+  });
+
+  test('counts the attempts of the first kept occurrence, not the occurrences', () => {
+    const finding = judged(occurrenceCandidate('observers.console-error', ['a', 'b', 'c', 'd']));
+
+    const [group] = groupConfirmed(judgedFile({ findings: [finding] }));
+
+    expect((finding as OccurrenceFinding).judgement?.of).toBe(4);
+    expect(group?.attempts).toEqual({ reproduced: 3, of: 3 });
+  });
+
+  test('leaves out a candidate the judge never decided on', () => {
+    const groups = groupConfirmed(
+      judgedFile({
+        findings: [
+          judged(stepCandidate({ ruleId: 'interaction.target-size' })),
+          stepCandidate({ ruleId: 'interaction.focus-visible-missing' }),
+        ],
+      }),
+    );
+
+    expect(groups.map((group) => group.ruleId)).toEqual(['interaction.target-size']);
+  });
+
+  test('leaves out the rejected and intended findings and the worth-a-look entries', () => {
+    const groups = groupConfirmed(
+      judgedFile({
+        rejected: [judged(stepCandidate({ ruleId: 'interaction.target-size' }), { status: 'rejected' })],
+        intended: [{ ...stepCandidate({ ruleId: 'interaction.focus-hidden' }), status: 'intended' }],
+        worthALook: [stepCandidate({ ruleId: 'interaction.hover-state-missing', severity: 'low' })],
+      }),
+    );
+
+    expect(groups).toEqual([]);
+  });
+});
+
+describe('findingLines', () => {
+  test('lists the confirmed findings of a judged run, each line ending with its reproductions', () => {
+    const lines = findingLines(
+      judgedFile({
+        findings: [
+          judged(stepCandidate({ ruleId: 'interaction.focus-visible-missing', route: '/settings' })),
+          judged(occurrenceCandidate('observers.console-error', ['a', 'b'])),
+        ],
+        rejected: [judged(stepCandidate({ ruleId: 'interaction.target-size' }), { status: 'rejected' })],
+      }),
+    );
+
+    expect(lines).toEqual([
+      '  high    interaction.focus-visible-missing  1  /settings button "Save"     reproduced 3/3',
+      '  medium  observers.console-error            1  2 occurrences on 2 screens  reproduced 3/3',
+    ]);
+  });
+
+  test('lists the candidates of a run that was not judged, as they were measured', () => {
+    const lines = findingLines(
+      findingsFile([stepCandidate({ ruleId: 'interaction.focus-visible-missing', route: '/settings' })]),
+    );
+
+    expect(lines).toEqual(['  high  interaction.focus-visible-missing  1  /settings button "Save"']);
+  });
+
+  test('is empty when a judged run confirmed nothing', () => {
+    const rejected = [judged(stepCandidate({ ruleId: 'interaction.target-size' }), { status: 'rejected' })];
+
+    expect(findingLines(judgedFile({ rejected }))).toEqual([]);
+  });
+});
 
 describe('groupCandidates', () => {
   test('is empty when there are no candidates', () => {

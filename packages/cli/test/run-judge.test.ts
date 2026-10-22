@@ -1,0 +1,181 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  ConsoleObserver,
+  configSchema,
+  createRun,
+  DECISIONS_FILE,
+  type LookoverConfig,
+  RequestObserver,
+  type RunContext,
+  TextObserver,
+} from '@jayslifecode/lookover-core';
+import { JudgePipeline } from '@jayslifecode/lookover-judge';
+import { InteractionLens } from '@jayslifecode/lookover-lenses';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { type CreateJudgeOptions, createJudge, pipelineOptions } from '../src/commands/run-judge.js';
+
+const VERSION = '1.2.3';
+const KEY = 'sk-ant-test-key';
+
+const CONFIG: LookoverConfig = configSchema.parse({
+  baseUrl: 'http://localhost:3000',
+  interaction: 'full',
+  acknowledgement: { disposableData: true, acknowledgedAt: '2026-10-22T00:00:00.000Z' },
+  viewports: [
+    { name: 'desktop', width: 1440, height: 900 },
+    { name: 'mobile', width: 390, height: 844 },
+  ],
+});
+
+describe('createJudge', () => {
+  let dir: string;
+  let ctx: RunContext;
+  const lenses = [new InteractionLens()];
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'lookover-run-judge-'));
+    ctx = await createRun({ cwd: dir, config: CONFIG });
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  function options(overrides: Partial<CreateJudgeOptions> = {}): CreateJudgeOptions {
+    return {
+      ctx,
+      lenses,
+      config: CONFIG,
+      env: { ANTHROPIC_API_KEY: KEY },
+      flags: { isJudged: true, judgeModel: undefined },
+      lookoverVersion: VERSION,
+      ...overrides,
+    };
+  }
+
+  async function decisionsAre(content: string): Promise<void> {
+    await mkdir(ctx.lookoverDir, { recursive: true });
+    await writeFile(join(ctx.lookoverDir, DECISIONS_FILE), content, 'utf8');
+  }
+
+  describe('with --no-judge', () => {
+    const noJudge = { flags: { isJudged: false, judgeModel: undefined } };
+
+    test('there is no judge, with or without a key', async () => {
+      await expect(createJudge(options(noJudge))).resolves.toBeUndefined();
+      await expect(createJudge(options({ ...noJudge, env: {} }))).resolves.toBeUndefined();
+    });
+
+    test('the decisions are not read, so a broken decisions file does not stop the run', async () => {
+      await decisionsAre('{ not json');
+
+      await expect(createJudge(options(noJudge))).resolves.toBeUndefined();
+      await expect(pipelineOptions(options(noJudge))).resolves.toBeNull();
+    });
+  });
+
+  describe('with the judge on', () => {
+    test('is a judge pipeline', async () => {
+      expect(await createJudge(options())).toBeInstanceOf(JudgePipeline);
+      expect(await createJudge(options({ env: {} }))).toBeInstanceOf(JudgePipeline);
+    });
+
+    test('asks the configured judge model when ANTHROPIC_API_KEY is set', async () => {
+      const pipeline = await pipelineOptions(options());
+
+      expect(pipeline?.model?.model).toBe('claude-sonnet-5-5');
+      expect(pipeline?.unavailable).toBeNull();
+    });
+
+    test('asks the model of model.judge in the config', async () => {
+      const config = { ...CONFIG, model: { ...CONFIG.model, judge: 'claude-opus-5-5' } };
+
+      const pipeline = await pipelineOptions(options({ config }));
+
+      expect(pipeline?.model?.model).toBe('claude-opus-5-5');
+    });
+
+    test('--judge-model overrides model.judge', async () => {
+      const flags = { isJudged: true, judgeModel: 'claude-haiku-5-5' };
+
+      const pipeline = await pipelineOptions(options({ flags }));
+
+      expect(pipeline?.model?.model).toBe('claude-haiku-5-5');
+    });
+
+    test.each([
+      ['is not set', {}],
+      ['is empty', { ANTHROPIC_API_KEY: '' }],
+      ['is only whitespace', { ANTHROPIC_API_KEY: '  \n' }],
+    ])('decides by the harness alone when ANTHROPIC_API_KEY %s', async (_what, env) => {
+      const pipeline = await pipelineOptions(options({ env }));
+
+      expect(pipeline?.model).toBeNull();
+      expect(pipeline?.unavailable).toBe('no-api-key');
+    });
+
+    test('--judge-model without a key still decides by the harness alone', async () => {
+      const flags = { isJudged: true, judgeModel: 'claude-haiku-5-5' };
+
+      const pipeline = await pipelineOptions(options({ env: {}, flags }));
+
+      expect(pipeline?.model).toBeNull();
+      expect(pipeline?.unavailable).toBe('no-api-key');
+    });
+
+    test("hands over the run, the lenses, the config's viewports and interaction, and Lookover's version", async () => {
+      const pipeline = await pipelineOptions(options());
+
+      expect(pipeline?.ctx).toBe(ctx);
+      expect(pipeline?.lenses).toBe(lenses);
+      expect(pipeline?.viewports).toEqual(CONFIG.viewports);
+      expect(pipeline?.interaction).toBe('full');
+      expect(pipeline?.lookoverVersion).toBe(VERSION);
+    });
+
+    test('gives each attempt fresh console, request and text observers', async () => {
+      const pipeline = await pipelineOptions(options());
+
+      const first = pipeline?.observers() ?? [];
+      const second = pipeline?.observers() ?? [];
+
+      expect(first.map((observer) => observer.constructor)).toEqual([
+        ConsoleObserver,
+        RequestObserver,
+        TextObserver,
+      ]);
+      expect(second).toHaveLength(first.length);
+      second.forEach((observer, index) => {
+        expect(observer).not.toBe(first[index]);
+      });
+    });
+
+    test('has no decisions when the project has none yet', async () => {
+      const pipeline = await pipelineOptions(options());
+
+      expect(pipeline?.decisions).toEqual({ version: 1, decisions: {} });
+    });
+
+    test("reads the project's decisions", async () => {
+      const decisions = {
+        version: 1,
+        decisions: {
+          abc123def456: { status: 'intended', at: '2026-10-22T00:00:00.000Z', note: 'on purpose' },
+        },
+      };
+      await decisionsAre(JSON.stringify(decisions));
+
+      const pipeline = await pipelineOptions(options());
+
+      expect(pipeline?.decisions).toEqual(decisions);
+    });
+
+    test('fails with E_RUN_FAILED when the decisions cannot be read', async () => {
+      await decisionsAre('{ not json');
+
+      await expect(createJudge(options())).rejects.toMatchObject({ code: 'E_RUN_FAILED' });
+    });
+  });
+});
