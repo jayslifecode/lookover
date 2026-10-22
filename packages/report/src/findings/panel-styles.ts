@@ -12,7 +12,7 @@ const BUTTON_BASE = `h-8 rounded-[8px] px-3 font-semibold text-[12.5px] ${ON_GLA
 export const PRIMARY_BUTTON = `${BUTTON_BASE} bg-accent text-accent-ink hover:bg-accent/85`;
 
 /** Every other action: an outline in the strong line colour. */
-export const SECONDARY_BUTTON = `${BUTTON_BASE} border-line-strong bg-transparent text-ink hover:bg-muted hover:text-ink`;
+export const SECONDARY_BUTTON = `${BUTTON_BASE} border border-line-strong bg-transparent text-ink hover:bg-muted hover:text-ink`;
 
 /** A link on the glass: --ink, underlined. */
 export const GLASS_LINK = `rounded-[3px] text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink ${ON_GLASS_FOCUS}`;

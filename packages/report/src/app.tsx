@@ -2,8 +2,9 @@ import type { RunStatus } from '../node/api';
 import { Toaster } from './components/ui/sonner';
 import type { ReportError, ReportState } from './data/reduce';
 import { defaultRoute, navigate, type Route, type RouteView, useRoute, viewRoute } from './data/route';
-import { confirmedFindings, firstCapturedScreen } from './data/selectors';
+import { firstCapturedScreen } from './data/selectors';
 import { useReport } from './data/store';
+import { FindingsView } from './findings/findings-view';
 import { LensFilter } from './glass/glass';
 import { cn } from './lib/utils';
 import { ScreensView } from './screens/screens-view';
@@ -13,8 +14,8 @@ import { TopBar } from './shell/top-bar';
 
 /*
  * The report's shell: the top bar with the view switcher over the page, and the main area the current
- * route's view fills. The Screens view is in; the other views come with the next tasks, and until then
- * the main area names the route it shows.
+ * route's view fills. The Screens and Findings views are in; the Drift view comes with the next task, and
+ * until then the main area names the route it shows.
  */
 
 /**
@@ -43,7 +44,6 @@ const VIEW_PANEL_ID = 'report-view';
 
 function routeSummary(report: ReportState, route: Route): string {
   if (report.manifest === null) return 'Loading the run…';
-  if (route.view === 'findings') return `${confirmedFindings(report).length} confirmed findings.`;
   if (route.view === 'screens') return 'The screens the run captured.';
   return report.manifest.previousRunId === null
     ? 'This is the first run: there is nothing to compare it with.'
@@ -71,6 +71,13 @@ function MainArea({
     return (
       <section id={VIEW_PANEL_ID} role="tabpanel" aria-label={VIEW_TITLE.screens}>
         <ScreensView report={report} screenId={route.screenId} findingId={route.findingId} />
+      </section>
+    );
+  }
+  if (route.view === 'findings' && report.manifest !== null) {
+    return (
+      <section id={VIEW_PANEL_ID} role="tabpanel" aria-label={VIEW_TITLE.findings}>
+        <FindingsView report={report} findingId={route.findingId} />
       </section>
     );
   }

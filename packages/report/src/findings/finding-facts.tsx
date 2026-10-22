@@ -1,6 +1,7 @@
 import type { Finding, Viewport } from '@jayslifecode/lookover-core';
 import type { ReactNode } from 'react';
 import { ruleReference } from '@/data/rules';
+import { cn } from '@/lib/utils';
 import { MAX_FACT_LINES, useMeasuredFacts } from './measured-facts';
 import { GLASS_LINK, PANEL_SECTION } from './panel-styles';
 
@@ -37,7 +38,12 @@ function RuleFact({ ruleId }: { readonly ruleId: string }) {
   return (
     <>
       {reference === null ? null : (
-        <a href={reference.url} target="_blank" rel="noreferrer" className={GLASS_LINK}>
+        <a
+          href={reference.url}
+          target="_blank"
+          rel="noreferrer"
+          className={cn(GLASS_LINK, 'inline-flex min-h-6 items-center')}
+        >
           {`${reference.standard} · ${reference.criterion}`}
         </a>
       )}

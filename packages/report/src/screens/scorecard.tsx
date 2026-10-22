@@ -45,7 +45,8 @@ function Stat({
   );
 }
 
-function RejectedHint() {
+/** Why the rejected findings are not shown, as a tooltip on an info button (the Findings view's count too). */
+export function RejectedHint() {
   return (
     <Tooltip>
       <TooltipTrigger
