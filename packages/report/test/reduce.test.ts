@@ -121,6 +121,18 @@ test("screen.inspected folds each screen's skips into the run's tally, once per 
   expect(state.inspections.get('b')?.skipped).toHaveLength(2);
 });
 
+test("screen.inspected keeps each screen's gallery; a log written before the field existed has none", () => {
+  const [withGallery] = eventsOf(EVENTS, 'screen.inspected');
+  if (withGallery?.gallery == null) throw new Error("The fixture's first inspection names no gallery");
+  const { gallery: _left, ...older } = { ...withGallery, screenId: 'older', seq: withGallery.seq + 1 };
+
+  const state = replay([started, withGallery, older as RunEvent]);
+
+  expect(state.inspections.get(withGallery.screenId)?.gallery).toEqual(withGallery.gallery);
+  expect(withGallery.gallery.path).toMatch(new RegExp(`^evidence/gallery-${withGallery.screenId}-`));
+  expect(state.inspections.get('older')?.gallery).toBeNull();
+});
+
 test("the fixture's log reduces to the run's findings, counts and judge totals", () => {
   const file = fixtureFindings();
   const [finished] = eventsOf(EVENTS, 'run.finished');

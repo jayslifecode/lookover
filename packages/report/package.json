@@ -29,7 +29,8 @@
     "refresh-fixture": "node --experimental-strip-types scripts/refresh-fixture.ts"
   },
   "dependencies": {
-    "@jayslifecode/lookover-core": "workspace:*"
+    "@jayslifecode/lookover-core": "workspace:*",
+    "@jayslifecode/lookover-lenses": "workspace:*"
   },
   "devDependencies": {
     "@base-ui/react": "^1.9.0",

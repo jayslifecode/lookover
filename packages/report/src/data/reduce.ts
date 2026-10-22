@@ -1,5 +1,6 @@
 import type {
   DecisionsFile,
+  EvidenceRef,
   Finding,
   FindingsFile,
   JudgeTotals,
@@ -55,6 +56,8 @@ export interface ScreenInspection {
   readonly candidates: number;
   readonly worthALook: number;
   readonly skipped: readonly SkipTally[];
+  /** The screen's state gallery; `null` when no lens wrote one (or the log is older than the field). */
+  readonly gallery: EvidenceRef | null;
   readonly error: string | null;
 }
 
@@ -158,6 +161,8 @@ function onScreenInspected(state: ReportState, event: EventOf<'screen.inspected'
     candidates,
     worthALook,
     skipped,
+    // A log written before screen.inspected named the gallery has no such field.
+    gallery: event.gallery ?? null,
     error,
   });
   // Once the findings file is in, its own tally is the run's.

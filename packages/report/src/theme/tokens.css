@@ -28,6 +28,10 @@
   --medium: #efb75a;
   --low: #7dd3a8;
   --pass: #34c38f;
+  /* The ink on a severity fill (the pin numbers): 6.3:1 on high, 10.9:1 on medium, 11.1:1 on low. */
+  --on-high: #060a13;
+  --on-medium: #060a13;
+  --on-low: #060a13;
   /*
    * The motion study's tint is 0.55. Raised to 0.8 (spec §11: "the tint opacity is raised until it
    * passes") so --ink on glass holds 4.85:1 over pure white with the sheen and the spot at full
@@ -61,6 +65,10 @@
   --medium: #b4730b;
   --low: #1e8a5a;
   --pass: #1a8a56;
+  /* The ink on a severity fill: 5.3:1 on high, 5.1:1 on medium, 4.8:1 on low. */
+  --on-high: #ffffff;
+  --on-medium: #060a13;
+  --on-low: #000000;
   /* --ink on this tint holds 5.9:1 over pure black, 16:1 with the sheen and the spot. */
   --glass-tint: rgba(255, 255, 255, 0.58);
   --glass-edge: rgba(255, 255, 255, 0.9);
@@ -89,6 +97,9 @@
   --color-medium: var(--medium);
   --color-low: var(--low);
   --color-pass: var(--pass);
+  --color-on-high: var(--on-high);
+  --color-on-medium: var(--on-medium);
+  --color-on-low: var(--on-low);
   --color-glass-tint: var(--glass-tint);
   --color-glass-edge: var(--glass-edge);
   --color-glass-sheen: var(--glass-sheen);

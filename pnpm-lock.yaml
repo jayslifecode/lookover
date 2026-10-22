@@ -135,6 +135,9 @@ importers:
       '@jayslifecode/lookover-core':
         specifier: workspace:*
         version: link:../core
+      '@jayslifecode/lookover-lenses':
+        specifier: workspace:*
+        version: link:../lenses
     devDependencies:
       '@base-ui/react':
         specifier: ^1.9.0

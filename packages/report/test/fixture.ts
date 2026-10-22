@@ -41,6 +41,11 @@ export function fixturePreviousFindings(): FindingsFile {
   return JSON.parse(readFixture('previous-findings.json')) as FindingsFile;
 }
 
+/** The text of one of the fixture run's files, by its `EvidenceRef.path` (`evidence/…`). */
+export function fixtureEvidenceText(path: string): string {
+  return readFixture(join('run', path));
+}
+
 export function eventsOf<T extends RunEvent['type']>(
   events: readonly RunEvent[],
   type: T,
