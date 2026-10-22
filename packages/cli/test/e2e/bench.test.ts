@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import {
@@ -33,6 +33,7 @@ import {
   readAppMap,
   readFindings,
 } from './project.js';
+import { linkPlaywright, runScript, seedFinding } from './replay.js';
 import { findingsFor, readSeeds, reportsSeed } from './seeds.js';
 
 /** The whole run must finish within this, measured around the `lookover run` process. */
@@ -60,6 +61,11 @@ const ORGANISATION_FIELDS = 4;
 const SIGN_IN_TITLE = /^Sign in\b/;
 /** The one route the bench logs a console error on (seed observers-001). */
 const CONSOLE_ERROR_ROUTE = '/reports';
+/** The seed `lookover replay` replays: the missing focus ring on /settings, a step finding. */
+const REPLAYED_SEED = 'interaction-001';
+/** Stops a hung replay, or a hung standalone script, well before the test times out. */
+const REPLAY_TIMEOUT_MS = 120_000;
+const REPRODUCED_ONCE = /^reproduced 1\/1$/m;
 
 /** The route a finding's fix prompt leads with: its trace's, or its first occurrence's. */
 function leadRouteOf(finding: Finding): string | undefined {
@@ -427,5 +433,45 @@ describe('lookover run against the bench app', () => {
 
   test('changes no bench data', () => {
     expect(dataAfter).toEqual(dataBefore);
+  });
+
+  describe('lookover replay', () => {
+    test('replays a confirmed seed headless: reproduced 1/1, exit 0, and no run of its own', async () => {
+      const { id } = await seedFinding(await readFindings(project), await readAppMap(project), REPLAYED_SEED);
+
+      const replay = await runCli(project, ['replay', id, '--headless'], {
+        env: CREDENTIALS,
+        withoutEnv: [API_KEY_ENV],
+        timeoutMs: REPLAY_TIMEOUT_MS,
+      });
+
+      expect(replay.code, replay.stderr).toBe(0);
+      expect(replay.stdout).toMatch(REPRODUCED_ONCE);
+      expect(await readdir(join(project, '.lookover', 'runs'))).toHaveLength(1);
+      expect(await readAll(BENCH_DATA_FILES)).toEqual(dataBefore);
+    });
+
+    test("writes the seed's standalone script, which node runs against the bench: exit 0", async () => {
+      const { id } = await seedFinding(await readFindings(project), await readAppMap(project), REPLAYED_SEED);
+      const script = join(project, '.lookover', 'replays', `${id}.mjs`);
+
+      const written = await runCli(project, ['replay', id, '--script']);
+      await linkPlaywright(project);
+      // The run's form login saved the session there; the script takes no config, so it is handed the state.
+      const replay = await runScript(
+        project,
+        script,
+        { STORAGE_STATE: join(project, '.lookover', 'state', 'form.json') },
+        REPLAY_TIMEOUT_MS,
+      );
+
+      expect(written.code, written.stderr).toBe(0);
+      expect(written.stdout).toContain(join('.lookover', 'replays', `${id}.mjs`));
+      expect(replay.code, replay.stderr).toBe(0);
+      expect(replay.stdout).toMatch(REPRODUCED_ONCE);
+      process.stdout.write(
+        `lookover replay --script: node ran it in ${(replay.durationMs / 1_000).toFixed(1)} s\n`,
+      );
+    });
   });
 });
