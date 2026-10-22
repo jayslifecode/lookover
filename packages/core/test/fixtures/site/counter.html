@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Counter</title>
+  </head>
+  <body>
+    <p>Loads: <span id="count"></span></p>
+    <p>Cookies: <span id="cookie"></span></p>
+    <script>
+      const count = Number(sessionStorage.getItem('count') ?? '0') + 1;
+      sessionStorage.setItem('count', String(count));
+      document.getElementById('count').textContent = String(count);
+      document.getElementById('cookie').textContent = document.cookie;
+    </script>
+  </body>
+</html>

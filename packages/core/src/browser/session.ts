@@ -70,8 +70,10 @@ const WS_BLOCKED_REASON = 'Blocked by Lookover';
  * request: provider calls and navigations off the allowed hosts are blocked, everything else is let
  * through and its host recorded for the backend-confirmation step. Once `enforceConfirmedHosts` has
  * been called, the app's calls to a host it does not list are blocked too (`unconfirmed-backend`).
+ * Isolated pages (`newIsolatedPage`) live in contexts of their own that share the same policy, the
+ * same layers and the same records.
  *
- * Layers:
+ * Layers (installed per context):
  * - `context.route` blocks what it sees, and fails closed if deciding throws.
  * - `context.routeWebSocket` does the same for websockets.
  * - The host-resolver rules, with the proxy off, make providers unresolvable. That also covers
@@ -103,7 +105,7 @@ export class BrowserSession {
         ...(opts.storageStatePath === undefined ? {} : { storageState: opts.storageStatePath }),
       });
       const session = new BrowserSession(browser, context, policy, opts.onEvent);
-      await session.install();
+      await session.install(context);
       return session;
     } catch (error) {
       // The launch error is the one worth surfacing; a failure to close on top of it adds nothing.
@@ -113,14 +115,36 @@ export class BrowserSession {
   }
 
   async newPage(): Promise<InstrumentedPage> {
-    const page = await this.context.newPage();
+    const { page, cdp } = await openWithCdp(this.context);
+    return { page, cdp, close: () => page.close() };
+  }
+
+  /**
+   * A page in a fresh context built from the session's storage state as it is now (cookies and local
+   * storage carry over; session storage, caches and the page itself do not). The context is under the
+   * same network envelope, and closing the page closes the context.
+   */
+  async newIsolatedPage(viewport: Viewport): Promise<InstrumentedPage> {
+    const storageState = await this.context.storageState();
+    const context = await this.browser.newContext({
+      viewport: { width: viewport.width, height: viewport.height },
+      serviceWorkers: 'block',
+      storageState,
+    });
     try {
-      const cdp = await this.context.newCDPSession(page);
-      return { page, cdp, close: () => page.close() };
+      await this.install(context);
+      const { page, cdp } = await openWithCdp(context);
+      return { page, cdp, close: () => context.close() };
     } catch (error) {
-      await page.close();
+      // The failure to open the page is the one worth surfacing; a failure to close adds nothing.
+      await context.close().catch(() => undefined);
       throw error;
     }
+  }
+
+  /** The browser's name and version, as recorded in a finding's environment. */
+  browserVersion(): string {
+    return `chromium ${this.browser.version()}`;
   }
 
   /**
@@ -148,12 +172,13 @@ export class BrowserSession {
     }
   }
 
-  private async install(): Promise<void> {
-    this.context.on('request', (request) => this.observe(request));
-    this.context.on('requestfailed', (request) => this.reportFailedProviderHop(request));
-    this.context.on('page', (page) => this.containFrames(page));
-    await this.context.route(ALL_REQUESTS, (route) => this.enforce(route));
-    await this.context.routeWebSocket(ALL_WEBSOCKETS, (ws) => this.enforceWebSocket(ws));
+  /** Puts every layer of the envelope on `context`; each context needs its own, before it opens a page. */
+  private async install(context: BrowserContext): Promise<void> {
+    context.on('request', (request) => this.observe(request));
+    context.on('requestfailed', (request) => this.reportFailedProviderHop(request));
+    context.on('page', (page) => this.containFrames(page));
+    await context.route(ALL_REQUESTS, (route) => this.enforce(route));
+    await context.routeWebSocket(ALL_WEBSOCKETS, (ws) => this.enforceWebSocket(ws));
   }
 
   private enforce(route: Route): Promise<void> {
@@ -282,6 +307,17 @@ export class BrowserSession {
         throw error;
       });
     }
+  }
+}
+
+/** A new page in `context` with a CDP session attached; the page is closed again if attaching fails. */
+async function openWithCdp(context: BrowserContext): Promise<{ page: Page; cdp: CDPSession }> {
+  const page = await context.newPage();
+  try {
+    return { page, cdp: await context.newCDPSession(page) };
+  } catch (error) {
+    await page.close();
+    throw error;
   }
 }
 
