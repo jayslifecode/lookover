@@ -1,6 +1,7 @@
 import type { InstrumentedPage } from '../browser/session.js';
 import { LookoverError } from '../errors.js';
 import { mergeFindings } from '../findings/id.js';
+import type { Judge } from '../findings/judge.js';
 import type { Lens, LensContext, LensResult, LensSkip } from '../findings/lens.js';
 import type { Finding, FindingsFile, SkipTally } from '../findings/types.js';
 import { describeError } from '../map/navigation.js';
@@ -17,6 +18,8 @@ export interface InspectionOptions {
   /** `config.viewports`; screens are captured at the first, which is restored after each lens. */
   viewports: readonly Viewport[];
   interaction: 'full' | 'safe';
+  /** Handed each inspected screen's own yield, after its `screen.inspected`. Default none. */
+  judge?: Judge;
 }
 
 /** What one screen yielded, up to the error that stopped its inspection, if one did. */
@@ -35,7 +38,9 @@ const NOTHING_YIELDED: ScreenYield = { findings: [], worthALook: [], skipped: []
  * each with its own deadline `PER_SCREEN_BUDGET_MS` ahead and the capture viewport restored after it
  * whatever it did. The screen's findings are then merged into the run's (see `mergeFindings`): each
  * candidate id seen for the first time is logged as `finding.candidate`, carrying the finding as merged
- * so far; worth-a-look entries are kept apart and not logged. Last comes `screen.inspected`.
+ * so far; worth-a-look entries are kept apart and not logged. Then comes `screen.inspected`, and last the
+ * judge, when there is one, is handed the screen's own candidates and worth-a-look entries (each merged
+ * within the screen, not yet into the run's).
  *
  * A `LookoverError` from an observer or a lens is the run's failure and propagates. Any other error stops
  * that screen's inspection: what the screen yielded before it is kept, the first line of its message is
@@ -85,6 +90,7 @@ export class Inspection {
       skipped: [...yielded.skipped],
       error: yielded.error,
     });
+    this.options.judge?.onScreenInspected(screen, findings, worthALook);
   }
 
   /**

@@ -39,7 +39,8 @@ export type { FindingsDrift } from './findings/diff.js';
 export { diffFindings } from './findings/diff.js';
 export type { FixPromptInput } from './findings/fix-prompt.js';
 export { fixPromptFor } from './findings/fix-prompt.js';
-export { findingId, mergeFindings } from './findings/id.js';
+export { findingId, mergeFindings, withRebuiltFixPrompt } from './findings/id.js';
+export type { Judge, JudgeOutcome } from './findings/judge.js';
 export type {
   Lens,
   LensContext,

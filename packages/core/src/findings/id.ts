@@ -43,8 +43,12 @@ function combine(known: Finding, repeat: Finding): Finding {
   return merged.occurrences.length === known.occurrences.length ? merged : withRebuiltFixPrompt(merged);
 }
 
-/** The prompt of the first screen alone no longer fits; list every occurrence, the first one's page leading. */
-function withRebuiltFixPrompt(finding: OccurrenceFinding): OccurrenceFinding {
+/**
+ * `finding` with its fix prompt built again from its occurrences, the first one's page leading, for when
+ * the occurrences it was built from changed (more were merged in, or the judge dropped some). Unchanged
+ * when it has no occurrence. Throws, as `ruleById` does, for a rule that is not in the catalogue.
+ */
+export function withRebuiltFixPrompt(finding: OccurrenceFinding): OccurrenceFinding {
   const [lead] = finding.occurrences;
   if (lead === undefined) return finding;
   const fixPrompt = fixPromptFor({

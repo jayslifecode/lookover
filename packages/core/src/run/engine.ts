@@ -5,6 +5,7 @@ import type { BrowserSession } from '../browser/session.js';
 import { assertAcknowledged, CONFIG_FILENAME } from '../config/load.js';
 import type { LookoverConfig } from '../config/schema.js';
 import { LookoverError } from '../errors.js';
+import type { Judge } from '../findings/judge.js';
 import type { Lens } from '../findings/lens.js';
 import { writeFindings } from '../findings/persist.js';
 import type { FindingsFile, JudgeTotals } from '../findings/types.js';
@@ -48,6 +49,11 @@ export interface ReviewOptions {
    * `defaultObservers`: console, requests and rendered text. An empty list means none.
    */
   observers?: readonly Observer[];
+  /**
+   * Decides on the candidates while the crawl goes on (see `Judge`); the file it drains to is the one
+   * written. Without one, the file holds the candidates as the inspection found them.
+   */
+  judge?: Judge;
 }
 
 export interface ReviewResult {
@@ -72,6 +78,14 @@ interface CrawlPlan {
   routes: RouteInfo[];
   viewport: Viewport;
   inspection: Inspection;
+  judge: Judge | undefined;
+}
+
+/** What the session yielded: the screens, the confirmed backends and the findings, judged when judged. */
+interface Exploration {
+  screens: Screen[];
+  confirmedBackendHosts: string[];
+  findings: FindingsFile;
 }
 
 const STATE_DIR = 'state';
@@ -85,7 +99,7 @@ const ROOT_SEED = '/';
  *    (`E_ACK_REQUIRED`, the same gate as `loadConfig`), a viewport, and a base URL on an allowed host.
  * 1. The routes on disk (Next.js only), each logged as `route.discovered`.
  * 2. One browser session inside the network envelope, at the first viewport; its events go to the
- *    run log.
+ *    run log. The judge, when there is one, is handed the session at once.
  * 3. The probe, before logging in (see `confirmBackends`): the run refuses (`E_HOSTS_UNCONFIRMED`) to go
  *    on while a backend the app called is not confirmed as a development or disposable instance.
  *    From then on the session blocks every other backend (`unconfirmed-backend`), login included.
@@ -95,7 +109,11 @@ const ROOT_SEED = '/';
  *    5b. Each captured screen is inspected as soon as it is captured, on the page still showing it: the
  *    observers, then the lenses (see `Inspection`). Each new candidate is logged as `finding.candidate`,
  *    each inspected screen as `screen.inspected`; an observer or lens error that is not a
- *    `LookoverError` fails only that screen's inspection.
+ *    `LookoverError` fails only that screen's inspection. Each inspected screen's yield then goes to
+ *    the judge, which judges its candidates while the crawl goes on.
+ *    5c. With a judge, once the run log holds every event so far: the judge is drained, the session
+ *    still open, and the file it returns (confirmed, rejected and intended findings, the judge's totals
+ *    and environment) is the run's findings. Without one, the findings are the candidates.
  * 6. The App Map, then the findings (`findings.json`), each written to the run directory and as the
  *    project's latest.
  *
@@ -163,9 +181,10 @@ async function review(
     observers: opts.observers ?? defaultObservers(ctx),
     viewports: config.viewports,
     interaction: config.interaction,
+    ...(opts.judge === undefined ? {} : { judge: opts.judge }),
   });
-  const plan: CrawlPlan = { routes, viewport, inspection };
-  const { screens, confirmedBackendHosts } = await explore(ctx, opts, recorder, plan);
+  const plan: CrawlPlan = { routes, viewport, inspection, judge: opts.judge };
+  const { screens, confirmedBackendHosts, findings: file } = await explore(ctx, opts, recorder, plan);
   await recorder.assertComplete();
   const map: AppMap = {
     version: 1,
@@ -177,7 +196,7 @@ async function review(
   };
   await writeAppMap(ctx, map);
   // Redacted once, so what the caller gets is what was written: a CLI can never print raw page text.
-  const findings = redactDeep(inspection.file());
+  const findings = redactDeep(file);
   await writeFindings(ctx, findings);
   return {
     map,
@@ -198,13 +217,13 @@ async function discoverRoutes(ctx: RunContext, cwd: string): Promise<RouteInfo[]
   return routes;
 }
 
-/** Steps 2 to 5, in one session that is closed whatever happens. */
+/** Steps 2 to 5c, in one session that is closed whatever happens. */
 async function explore(
   ctx: RunContext,
   opts: ReviewOptions,
   recorder: SessionRecorder,
   plan: CrawlPlan,
-): Promise<{ screens: Screen[]; confirmedBackendHosts: string[] }> {
+): Promise<Exploration> {
   const { config } = ctx;
   const auth = resolveAuth(config.auth, opts.cwd);
   const session = await launchSession({
@@ -215,6 +234,7 @@ async function explore(
     ...(auth.type === 'storageState' ? { storageStatePath: auth.path } : {}),
   });
   return usingSession(session, async () => {
+    plan.judge?.attach(session);
     const confirmedBackendHosts = await confirmBackends(
       session,
       config,
@@ -225,8 +245,24 @@ async function explore(
     const logIn = loginStep(ctx, session, auth, opts.env);
     await logIn();
     const screens = await crawl(session, ctx, crawlOptions(config, plan, auth, logIn));
-    return { screens, confirmedBackendHosts };
+    const findings = await judgedFindings(plan, recorder);
+    return { screens, confirmedBackendHosts, findings };
   });
+}
+
+/**
+ * The run's findings: the candidates, or with a judge the file it drains to. The judge is drained only
+ * once the run log is known to hold every event so far, so a run that has already lost one spends
+ * nothing on judging.
+ */
+async function judgedFindings(plan: CrawlPlan, recorder: SessionRecorder): Promise<FindingsFile> {
+  const candidates = plan.inspection.file();
+  if (plan.judge === undefined) {
+    return candidates;
+  }
+  await recorder.assertComplete();
+  const { file } = await plan.judge.drain(candidates);
+  return file;
 }
 
 /** `confirmHosts`, asked only once the run log (and so `onEvent`) has every event recorded before it. */
