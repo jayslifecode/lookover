@@ -96,6 +96,7 @@ export function stepCandidate(options: StepOptions): StepFinding {
     rule: { id: ruleId, source: 'catalogue' },
     severity,
     status: 'candidate',
+    judgement: null,
     title: `Title of ${ruleId}`,
     expected: 'expected',
     observed: 'observed',
@@ -133,6 +134,7 @@ export function occurrenceCandidate(
     rule: { id: ruleId, source: 'catalogue' },
     severity,
     status: 'candidate',
+    judgement: null,
     title: `Title of ${ruleId}`,
     expected: 'expected',
     observed: 'observed',
@@ -151,11 +153,15 @@ export function findingsFile(
   skipped?: SkipTally[],
 ): FindingsFile {
   return {
-    version: 1,
+    version: 2,
     runId: 'run-1',
     createdAt: '2026-10-22T00:00:00.000Z',
     findings,
     worthALook,
     ...(skipped === undefined ? {} : { skipped }),
+    rejected: [],
+    intended: [],
+    judge: null,
+    environment: null,
   };
 }

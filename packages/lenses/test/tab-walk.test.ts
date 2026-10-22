@@ -159,6 +159,7 @@ describe('tabWalk', { timeout: BROWSER_TIMEOUT_MS }, () => {
         source: 'interaction',
         severity: 'medium',
         status: 'candidate',
+        judgement: null,
         screenId: 'screen-1',
         key: '/order.html|#faint',
         observed: 'takes keyboard focus on Tab press 4 but cannot be seen: it is fully transparent',

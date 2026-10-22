@@ -89,16 +89,21 @@ export class Inspection {
 
   /**
    * The run's merged candidates and worth-a-look entries so far, each in the order first seen, and what
-   * the lenses skipped on every screen, per reason (see `FindingsFile.skipped`).
+   * the lenses skipped on every screen, per reason (see `FindingsFile.skipped`). Nothing is judged yet:
+   * every finding is a candidate, and `rejected`, `intended`, `judge` and `environment` are empty.
    */
   file(): FindingsFile {
     return {
-      version: 1,
+      version: 2,
       runId: this.ctx.runId,
       createdAt: new Date().toISOString(),
       findings: [...this.findings],
       worthALook: [...this.worthALook],
       skipped: skipTally(this.skipped),
+      rejected: [],
+      intended: [],
+      judge: null,
+      environment: null,
     };
   }
 

@@ -7,7 +7,7 @@ import type { LookoverConfig } from '../config/schema.js';
 import { LookoverError } from '../errors.js';
 import type { Lens } from '../findings/lens.js';
 import { writeFindings } from '../findings/persist.js';
-import type { FindingsFile } from '../findings/types.js';
+import type { FindingsFile, JudgeTotals } from '../findings/types.js';
 import { type CrawlOptions, crawl } from '../map/crawler.js';
 import { discoverNextRoutes, staticRoutePatterns } from '../map/next-routes.js';
 import { writeAppMap } from '../map/persist.js';
@@ -115,6 +115,7 @@ export async function runReview(ctx: RunContext, opts: ReviewOptions): Promise<R
       type: 'run.finished',
       screens: result.map.screens.length,
       durationMs: Math.round(performance.now() - startedAt),
+      ...findingCounts(result.findings),
     });
     return result;
   } catch (error) {
@@ -122,6 +123,23 @@ export async function runReview(ctx: RunContext, opts: ReviewOptions): Promise<R
   } finally {
     unsubscribe();
   }
+}
+
+/** What the run finished with, by what became of it; a candidate nobody judged counts as none of these. */
+function findingCounts(file: FindingsFile): {
+  confirmed: number;
+  rejected: number;
+  intended: number;
+  worthALook: number;
+  judge: JudgeTotals | null;
+} {
+  return {
+    confirmed: file.findings.filter((finding) => finding.status === 'confirmed').length,
+    rejected: file.rejected.length,
+    intended: file.intended.length,
+    worthALook: file.worthALook.length,
+    judge: file.judge,
+  };
 }
 
 async function review(

@@ -157,6 +157,7 @@ describe('sweepViewports', { timeout: BROWSER_TIMEOUT_MS }, () => {
         source: 'interaction',
         severity: 'high',
         status: 'candidate',
+        judgement: null,
         observed: 'the page scrolls sideways at mobile 390×844: it is 600 px wide in a 390 px wide viewport',
       });
       expect(overflow.occurrences).toEqual([

@@ -188,7 +188,14 @@ describe('Inspection', { timeout: BROWSER_TIMEOUT_MS }, () => {
     );
 
     const file = inspection.file();
-    expect(file).toMatchObject({ version: 1, runId: ctx.runId });
+    expect(file).toMatchObject({
+      version: 2,
+      runId: ctx.runId,
+      rejected: [],
+      intended: [],
+      judge: null,
+      environment: null,
+    });
     expect(Number.isNaN(Date.parse(file.createdAt))).toBe(false);
     for (const [list, id] of [
       [file.findings, 'console-error-1'],

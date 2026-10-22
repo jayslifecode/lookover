@@ -2,6 +2,7 @@ import type { EvidenceRef } from '../../src/evidence/store.js';
 import type {
   ElementTarget,
   EvidenceItem,
+  FindingsFile,
   Occurrence,
   OccurrenceFinding,
   StepFinding,
@@ -51,6 +52,7 @@ export function occurrenceFinding(overrides: Partial<OccurrenceFinding> = {}): O
     rule: { id: 'observers.console-error', source: 'catalogue' },
     severity: 'high',
     status: 'candidate',
+    judgement: null,
     title: 'The page logged an error',
     expected: 'The console stays free of errors.',
     observed: 'logged "Failed to load resource" 1 time',
@@ -72,6 +74,7 @@ export function stepFinding(overrides: Partial<StepFinding> = {}): StepFinding {
     rule: { id: 'interaction.focus-visible-missing', source: 'catalogue' },
     severity: 'high',
     status: 'candidate',
+    judgement: null,
     title: 'Keyboard focus is not visible',
     expected: 'The focused control shows a clear outline.',
     observed: 'shows no change when it receives keyboard focus',
@@ -87,6 +90,21 @@ export function stepFinding(overrides: Partial<StepFinding> = {}): StepFinding {
       viewport: DESKTOP,
       steps: [{ kind: 'navigate', url: 'http://localhost:3123/settings' }],
     },
+    ...overrides,
+  };
+}
+
+export function findingsFile(overrides: Partial<FindingsFile> = {}): FindingsFile {
+  return {
+    version: 2,
+    runId: 'run-1',
+    createdAt: '2026-10-21T12:00:00.000Z',
+    findings: [],
+    worthALook: [],
+    rejected: [],
+    intended: [],
+    judge: null,
+    environment: null,
     ...overrides,
   };
 }

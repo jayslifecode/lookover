@@ -197,6 +197,7 @@ describe('RequestObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(client).toMatchObject({
       source: 'observers',
       status: 'candidate',
+      judgement: null,
       severity: 'medium',
       key: `GET ${host()}/api/missing → 404`,
       observed: 'GET /api/missing answered 404',

@@ -1,4 +1,4 @@
-import type { Finding } from '../findings/types.js';
+import type { Finding, JudgeTotals } from '../findings/types.js';
 import type { RouteInfo, Screen, Viewport } from '../map/types.js';
 
 export type RunEventBody =
@@ -38,7 +38,25 @@ export type RunEventBody =
       skipped: { reason: string; count: number }[];
       error: string | null;
     }
-  | { type: 'run.finished'; screens: number; durationMs: number }
+  /** A finding after the judge or the user decided on it, whole, so the report needs nothing else. */
+  | { type: 'finding.judged'; finding: Finding }
+  /** The judge model was not used, and why; the deterministic harness decided on its own. */
+  | { type: 'judge.unavailable'; reason: 'no-api-key' | 'disabled' | 'api-error'; message: string }
+  /**
+   * The run is over. `confirmed`, `rejected` and `intended` count the findings by what became of them,
+   * `worthALook` the lower-confidence candidates, and `judge` is what the judge model cost (`null` when
+   * the run was not judged).
+   */
+  | {
+      type: 'run.finished';
+      screens: number;
+      durationMs: number;
+      confirmed: number;
+      rejected: number;
+      intended: number;
+      worthALook: number;
+      judge: JudgeTotals | null;
+    }
   | { type: 'run.failed'; error: { code: string; message: string } };
 
 export type RunEvent = RunEventBody & { seq: number; at: string; runId: string };

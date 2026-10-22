@@ -121,6 +121,7 @@ describe('TextObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(edited).toMatchObject({
       source: 'observers',
       status: 'candidate',
+      judgement: null,
       severity: 'high',
       observed: 'shows "Last edited by undefined"',
     });

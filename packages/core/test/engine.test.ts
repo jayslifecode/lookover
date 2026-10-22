@@ -327,6 +327,11 @@ describe('runReview', { timeout: BROWSER_TIMEOUT_MS }, () => {
         type: 'run.finished',
         screens: result.map.screens.length,
         durationMs: expect.any(Number),
+        confirmed: 0,
+        rejected: 0,
+        intended: 0,
+        worthALook: result.findings.worthALook.length,
+        judge: null,
       });
       const firstScreen = eventsOf(events, 'screen.discovered')[0];
       expect(eventsOf(events, 'auth.completed')[0]?.seq).toBeLessThan(firstScreen?.seq ?? 0);
@@ -370,7 +375,7 @@ describe('runReview', { timeout: BROWSER_TIMEOUT_MS }, () => {
 
       const screenIds = result.map.screens.map((screen) => screen.id);
       expect(attached).toEqual(['about:blank']);
-      expect(result.findings).toMatchObject({ version: 1, runId: ctx.runId });
+      expect(result.findings).toMatchObject({ version: 2, runId: ctx.runId });
       expect(result.findings.findings.map((finding) => finding.id)).toEqual(
         screenIds.map((id) => `step-${id}`),
       );

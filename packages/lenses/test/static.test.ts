@@ -161,6 +161,7 @@ describe('measureStatic', { timeout: BROWSER_TIMEOUT_MS }, () => {
         source: 'interaction',
         severity: 'high',
         status: 'candidate',
+        judgement: null,
         screenId: 'screen-1',
         key: '/contrast.html|#fail',
         observed: '"Grey on grey" is rgb(156, 163, 175) on rgb(229, 231, 235), 2.05:1 (needs 4.5:1)',

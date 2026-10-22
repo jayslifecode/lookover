@@ -5,22 +5,32 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { configSchema } from '../src/config/schema.js';
 import { LookoverError } from '../src/errors.js';
 import { FINDINGS_FILE, readLatestFindings, writeFindings } from '../src/findings/persist.js';
-import type { FindingsFile } from '../src/findings/types.js';
+import type { Finding, FindingsFile } from '../src/findings/types.js';
 import { createRun } from '../src/run/run-context.js';
-import { deepFreeze, evidenceItem, occurrence, occurrenceFinding, stepFinding } from './fixtures/findings.js';
+import {
+  deepFreeze,
+  findingsFile as emptyFindingsFile,
+  evidenceItem,
+  occurrence,
+  occurrenceFinding,
+  stepFinding,
+} from './fixtures/findings.js';
 
 function findingsFile(runId: string, overrides: Partial<FindingsFile> = {}): FindingsFile {
-  return {
-    version: 1,
+  return emptyFindingsFile({
     runId,
-    createdAt: '2026-10-21T12:00:00.000Z',
     findings: [
       stepFinding({ id: 'step-1', evidence: [evidenceItem('e1')] }),
       occurrenceFinding({ id: 'occ-1', occurrences: [occurrence('s1', '#a')] }),
     ],
     worthALook: [occurrenceFinding({ id: 'occ-2', severity: 'low' })],
     ...overrides,
-  };
+  });
+}
+
+/** A finding as a version 1 file holds it: without the `judgement` field. */
+function legacyFinding(finding: Finding): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(finding).filter(([key]) => key !== 'judgement'));
 }
 
 describe('findings persistence', () => {
@@ -159,11 +169,94 @@ describe('findings persistence', () => {
       ['a missing findings array', { version: 1, worthALook: [] }],
       ['a missing worthALook array', { version: 1, findings: [] }],
       ['findings that are not an array', { version: 1, findings: {}, worthALook: [] }],
+      ['a version 2 file without the rejected list', { ...emptyFindingsFile(), rejected: undefined }],
+      ['a version 2 file without the intended list', { ...emptyFindingsFile(), intended: undefined }],
+      [
+        'a version 2 file with a rejected list that is not an array',
+        { ...emptyFindingsFile(), rejected: {} },
+      ],
     ])('rejects %s', async (_name, content) => {
       const ctx = await createRun({ cwd, config });
       await writeFile(join(ctx.lookoverDir, 'findings.json'), JSON.stringify(content));
 
       await expect(readLatestFindings(ctx.lookoverDir)).rejects.toMatchObject({ code: 'E_RUN_FAILED' });
     });
+
+    test('upgrades a version 1 file in memory to the version 2 shape', async () => {
+      const ctx = await createRun({ cwd, config });
+      const step = stepFinding({ id: 'step-1' });
+      const worth = occurrenceFinding({ id: 'occ-2', severity: 'low' });
+      const skipped = [{ reason: 'hidden', count: 2 }];
+      const legacy = {
+        version: 1,
+        runId: ctx.runId,
+        createdAt: '2026-10-21T12:00:00.000Z',
+        findings: [legacyFinding(step)],
+        worthALook: [legacyFinding(worth)],
+        skipped,
+      };
+      await writeFile(join(ctx.lookoverDir, 'findings.json'), JSON.stringify(legacy));
+
+      const file = await readLatestFindings(ctx.lookoverDir);
+
+      expect(file).toEqual({
+        version: 2,
+        runId: ctx.runId,
+        createdAt: '2026-10-21T12:00:00.000Z',
+        findings: [step],
+        worthALook: [worth],
+        skipped,
+        rejected: [],
+        intended: [],
+        judge: null,
+        environment: null,
+      });
+      expect(
+        file?.findings.every((finding) => finding.judgement === null && finding.status === 'candidate'),
+      ).toBe(true);
+    });
+
+    test('leaves a version 1 file on disk as it was', async () => {
+      const ctx = await createRun({ cwd, config });
+      const path = join(ctx.lookoverDir, 'findings.json');
+      const legacy = JSON.stringify({ version: 1, runId: ctx.runId, findings: [], worthALook: [] });
+      await writeFile(path, legacy);
+
+      await readLatestFindings(ctx.lookoverDir);
+
+      expect(await readFile(path, 'utf8')).toBe(legacy);
+    });
+
+    test('reads a version 2 file with judged findings as it was written', async () => {
+      const ctx = await createRun({ cwd, config });
+      const confirmed = stepFinding({ id: 'step-1', status: 'confirmed' });
+      const file = findingsFile(ctx.runId, {
+        findings: [confirmed],
+        rejected: [stepFinding({ id: 'step-2', status: 'rejected' })],
+        intended: [occurrenceFinding({ id: 'occ-3', status: 'intended' })],
+      });
+
+      await writeFindings(ctx, file);
+
+      expect(await readLatestFindings(ctx.lookoverDir)).toEqual(file);
+    });
+
+    test.each([0, 3, 99])(
+      'fails with E_RUN_FAILED naming versions 1 and 2 for version %s',
+      async (version) => {
+        const ctx = await createRun({ cwd, config });
+        const path = join(ctx.lookoverDir, 'findings.json');
+        await writeFile(path, JSON.stringify({ ...emptyFindingsFile(), version }));
+
+        const error = await readLatestFindings(ctx.lookoverDir).catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(LookoverError);
+        expect(error).toMatchObject({ code: 'E_RUN_FAILED' });
+        expect((error as LookoverError).message).toContain(path);
+        expect((error as LookoverError).message).toContain(`version ${version}`);
+        expect((error as LookoverError).message).toContain('versions 1 and 2');
+        expect((error as LookoverError).hint).toBe('Delete the file and run again to rebuild the findings');
+      },
+    );
   });
 });

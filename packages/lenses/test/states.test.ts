@@ -257,6 +257,7 @@ describe('captureStates', { timeout: BROWSER_TIMEOUT_MS }, () => {
         source: 'interaction',
         severity: 'high',
         status: 'candidate',
+        judgement: null,
         screenId: 'screen-1',
         key: '/ring.html|#none',
         observed: 'shows no change when it receives keyboard focus',

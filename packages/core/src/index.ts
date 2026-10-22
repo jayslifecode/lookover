@@ -33,19 +33,29 @@ export type { EvidenceRef } from './evidence/store.js';
 export { EvidenceStore } from './evidence/store.js';
 export type { OccurrenceFindingInput, StepFindingInput } from './findings/build.js';
 export { occurrenceFinding, stepFinding } from './findings/build.js';
+export type { Decision, DecisionsFile } from './findings/decisions.js';
+export { applyDecisions, DECISIONS_FILE, readDecisions, writeDecision } from './findings/decisions.js';
+export type { FindingsDrift } from './findings/diff.js';
+export { diffFindings } from './findings/diff.js';
 export type { FixPromptInput } from './findings/fix-prompt.js';
 export { fixPromptFor } from './findings/fix-prompt.js';
 export { findingId, mergeFindings } from './findings/id.js';
 export type { Lens, LensContext, LensResult, LensSkip } from './findings/lens.js';
 export { FINDINGS_FILE, readLatestFindings, writeFindings } from './findings/persist.js';
 export type {
+  Attempt,
+  Attribution,
+  DecidedBy,
   ElementTarget,
+  Environment,
   EvidenceItem,
   Finding,
   FindingSource,
   FindingStatus,
   FindingsFile,
   ForcedState,
+  Judgement,
+  JudgeTotals,
   LensName,
   Occurrence,
   OccurrenceFinding,
@@ -55,6 +65,7 @@ export type {
   Step,
   StepFinding,
   StepTrace,
+  TokenUsage,
 } from './findings/types.js';
 export type { CrawlOptions } from './map/crawler.js';
 export { crawl } from './map/crawler.js';

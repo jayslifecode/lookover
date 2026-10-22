@@ -200,6 +200,7 @@ describe('ConsoleObserver', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(error).toMatchObject({
       source: 'observers',
       status: 'candidate',
+      judgement: null,
       severity: 'medium',
       key: 'Report locale missing for # rows',
       observed: 'logged "Report locale missing for 3 rows"',
