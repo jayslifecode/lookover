@@ -34,7 +34,7 @@ export interface RunSummary {
 
 /** Printed after the candidates of a `--no-judge` run: they are measurements, nothing judged or reproduced them. */
 export const CANDIDATES_NOTE =
-  'Candidates are measured but not yet judged or reproduced; the judge arrives in the next release.';
+  'Candidates are measured but not reproduced or judged because the judge was turned off (--no-judge); run without it to confirm them.';
 
 /** Printed after the confirmed findings of a run without `ANTHROPIC_API_KEY`: the harness decided alone. */
 export const HARNESS_ONLY_NOTE = `Findings were reproduced ${REPRODUCTION_ATTEMPTS} times each but not reviewed by the judge model; set ANTHROPIC_API_KEY to enable it.`;
@@ -110,7 +110,8 @@ export function summaryRows(summary: RunSummary): [string, string][] {
 
 /**
  * What became of the candidates, the worth-a-look entries, the skips, the judge and the findings file. A
- * judged run counts its confirmed, rejected and intended findings; a `--no-judge` run its candidates.
+ * judged run counts its confirmed, rejected and intended findings; a `--no-judge` run its candidates and
+ * the findings its decisions left out as intended.
  */
 function inspectionRows({ cwd, inspection }: RunSummary): [string, string][] {
   if (inspection === undefined) {
@@ -129,7 +130,10 @@ function inspectionRows({ cwd, inspection }: RunSummary): [string, string][] {
 /** A candidate the judge never decided on is in `findings` too, but it is not confirmed. */
 function outcomeRows(file: FindingsFile): [string, string][] {
   if (file.judge === null) {
-    return [['Candidates', String(file.findings.length)]];
+    return [
+      ['Candidates', String(file.findings.length)],
+      ['Intended', String(file.intended.length)],
+    ];
   }
   const confirmed = file.findings.filter((finding) => finding.status === 'confirmed');
   return [

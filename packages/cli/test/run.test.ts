@@ -473,7 +473,11 @@ describe('lookover run in a browser', () => {
         JSON.stringify({ baseUrl, interaction: 'safe', framework: 'unknown' }),
       );
 
-      const result = await runCli(dir, ['run', '--yes'], { timeoutMs: BROWSER_RUN_TIMEOUT_MS });
+      // A real run: without the key, it can never reach the judge model, whatever it gets to.
+      const result = await runCli(dir, ['run', '--yes'], {
+        timeoutMs: BROWSER_RUN_TIMEOUT_MS,
+        withoutEnv: ['ANTHROPIC_API_KEY'],
+      });
 
       expect(result.code, result.stderr).toBe(3);
       expect(result.stderr).toContain('E_HOSTS_UNCONFIRMED');

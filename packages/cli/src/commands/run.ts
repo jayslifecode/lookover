@@ -44,7 +44,10 @@ import {
 /** What inspects each screen and judges what it yields; nothing for `--map-only`, which only maps. */
 interface Inspectors {
   readonly lenses: readonly Lens[];
-  /** `undefined` with `--no-judge` (and `--map-only`): the candidates are written as measured. */
+  /**
+   * The pipeline, or with `--no-judge` a judge that only applies the decisions (the candidates are
+   * written as measured, less the intended ones); `undefined` with `--map-only`, which has no candidates.
+   */
   readonly judge: Judge | undefined;
 }
 

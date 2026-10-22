@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -152,10 +152,11 @@ describe('lookover run with the engine stubbed', () => {
       expect(options.judge).toBeInstanceOf(JudgePipeline);
     });
 
-    test('--no-judge asks for no judge', async () => {
+    test('--no-judge asks for a judge that only applies the decisions, not a pipeline', async () => {
       const { options } = await run({ judge: false }, { events: [] });
 
-      expect(options.judge).toBeUndefined();
+      expect(options.judge).toBeDefined();
+      expect(options.judge).not.toBeInstanceOf(JudgePipeline);
       expect(options.lenses?.[0]).toBeInstanceOf(InteractionLens);
     });
 
@@ -394,12 +395,13 @@ describe('lookover run with the engine stubbed', () => {
     );
     const events = [captured({ id: 'a', route: '/a' }), inspected('a', 3)];
 
-    test('adds the candidates, worth-a-look, skipped, judge and findings rows right after the duration', async () => {
+    test('adds the candidates, intended, worth-a-look, skipped, judge and findings rows right after the duration', async () => {
       const { stdout: lines } = await run({ judge: false }, { events, findings });
 
-      const keys = ['Duration', 'Candidates', 'Worth a look', 'Skipped', 'Judge', 'Findings'];
-      expect(rowOffsets(lines, keys)).toEqual([0, 1, 2, 3, 4, 5]);
+      const keys = ['Duration', 'Candidates', 'Intended', 'Worth a look', 'Skipped', 'Judge', 'Findings'];
+      expect(rowOffsets(lines, keys)).toEqual([0, 1, 2, 3, 4, 5, 6]);
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Candidates +3$/));
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Intended +0$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Worth a look +1$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Skipped +none$/));
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Judge +off \(--no-judge\)$/));
@@ -421,6 +423,34 @@ describe('lookover run with the engine stubbed', () => {
 
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Candidates {2,}0$/));
       expect(lines).toContain(CANDIDATES_NOTE);
+    });
+
+    test('leaves out a finding marked intended: it is counted as intended, not listed as a candidate', async () => {
+      const [decided] = findings.findings;
+      if (decided === undefined) throw new Error('the fixture has no finding');
+      const decision = { status: 'intended', at: '2026-10-22T00:00:00.000Z', note: null };
+      await mkdir(join(dir, '.lookover'), { recursive: true });
+      await writeFile(
+        join(dir, '.lookover', 'decisions.json'),
+        JSON.stringify({ version: 1, decisions: { [decided.id]: decision } }),
+      );
+      // The engine hands the screen's candidates to the judge and writes the file it drains to.
+      vi.mocked(runReview).mockImplementation(async (_ctx, options) => {
+        options.judge?.onScreenInspected(screen({ id: 'a', route: '/a' }), findings.findings, []);
+        const drained = (await options.judge?.drain(findings))?.file ?? findings;
+        return { map: appMap([]), confirmedBackendHosts: [], blockedUnconfirmedHosts: [], findings: drained };
+      });
+
+      await runRun({ yes: true, judge: false }, VERSION);
+
+      const lines = stdout.join('').split('\n');
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Candidates +2$/));
+      expect(lines).toContainEqual(expect.stringMatching(/^ {2}Intended +1$/));
+      expect(afterTable(lines)).toEqual([
+        '  high    interaction.focus-visible-missing  1  /login button "Save"',
+        '  medium  observers.console-error            1  2 occurrences on 2 screens',
+        CANDIDATES_NOTE,
+      ]);
     });
 
     test('with --map-only leaves out the candidates, the worth-a-look entries, the findings and the note', async () => {

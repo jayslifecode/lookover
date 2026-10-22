@@ -162,16 +162,34 @@ describe('summaryRows', () => {
       },
     };
 
-    test('in a --no-judge run, adds the candidates, the worth-a-look entries, the skips, the judge and the findings file', () => {
+    test('in a --no-judge run, adds the candidates, the intended findings, the worth-a-look entries, the skips, the judge and the findings file', () => {
       const rows = summaryRows(inspected);
 
       expect(rows.slice(0, 8)).toEqual(summaryRows(summary));
       expect(rows.slice(8)).toEqual([
         ['Candidates', '3'],
+        ['Intended', '0'],
         ['Worth a look', '2'],
         ['Skipped', 'time-budget 12 · focus-indicator-ua-ring 9 · background-uncertain:overlapped 4'],
         ['Judge', 'off (--no-judge)'],
         ['Findings', '.lookover/findings.json'],
+      ]);
+    });
+
+    test('in a --no-judge run, counts the findings the decisions left out as intended', () => {
+      const intended = [
+        {
+          ...stepCandidate({ ruleId: 'interaction.target-size', selector: '#i' }),
+          status: 'intended' as const,
+        },
+      ];
+      const file = { ...findingsFile(candidates(2)), intended };
+
+      const rows = summaryRows({ ...inspected, inspection: { ...inspected.inspection, findings: file } });
+
+      expect(rows.slice(8, 10)).toEqual([
+        ['Candidates', '2'],
+        ['Intended', '1'],
       ]);
     });
 
@@ -250,9 +268,9 @@ describe('summaryRows', () => {
 });
 
 describe('CANDIDATES_NOTE', () => {
-  test('says the candidates are measured, not judged or reproduced', () => {
+  test('says the candidates are not reproduced or judged because --no-judge turned the judge off', () => {
     expect(CANDIDATES_NOTE).toBe(
-      'Candidates are measured but not yet judged or reproduced; the judge arrives in the next release.',
+      'Candidates are measured but not reproduced or judged because the judge was turned off (--no-judge); run without it to confirm them.',
     );
   });
 });

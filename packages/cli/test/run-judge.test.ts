@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  type BrowserSession,
   ConsoleObserver,
   configSchema,
   createRun,
@@ -15,6 +16,7 @@ import { JudgePipeline } from '@jayslifecode/lookover-judge';
 import { InteractionLens } from '@jayslifecode/lookover-lenses';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { type CreateJudgeOptions, createJudge, pipelineOptions } from '../src/commands/run-judge.js';
+import { findingsFile, screen, stepCandidate } from './run-fixtures.js';
 
 const VERSION = '1.2.3';
 const KEY = 'sk-ant-test-key';
@@ -62,17 +64,44 @@ describe('createJudge', () => {
 
   describe('with --no-judge', () => {
     const noJudge = { flags: { isJudged: false, judgeModel: undefined } };
-
-    test('there is no judge, with or without a key', async () => {
-      await expect(createJudge(options(noJudge))).resolves.toBeUndefined();
-      await expect(createJudge(options({ ...noJudge, env: {} }))).resolves.toBeUndefined();
+    /** Fails the test the moment anything on it is used: a --no-judge run reproduces nothing. */
+    const untouchableSession = new Proxy({} as BrowserSession, {
+      get: (_target, property) => {
+        throw new Error(`The --no-judge judge used the session (${String(property)})`);
+      },
     });
 
-    test('the decisions are not read, so a broken decisions file does not stop the run', async () => {
+    test('is a judge that only applies the decisions, with or without a key', async () => {
+      for (const env of [{ ANTHROPIC_API_KEY: KEY }, {}]) {
+        const judge = await createJudge(options({ ...noJudge, env }));
+
+        expect(judge).toBeDefined();
+        expect(judge).not.toBeInstanceOf(JudgePipeline);
+      }
+    });
+
+    test('leaves out the findings marked intended and never reproduces the others', async () => {
+      const decided = stepCandidate({ ruleId: 'interaction.focus-visible-missing', selector: '#decided' });
+      const other = stepCandidate({ ruleId: 'interaction.target-size' });
+      const decision = { status: 'intended', at: '2026-10-22T00:00:00.000Z', note: 'on purpose' };
+      await decisionsAre(JSON.stringify({ version: 1, decisions: { [decided.id]: decision } }));
+      const judge = await createJudge(options(noJudge));
+
+      judge?.attach(untouchableSession);
+      judge?.onScreenInspected(screen(), [decided, other], []);
+      const outcome = await judge?.drain(findingsFile([decided, other]));
+
+      expect(outcome?.file.findings).toEqual([other]);
+      expect(outcome?.file.intended).toMatchObject([
+        { id: decided.id, status: 'intended', judgement: { decidedBy: 'user', note: 'on purpose' } },
+      ]);
+      expect(outcome?.file.judge).toBeNull();
+    });
+
+    test('fails with E_RUN_FAILED when the decisions cannot be read', async () => {
       await decisionsAre('{ not json');
 
-      await expect(createJudge(options(noJudge))).resolves.toBeUndefined();
-      await expect(pipelineOptions(options(noJudge))).resolves.toBeNull();
+      await expect(createJudge(options(noJudge))).rejects.toMatchObject({ code: 'E_RUN_FAILED' });
     });
   });
 

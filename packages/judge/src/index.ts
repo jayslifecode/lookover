@@ -3,6 +3,8 @@ export { batchesFor } from './batch.js';
 export { JUDGE_CONCURRENCY, REPRODUCTION_ATTEMPTS } from './constants.js';
 export type { DecideOptions, ModelVerdict } from './decide.js';
 export { decideOccurrence, decideStep, modelUnavailableNote } from './decide.js';
+export type { DecisionsOnlyOptions } from './decisions-only.js';
+export { createDecisionsOnlyJudge } from './decisions-only.js';
 export { captureEnvironment } from './environment.js';
 export type { HarnessOptions } from './harness.js';
 export { Harness, isReproduced, targetKey } from './harness.js';
