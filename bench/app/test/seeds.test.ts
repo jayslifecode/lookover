@@ -18,6 +18,8 @@ const seedSchema = z.strictObject({
   rule: z.string().min(1),
   expectedSeverity: z.enum(SEVERITIES),
   control: z.boolean().optional(),
+  /** A control Lookover sees as a candidate and must reject (a timing control). */
+  expectedStatus: z.literal('rejected').optional(),
 });
 
 const seedsFileSchema = z.strictObject({
@@ -52,6 +54,12 @@ function readSeeds(): Seed[] {
 describe('bench/seeds.json', () => {
   test('every entry has the documented shape', () => {
     expect(() => readSeeds()).not.toThrow();
+  });
+
+  test('only a control names the status it must end with', () => {
+    const issues = readSeeds().filter((seed) => seed.expectedStatus !== undefined && seed.control !== true);
+
+    expect(issues.map((seed) => seed.id)).toEqual([]);
   });
 
   test('ids are unique', () => {

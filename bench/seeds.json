@@ -106,6 +106,15 @@
       "rule": "interaction.hover-state-missing",
       "expectedSeverity": "low",
       "control": true
+    },
+    {
+      "id": "control-004",
+      "lens": "observers",
+      "route": "/reports",
+      "rule": "observers.request-server-error",
+      "expectedSeverity": "high",
+      "control": true,
+      "expectedStatus": "rejected"
     }
   ]
 }

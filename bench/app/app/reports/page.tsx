@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { FlakyStatus } from '@/components/flaky-status';
 import { ReportDialog } from '@/components/report-dialog';
 import { HEADING } from '@/components/styles';
 import { listOrganisations } from '@/lib/store';
@@ -22,6 +23,8 @@ export default async function ReportsPage() {
           Export CSV
         </button>
       </div>
+      {/* Below the buttons, so its message changing from load to load never moves them. */}
+      <FlakyStatus />
     </div>
   );
 }

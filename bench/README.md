@@ -4,10 +4,12 @@ The bench is how Lookover's precision and recall are measured. `bench/app` is a 
 with deliberately seeded issues, and `bench/seeds.json` lists those issues so a harness can compare
 them with what Lookover reports. The app is built correct (labelled fields, a visible focus ring, one
 date format, one primary colour), so every defect in it is one of the ten seeded issues listed under
-[Seeds](#seeds), and three things that look like defects but are correct are listed beside them as
-controls. Until the benchmark harness exists, the end-to-end suite (`pnpm test:e2e`,
-`packages/cli/test/e2e/bench.test.ts`) runs Lookover against the app and fails unless every seeded issue
-is found and no control is flagged.
+[Seeds](#seeds). Four controls are listed beside them: three things that look like defects but are
+correct, and one failure that comes and goes (the [timing control](#the-timing-control)), which Lookover
+must reject rather than report. Until the benchmark harness exists, the end-to-end suite
+(`pnpm test:e2e`, `packages/cli/test/e2e/bench.test.ts`) runs Lookover against the app and fails unless
+every seeded issue is confirmed (reproduced on three attempts of three), no control is flagged, and the
+timing control ends rejected as timing.
 
 ## Running the app
 
@@ -43,10 +45,12 @@ The login form's fields are `input[name="email"]`, `input[name="password"]` and
 | `/organisations`      | Table of organisations; each name links to its edit page, and each row has Edit and Copy email icons |
 | `/organisations/[id]` | Edit form: name, phone (8 digits), email, registered on (`YYYY-MM-DD`); Save, Cancel; a "last edited" line |
 | `/organisations/new`  | The same form, empty                                                           |
-| `/reports`            | A button that opens the summary report in a `<dialog>`, and an Export CSV button |
+| `/reports`            | A button that opens the summary report in a `<dialog>`, an Export CSV button, and a report-service status line |
 | `/settings`           | Workspace name, contact email, time zone; Save                                 |
 
-`GET /api/stats` is a Route Handler, not a screen: the dashboard asks it for live stats.
+`GET /api/stats` and `GET /api/flaky` are Route Handlers, not screens: the dashboard asks the first
+for live stats, and the reports page asks the second how the report service is (see
+[the timing control](#the-timing-control)).
 
 Dates appear in one format everywhere, `YYYY-MM-DD`, including the registered-date field, which is
 a text input rather than the browser's date picker (that one renders in the browser's locale). It
@@ -103,13 +107,16 @@ Each entry in `issues` has this shape:
   rule: string;               // the rule Lookover should report the issue under
   expectedSeverity: 'blocker' | 'high' | 'medium' | 'low';
   control?: boolean;          // true for a clean control: looks like the issue but is correct
+  expectedStatus?: 'rejected'; // a control Lookover sees as a candidate and must reject (timing)
 }
 ```
 
 A control entry describes something Lookover must **not** flag. It counts towards precision: a
 finding that matches a control is a false positive. An entry without `control` is a real seeded
-issue and counts towards recall. A control's `expectedSeverity` is its rule's own severity: what a
-false positive would have been reported as.
+issue and counts towards recall; it must be confirmed. A control's `expectedSeverity` is its rule's
+own severity: what a false positive would have been reported as. A control with
+`expectedStatus: 'rejected'` is one Lookover does measure as a candidate, and it must end in
+`findings.json`'s `rejected` list (with `attribution: 'timing'`), never in `findings` or `worthALook`.
 
 ### Seeded issues
 
@@ -133,6 +140,33 @@ false positive would have been reported as.
 | `control-001` | `/login` | `body > main:nth-of-type(1) > div:nth-of-type(1) > form:nth-of-type(1) > button:nth-of-type(1)` | `interaction.focus-visible-missing` | The Sign in button shows the shared focus ring |
 | `control-002` | `/organisations` | `[data-testid="organisations-table"] > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(1) > a:nth-of-type(1)` | `interaction.target-size` | The organisation name links are ordinary inline text links (the selector is the first row's) |
 | `control-003` | `/reports` | `[data-testid="open-report"]` | `interaction.hover-state-missing` | The Open summary report button changes on hover (`hover:bg-primary/90`) |
+| `control-004` | `/reports` | none | `observers.request-server-error` | `/api/flaky` fails only now and then (the [timing control](#the-timing-control)); a failure that does not come back is not reported. Expected status: `rejected` |
+
+### The timing control
+
+`control-004` checks that a problem which comes and goes is rejected as timing, never reported. On
+`/reports`, `FlakyStatus` asks `GET /api/flaky` how the report service is, once per page load (a ref
+keeps React Strict Mode's second run of the effect from asking again), and logs
+`console.error('flaky: 500')` when the answer is a failure. The route keeps a module-level counter and
+answers **the first two requests of every six with `500`**, the other four with `200`; the counter
+starts at zero when the dev server starts, and the end-to-end suite starts its own server.
+
+Every load of `/reports` in a run is one request, in this order:
+
+| Request | Load of `/reports` | Answer |
+| --- | --- | --- |
+| — | The probe, before logging in, may open `/reports`; the page redirects to `/login` without rendering, so it asks nothing | — |
+| 1 | The crawl captures the screen; the observers report `GET /api/flaky answered 500` and the console error `flaky: 500` as candidates | `500` |
+| 2 | The interaction lens's viewport sweep reloads the page at the mobile viewport | `500` |
+| 3 | The sweep reloads it back at the desktop viewport (the observers have collected, and the crawl's next navigation drops what the reloads logged) | `200` |
+| 4–6 | The judge's three reproduction attempts, each a fresh browser context loading `/reports` once | `200` |
+
+Neither candidate comes back on any of the three attempts, so both end in `rejected` with
+`attribution: 'timing'` ("Reproduced 0 of 3 times"). If a reproduction attempt ever reloaded the page as
+well (a sweep finding on `/reports`), an attempt could land on a failing request of the next cycle, but
+never all three, since only two requests in a row fail: the candidates would still be rejected. This
+sequence was counted from the dev server's request log of an end-to-end run
+(`packages/cli/.e2e/bench-dev.log`).
 
 ### Selectors
 
