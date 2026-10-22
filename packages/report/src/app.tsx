@@ -1,22 +1,22 @@
-import { useEffect, useState } from 'react';
-import { API_PATHS, type ApiErrorBody, type RunManifest, type RunStatus } from '../node/api';
+import type { RunStatus } from '../node/api';
+import type { ReportError, ReportState } from './data/reduce';
+import { defaultRoute, navigate, type Route, type RouteView, useRoute, viewRoute } from './data/route';
+import { confirmedFindings, firstCapturedScreen } from './data/selectors';
+import { useReport } from './data/store';
 import { LensFilter } from './glass/glass';
 import type { LiveStatus } from './shell/live-indicator';
+import { SegmentedControl, type SegmentedItem } from './shell/segmented-control';
 import { TopBar } from './shell/top-bar';
 
 /*
- * The report's shell: the top bar over the page, and the main area the views fill. For now it loads only
- * what the shell shows, the run's manifest.
+ * The report's shell: the top bar with the view switcher over the page, and the main area the current
+ * route's view fills. The views themselves come with the next tasks; for now the main area names the
+ * route it shows.
  */
 
-type ManifestState =
-  | { readonly state: 'loading' }
-  | { readonly state: 'ready'; readonly manifest: RunManifest }
-  | { readonly state: 'failed'; readonly message: string };
-
 /**
- * The manifest says only whether the run is still going; which phase it is in comes from the event
- * stream, so a running run shows its first phase.
+ * The run's state says only whether it is still going; which phase it is in comes with the live states,
+ * so a running run shows its first phase.
  */
 const LIVE_STATUS: Readonly<Record<RunStatus, LiveStatus>> = {
   running: 'mapping',
@@ -24,68 +24,93 @@ const LIVE_STATUS: Readonly<Record<RunStatus, LiveStatus>> = {
   failed: 'failed',
 };
 
-async function fetchManifest(signal: AbortSignal): Promise<RunManifest> {
-  const response = await fetch(API_PATHS.run, { signal, headers: { accept: 'application/json' } });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
-    throw new Error(body?.error ?? `The report server answered ${response.status}`);
+const VIEW_TABS: readonly SegmentedItem<RouteView>[] = [
+  { value: 'screens', label: 'Screens' },
+  { value: 'findings', label: 'Findings' },
+  { value: 'drift', label: 'Drift' },
+];
+
+const VIEW_TITLE: Readonly<Record<RouteView, string>> = {
+  screens: 'Screens',
+  findings: 'Findings',
+  drift: 'Drift',
+};
+
+const VIEW_PANEL_ID = 'report-view';
+
+function routeSummary(report: ReportState, route: Route): string {
+  if (report.manifest === null) return 'Loading the run…';
+  if (route.view === 'screens') {
+    const screen =
+      route.screenId === null
+        ? firstCapturedScreen(report)
+        : report.screens.find((known) => known.id === route.screenId);
+    if (screen === undefined) return `This run has no screen ${route.screenId}.`;
+    return screen === null ? 'No screen has been captured yet.' : `${screen.title} · ${screen.route}`;
   }
-  return (await response.json()) as RunManifest;
+  if (route.view === 'findings') return `${confirmedFindings(report).length} confirmed findings.`;
+  return report.manifest.previousRunId === null
+    ? 'This is the first run: there is nothing to compare it with.'
+    : `Compared with the run ${report.manifest.previousRunId}.`;
 }
 
-function useRunManifest(): ManifestState {
-  const [state, setState] = useState<ManifestState>({ state: 'loading' });
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchManifest(controller.signal).then(
-      (manifest) => setState({ state: 'ready', manifest }),
-      (error: unknown) => {
-        if (controller.signal.aborted) return;
-        const message = error instanceof Error ? error.message : String(error);
-        setState({ state: 'failed', message });
-      },
-    );
-    return () => controller.abort();
-  }, []);
-  return state;
-}
-
-function MainArea({ run }: { run: ManifestState }) {
-  if (run.state === 'failed') {
+function MainArea({
+  report,
+  route,
+  error,
+}: {
+  report: ReportState;
+  route: Route;
+  error: ReportError | null;
+}) {
+  if (error !== null) {
     return (
       <div role="alert" className="rounded-lg border border-line bg-bg-1 p-6">
         <h1 className="font-bold text-lg">The run could not be loaded</h1>
-        <p className="mt-1 text-ink-2">{run.message}</p>
+        <p className="mt-1 text-ink-2">{error.message}</p>
       </div>
     );
   }
   return (
-    <section aria-labelledby="report-title" className="rounded-lg border border-line bg-bg-1 p-6">
-      <h1 id="report-title" className="font-bold text-2xl tracking-tight">
-        Run report
+    <section
+      id={VIEW_PANEL_ID}
+      role="tabpanel"
+      aria-labelledby="view-title"
+      className="rounded-lg border border-line bg-bg-1 p-6"
+    >
+      <h1 id="view-title" className="font-bold text-2xl tracking-tight">
+        {VIEW_TITLE[route.view]}
       </h1>
-      <p className="mt-1 max-w-[58ch] text-ink-2">
-        {run.state === 'loading'
-          ? 'Loading the run…'
-          : 'The screens this run captured, the findings it confirmed and what changed since the last run will be shown here.'}
-      </p>
+      <p className="mt-1 max-w-[58ch] text-ink-2">{routeSummary(report, route)}</p>
     </section>
   );
 }
 
 export function App() {
-  const run = useRunManifest();
-  const manifest = run.state === 'ready' ? run.manifest : null;
+  const report = useReport();
+  const firstScreenId = firstCapturedScreen(report)?.id ?? null;
+  const route = useRoute() ?? defaultRoute(firstScreenId);
+  const { manifest } = report;
+  const manifestError = report.errors.find((error) => error.source === 'manifest') ?? null;
   return (
     <div className="px-4 pt-3.5 pb-30 sm:px-6">
       <LensFilter />
       <TopBar
         runName={manifest?.runId ?? 'Lookover report'}
         baseUrl={manifest?.baseUrl ?? null}
-        status={manifest === null ? null : LIVE_STATUS[manifest.status]}
+        status={manifest === null ? null : LIVE_STATUS[report.run.status]}
+        nav={
+          <SegmentedControl
+            items={VIEW_TABS}
+            value={route.view}
+            label="Report views"
+            controls={VIEW_PANEL_ID}
+            onChange={(view) => navigate(viewRoute(view, firstScreenId))}
+          />
+        }
       />
       <main className="mx-auto mt-6 max-w-[1120px]">
-        <MainArea run={run} />
+        <MainArea report={report} route={route} error={manifestError} />
       </main>
     </div>
   );
