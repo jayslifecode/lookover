@@ -25,6 +25,7 @@
     "@anthropic-ai/sdk": "^1.1",
     "@jayslifecode/lookover-core": "workspace:*",
     "@jayslifecode/lookover-lenses": "workspace:*",
+    "@jayslifecode/lookover-rules": "workspace:*",
     "zod": "^4.6"
   },
   "devDependencies": {
