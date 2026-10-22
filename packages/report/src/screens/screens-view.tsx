@@ -2,14 +2,14 @@ import type { Screen } from '@jayslifecode/lookover-core';
 import { useMemo } from 'react';
 import type { ReportState } from '@/data/reduce';
 import { findingsOnScreen, firstCapturedScreen, scorecard } from '@/data/selectors';
-import { AnnotatedScreenshot, Notice, UnpinnedFindings } from './annotated-screenshot';
+import { AnnotatedScreenshot, Notice } from './annotated-screenshot';
 import { Scorecard } from './scorecard';
 import { ScreenList } from './screen-list';
 import { StateGallery } from './state-gallery';
 
 /*
  * The Screens view (`#/screens/<id>?f=<findingId>`): the screen list, the screen's pinned screenshot with
- * its unpinned findings, its scorecard and its state gallery under it, and on the right the room the
+ * the findings it cannot pin listed under it, its scorecard and its state gallery under it, and on the right the room the
  * finding panel takes. At 1440 px that is a 280 px sidebar, the screenshot column and a 380 px column
  * (from `xl`; below it the panel's room is not kept); at phone width everything stacks, the list a strip
  * that scrolls sideways on top.
@@ -55,7 +55,6 @@ function ScreenDetail({
         </p>
       </header>
       <AnnotatedScreenshot screen={screen} findings={findings} selectedId={findingId} />
-      <UnpinnedFindings screen={screen} findings={findings} selectedId={findingId} />
       <Scorecard card={card} />
       <StateGallery gallery={gallery} />
     </div>

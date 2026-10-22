@@ -1,100 +1,35 @@
-import type { Finding, Screen } from '@jayslifecode/lookover-core';
+import type { Screen } from '@jayslifecode/lookover-core';
+import type { StateGallery as StateGalleryFile } from '@jayslifecode/lookover-lenses';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { API_PATHS, EVIDENCE_PATH_PREFIX } from '../node/api';
-import { initialState, type ReportState, reduce, withFindingsFile } from '../src/data/reduce';
+import { API_PATHS } from '../node/api';
 import { formatRoute } from '../src/data/route';
 import { findingsOnScreen } from '../src/data/selectors';
-import { DOT_SIZE, type PinPlacement, pinFace, pinName, placePins } from '../src/screens/pins';
-import { ScreensView } from '../src/screens/screens-view';
-import { fixtureEvents, fixtureEvidenceText, fixtureFindings } from './fixture';
+import { DOT_SIZE, fixFirstOrder, pinFace, pinName } from '../src/screens/pins';
+import { fixtureEvidenceText } from './fixture';
 import { REDUCED_MOTION, stubMatchMedia } from './media';
+import {
+  DASHBOARD,
+  galleryRows,
+  LOGIN,
+  loadScreenshot,
+  NATURAL_WIDTH,
+  ORGANISATIONS,
+  pinButtons,
+  pinNames,
+  placementsOn,
+  queryScreenshot,
+  SHOWN_WIDTH,
+  STATE,
+  scoreOf,
+  screenshot,
+  show,
+  stepFindingsOn,
+  stubEvidenceFetch,
+  stubImageSizes,
+} from './screens-helpers';
 
-/*
- * The Screens view over the fixture run (3 screens of the bench: the dashboard, the login page and the
- * organisations list). jsdom loads no image and lays nothing out, so the screenshot's sizes are stubbed:
- * 1440 px wide as captured, shown 720 px wide. `fetch` answers the evidence files from the fixture.
- */
-
-const STATE: ReportState = withFindingsFile(
-  fixtureEvents().reduce(reduce, initialState()),
-  fixtureFindings(),
-);
-const DASHBOARD = '4a17c4d0a2';
-const LOGIN = '57682dba9d';
-const ORGANISATIONS = '38a8049145';
-const NATURAL_WIDTH = 1440;
-const NATURAL_HEIGHT = 1800;
-const SHOWN_WIDTH = 720;
-const PIN_NAME = /^\d+\. /;
-
-function stubImageSizes(): void {
-  vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(NATURAL_WIDTH);
-  vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(NATURAL_HEIGHT);
-  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function (this: Element) {
-    return this instanceof HTMLImageElement ? SHOWN_WIDTH : 0;
-  });
-}
-
-/** `fetch` answering `/api/evidence/<path>` from the fixture run's evidence, else 404. */
-function stubEvidenceFetch() {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input);
-    if (!url.startsWith(API_PATHS.evidence)) return new Response('{}', { status: 404 });
-    const path = `${EVIDENCE_PATH_PREFIX}${decodeURIComponent(url.slice(API_PATHS.evidence.length))}`;
-    return new Response(fixtureEvidenceText(path), { headers: { 'content-type': 'application/json' } });
-  });
-  vi.stubGlobal('fetch', fetchMock);
-  return fetchMock;
-}
-
-function show(screenId: string | null, findingId: string | null = null, report: ReportState = STATE) {
-  return <ScreensView report={report} screenId={screenId} findingId={findingId} />;
-}
-
-/** Fires the screenshot's `load`, as the browser does once it has the image. */
-function loadScreenshot(): void {
-  const image = screen.getByRole('img', { name: /^Screenshot of / });
-  act(() => {
-    fireEvent.load(image);
-  });
-}
-
-function pinNames(): (string | null)[] {
-  const pins = within(screen.getByRole('list', { name: 'Pinned findings' })).queryAllByRole('button', {
-    name: PIN_NAME,
-  });
-  return pins.map((pin) => pin.getAttribute('aria-label'));
-}
-
-/** The pins the view should draw for `screenId` at the stubbed sizes. */
-function placementsOn(screenId: string): PinPlacement[] {
-  const shown = { width: SHOWN_WIDTH, height: (NATURAL_HEIGHT * SHOWN_WIDTH) / NATURAL_WIDTH };
-  return placePins(findingsOnScreen(STATE, screenId), NATURAL_WIDTH, SHOWN_WIDTH, shown);
-}
-
-function pinButtons(): HTMLElement[] {
-  return within(screen.getByRole('list', { name: 'Pinned findings' })).getAllByRole('button');
-}
-
-function stepFindingsOn(screenId: string): Finding[] {
-  return findingsOnScreen(STATE, screenId).filter((finding) => finding.shape === 'step');
-}
-
-/** The state gallery's rows, once it has loaded `count` of them. */
-async function galleryRows(count: number): Promise<HTMLElement[]> {
-  return vi.waitFor(() => {
-    const rows = [...screen.getByRole('list', { name: 'Controls in each state' }).children] as HTMLElement[];
-    expect(rows).toHaveLength(count);
-    return rows;
-  });
-}
-
-/** The value next to `term` in the scorecard. */
-function scoreOf(term: string): string | null {
-  const card = screen.getByRole('region', { name: 'Scorecard' });
-  return within(card).getByText(term, { selector: 'dt' }).nextElementSibling?.textContent ?? null;
-}
+/* The Screens view over the fixture run; the stubs and helpers are in screens-helpers.tsx. */
 
 beforeEach(() => {
   stubImageSizes();
@@ -228,6 +163,77 @@ test('a cluster pin opens a listbox of its findings: arrows move, Enter selects,
   fireEvent.click(pin);
   fireEvent.pointerDown(document.body);
   expect(screen.queryByRole('listbox')).toBeNull();
+});
+
+test('the popover closes when focus leaves it for its own pin, on Escape on the pin, and on a press on the pin', () => {
+  render(show(ORGANISATIONS));
+  loadScreenshot();
+  const pin = pinButtons()[0] as HTMLElement;
+  const open = () => {
+    fireEvent.click(pin);
+    return screen.getByRole('listbox');
+  };
+
+  // Shift+Tab from the listbox lands on the pin, which comes before it.
+  fireEvent.focusOut(open(), { relatedTarget: pin });
+  expect(screen.queryByRole('listbox')).toBeNull();
+
+  open();
+  fireEvent.keyDown(pin, { key: 'Escape' });
+  expect(screen.queryByRole('listbox')).toBeNull();
+  expect(pin.getAttribute('aria-expanded')).toBe('false');
+  expect(document.activeElement).toBe(pin);
+
+  // Safari and Firefox do not focus a clicked button: the listbox loses focus to nothing, then the click
+  // comes. The press closes the popover, and the click does not open it again.
+  const listbox = open();
+  fireEvent.pointerDown(pin);
+  fireEvent.focusOut(listbox, { relatedTarget: null });
+  fireEvent.click(pin, { detail: 1 });
+  expect(screen.queryByRole('listbox')).toBeNull();
+  fireEvent.pointerDown(pin);
+  fireEvent.click(pin, { detail: 1 });
+  expect(screen.getByRole('listbox')).toBeDefined();
+});
+
+test('Space on the active option selects it', () => {
+  render(show(ORGANISATIONS));
+  loadScreenshot();
+  const [cluster] = placementsOn(ORGANISATIONS);
+  fireEvent.click(pinButtons()[0] as HTMLElement);
+  const listbox = screen.getByRole('listbox');
+
+  fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+  fireEvent.keyDown(listbox, { key: ' ' });
+
+  const second = cluster?.members[1]?.finding.id ?? null;
+  expect(window.location.hash).toBe(
+    formatRoute({ view: 'screens', screenId: ORGANISATIONS, findingId: second }),
+  );
+  expect(screen.queryByRole('listbox')).toBeNull();
+});
+
+test('a screenshot that cannot be loaded says so, and every finding on the screen is listed as a link', () => {
+  render(show(DASHBOARD));
+  const hrefs = fixFirstOrder(findingsOnScreen(STATE, DASHBOARD)).map((finding) =>
+    formatRoute({ view: 'screens', screenId: DASHBOARD, findingId: finding.id }),
+  );
+  const listed = () =>
+    within(screen.getByRole('region', { name: 'Findings on this screen' }))
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'));
+  // Until the screenshot is measured there is nothing to pin on, so the step finding is listed too.
+  expect(hrefs).toHaveLength(2);
+  expect(listed()).toEqual(hrefs);
+
+  act(() => {
+    fireEvent.error(screenshot());
+  });
+
+  expect(queryScreenshot()).toBeNull();
+  expect(screen.getByText('The screenshot could not be loaded.')).toBeDefined();
+  expect(pinNames).toThrow();
+  expect(listed()).toEqual(hrefs);
 });
 
 test('pressing a pin springs its dot with a transform-only animation, and not under reduced motion', () => {
@@ -385,6 +391,61 @@ test('a screen whose navigation failed is marked in the list and shows why inste
     name: /\/broken/,
   });
   expect(link.textContent).toContain('Navigation failed');
-  expect(screen.queryByRole('img', { name: /^Screenshot of / })).toBeNull();
+  expect(queryScreenshot()).toBeNull();
   expect(screen.getByRole('status').textContent).toContain('net::ERR_CONNECTION_REFUSED');
+});
+
+test('a gallery entry that is not well formed is left out, and a crop that is not evidence is not shown', async () => {
+  const path = 'evidence/gallery-4a17c4d0a2-8523815058704b90.json';
+  const file = JSON.parse(fixtureEvidenceText(path)) as StateGalleryFile;
+  const [brand, home, organisations] = file.entries;
+  const malformed = {
+    ...home,
+    componentName: 7,
+    skipped: { not: 'text' },
+    crops: { rest: null, hover: home?.crops.hover, focus: 'evidence/x.png', active: { path: 42 } },
+  };
+  const gallery = {
+    ...file,
+    entries: [brand, malformed, 'not an entry', { role: 'link' }, organisations],
+    focusOrder: [file.focusOrder[0], null, { index: 'two', tag: 'a' }],
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () => new Response(JSON.stringify(gallery), { headers: { 'content-type': 'application/json' } }),
+    ),
+  );
+  render(show(DASHBOARD));
+
+  const rows = await galleryRows(3);
+
+  expect(
+    within(rows[1] as HTMLElement)
+      .getAllByRole('img')
+      .map((image) => image.getAttribute('alt')),
+  ).toEqual(['Dashboard (link) on hover']);
+  expect(rows[1]?.textContent).not.toContain('Not put in every state');
+  expect(rows[2]?.textContent).toContain('Organisations');
+  expect(within(screen.getByRole('list', { name: 'Focus order' })).getAllByRole('listitem')).toHaveLength(1);
+});
+
+test('the screen strip brings the screen shown into view when it changes', () => {
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    value: scrollIntoView,
+    configurable: true,
+    writable: true,
+  });
+  try {
+    const { rerender } = render(show(DASHBOARD));
+    rerender(show(ORGANISATIONS));
+
+    const list = screen.getByRole('navigation', { name: 'Screens' });
+    const current = within(list).getByRole('link', { current: 'page' });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(current);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' });
+  } finally {
+    Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+  }
 });

@@ -1,4 +1,5 @@
 import type { Screen, Severity } from '@jayslifecode/lookover-core';
+import { useEffect, useRef } from 'react';
 import type { ReportState } from '@/data/reduce';
 import { formatRoute } from '@/data/route';
 import { SEVERITY_ORDER, scorecard } from '@/data/selectors';
@@ -72,9 +73,18 @@ function ScreenLink({
 }
 
 export function ScreenList({ report, currentId }: ScreenListProps) {
+  const list = useRef<HTMLUListElement>(null);
+  // On the strip, the screen shown may be scrolled out of sight: bring it in whenever it changes.
+  useEffect(() => {
+    if (currentId === null) return;
+    const current = list.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    // jsdom has no scrollIntoView.
+    current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [currentId]);
   return (
-    <nav aria-label="Screens" className="min-w-0 rounded-lg border border-line bg-bg-1 p-2">
-      <ul className="flex snap-x gap-1 overflow-x-auto lg:flex-col lg:overflow-x-visible">
+    <nav aria-label="Screens" className="min-w-0 rounded-lg border border-line bg-bg-1 p-1">
+      {/* The padding leaves room for the focus ring, which the scrolling list would otherwise clip. */}
+      <ul ref={list} className="flex snap-x gap-1 overflow-x-auto p-1 lg:flex-col lg:overflow-x-visible">
         {report.screens.map((screen) => (
           <li key={screen.id} className="w-56 shrink-0 snap-start lg:w-auto">
             <ScreenLink

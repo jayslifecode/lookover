@@ -126,17 +126,20 @@ function compareScreens(a: Screen, b: Screen): number {
   return compareText(a.capturedAt, b.capturedAt) || compareText(a.id, b.id);
 }
 
-/** The skips of every inspected screen added up per reason, the most frequent first, then by reason. */
-function tallySkips(inspections: ReadonlyMap<string, ScreenInspection>): SkipTally[] {
-  const counts = [...inspections.values()]
-    .flatMap((inspection) => inspection.skipped)
-    .reduce(
-      (sum, { reason, count }) => new Map(sum).set(reason, (sum.get(reason) ?? 0) + count),
-      new Map<string, number>(),
-    );
+/** `skips` added up per reason, the most frequent first, then by reason. */
+export function talliedSkips(skips: readonly SkipTally[]): SkipTally[] {
+  const counts = skips.reduce(
+    (sum, { reason, count }) => new Map(sum).set(reason, (sum.get(reason) ?? 0) + count),
+    new Map<string, number>(),
+  );
   return [...counts]
     .map(([reason, count]) => ({ reason, count }))
     .sort((a, b) => b.count - a.count || compareText(a.reason, b.reason));
+}
+
+/** The skips of every inspected screen added up per reason, the most frequent first, then by reason. */
+function tallySkips(inspections: ReadonlyMap<string, ScreenInspection>): SkipTally[] {
+  return talliedSkips([...inspections.values()].flatMap((inspection) => inspection.skipped));
 }
 
 function withoutKey<V>(map: ReadonlyMap<string, V>, key: string): ReadonlyMap<string, V> {

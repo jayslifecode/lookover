@@ -20,8 +20,8 @@ import { SEVERITY_DOT, SEVERITY_FILL, SEVERITY_LABEL } from './severity';
  * A pin on the screenshot (placement in pins.ts). A pin is a button named `<n>. <title>` that selects its
  * finding in the route; a cluster pin (`<count> findings near <first title>`) opens a small solid
  * popover, a listbox of its findings in fix-first order with their own numbers: the arrows, Home and End
- * move, Enter or Space selects (and closes), Escape closes and gives focus back to the pin, and a click
- * outside closes. The label is a tooltip that shows on hover and keyboard focus only; the ring marks the
+ * move, Enter or Space selects (and closes), Escape (in the popover or on the pin) closes and gives focus
+ * back to the pin, and focus leaving the popover, a press on the pin or a click outside closes it. The label is a tooltip that shows on hover and keyboard focus only; the ring marks the
  * route's selected finding (on a cluster: one of its findings). Pins are tinted dots, not glass: they
  * float over any content, so the focus ring is two-tone (the 2 px accent outline over a 2 px halo of
  * --bg-2), and the label and the popover are solid --bg-2 surfaces. The press spring is a Web Animation
@@ -190,11 +190,11 @@ function ClusterPopover({ id, placement, box, selectedId, anchor, onChoose, onCl
     const option = event.target instanceof Element ? event.target.closest('[data-option]') : null;
     if (option instanceof HTMLElement) choose(Number(option.dataset.option));
   };
-  // Focus leaving for anything but the pin (whose own click toggles the popover) closes it.
+  // Focus leaving the popover closes it, wherever it goes: the pin before it (Shift+Tab), the pins after
+  // it (Tab, which it would otherwise cover), or nowhere (a click elsewhere).
   const onBlur = (event: FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget;
-    if (next instanceof Node && (event.currentTarget.contains(next) || anchor.current?.contains(next)))
-      return;
+    if (next instanceof Node && event.currentTarget.contains(next)) return;
     onClose(false);
   };
 
@@ -245,6 +245,9 @@ function ClusterPin(props: PinProps) {
   const dot = useRef<HTMLSpanElement>(null);
   const press = usePress();
   const listId = useId();
+  // Whether the popover was open when the pointer went down on the pin: pressing the pin closes it (by
+  // focus leaving it), and the click that follows must not open it again.
+  const wasOpen = useRef(false);
   const close = useCallback((shouldRefocus: boolean) => {
     setOpen(false);
     if (shouldRefocus) button.current?.focus();
@@ -269,9 +272,20 @@ function ClusterPin(props: PinProps) {
         aria-current={hasSelected ? 'true' : undefined}
         className={PIN}
         style={pinStyle(placement)}
-        onClick={() => {
+        onPointerDown={() => {
+          wasOpen.current = isOpen;
+        }}
+        onClick={(event) => {
+          // A click from the keyboard (Enter, Space) has no pointer press before it: `detail` is 0.
+          const isPressedWhileOpen = event.detail > 0 && wasOpen.current;
+          wasOpen.current = false;
           press(dot.current);
-          setOpen((open) => !open);
+          setOpen((open) => !isPressedWhileOpen && !open);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape' || !isOpen) return;
+          event.preventDefault();
+          close(true);
         }}
       >
         <PinFace placement={placement} dot={dot} />

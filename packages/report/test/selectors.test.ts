@@ -11,6 +11,7 @@ import {
   scorecard,
 } from '../src/data/selectors';
 import {
+  eventOf,
   findingsFile,
   fixtureEvents,
   fixtureFindings,
@@ -187,6 +188,37 @@ test("a screen's scorecard counts its confirmed findings by severity, its skips 
   });
   expect(scorecard(state, '38a8049145').confirmed).toEqual({ blocker: 0, high: 1, medium: 24, low: 0 });
   expect(scorecard(state, '57682dba9d').skipped).toEqual([]);
+});
+
+test("a screen's skips are added up per reason, the most frequent first, then by reason", () => {
+  // As screen.inspected logs them: each lens's skips in the order it met them, one lens after another.
+  const skipped = [
+    { reason: 'gone', count: 1 },
+    { reason: 'time-budget', count: 3 },
+    { reason: 'disabled', count: 2 },
+    { reason: 'gone', count: 4 },
+    { reason: 'background-uncertain', count: 3 },
+  ];
+  const inspected = eventOf(
+    {
+      type: 'screen.inspected',
+      screenId: 's1',
+      durationMs: 10,
+      candidates: 0,
+      worthALook: 0,
+      skipped,
+      gallery: null,
+      error: null,
+    },
+    1,
+  );
+
+  expect(scorecard(reduce(initialState(), inspected), 's1').skipped).toEqual([
+    { reason: 'gone', count: 5 },
+    { reason: 'background-uncertain', count: 3 },
+    { reason: 'time-budget', count: 3 },
+    { reason: 'disabled', count: 2 },
+  ]);
 });
 
 test('drift compares the confirmed findings with the previous run; an intended finding is not fixed', () => {

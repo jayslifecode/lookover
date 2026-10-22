@@ -119,11 +119,14 @@ function compareByKey(a: Finding, b: Finding): number {
   return compareText(a.key, b.key) || compareText(a.id, b.id);
 }
 
-/** The pinnable findings in fix-first order: the groups by `fixFirst`, inside each by finding key. */
+/** Fix-first: the groups by `fixFirst`, inside each by finding key. */
+export function fixFirstOrder(findings: readonly Finding[]): Finding[] {
+  return fixFirst(groups(findings)).flatMap((group) => group.findings.toSorted(compareByKey));
+}
+
+/** The pinnable findings in fix-first order. */
 export function pinOrder(findings: readonly Finding[]): PinnedFinding[] {
-  return fixFirst(groups(findings))
-    .flatMap((group) => group.findings.toSorted(compareByKey))
-    .filter(isPinnable);
+  return fixFirstOrder(findings).filter(isPinnable);
 }
 
 /** The accessible name: `<n>. <title>`, or `<count> findings near <first title>` for a cluster. */

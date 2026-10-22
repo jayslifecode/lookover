@@ -29,13 +29,13 @@
     "refresh-fixture": "node --experimental-strip-types scripts/refresh-fixture.ts"
   },
   "dependencies": {
-    "@jayslifecode/lookover-core": "workspace:*",
-    "@jayslifecode/lookover-lenses": "workspace:*"
+    "@jayslifecode/lookover-core": "workspace:*"
   },
   "devDependencies": {
     "@base-ui/react": "^1.9.0",
     "@fontsource-variable/jetbrains-mono": "^5.3",
     "@fontsource-variable/manrope": "^5.3",
+    "@jayslifecode/lookover-lenses": "workspace:*",
     "@tailwindcss/vite": "^4.3",
     "@testing-library/dom": "^10.4",
     "@testing-library/react": "^16.3",

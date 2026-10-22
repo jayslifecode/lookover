@@ -11,10 +11,9 @@ import {
 } from 'react';
 import { evidenceUrl } from '@/data/api';
 import { formatRoute } from '@/data/route';
-import { fixFirst, groups } from '@/data/selectors';
 import { cn } from '@/lib/utils';
 import { Pin } from './pin';
-import { isPinnable, LABEL_INSET, placePins } from './pins';
+import { fixFirstOrder, isPinnable, LABEL_INSET, placePins } from './pins';
 import { SEVERITY_DOT, SEVERITY_LABEL } from './severity';
 
 /*
@@ -22,7 +21,9 @@ import { SEVERITY_DOT, SEVERITY_LABEL } from './severity';
  * (spec §11; placement and clustering in pins.ts, the pins themselves in pin.tsx). The image is
  * measured when it loads and whenever its frame resizes (a ResizeObserver), and the labels once they are
  * rendered and again when the web fonts are ready, so the pins stay on their targets at any width.
- * Findings with no place on the screenshot are listed below it.
+ * Findings with no place on the screenshot are listed below it; while there is no image to pin on (the
+ * screen failed, kept no screenshot, its screenshot failed to load or is not measured yet) every finding
+ * is listed there, so none is out of reach.
  */
 
 export interface AnnotatedScreenshotProps {
@@ -52,16 +53,42 @@ export function Notice({ children }: { readonly children: string }) {
   );
 }
 
-export function AnnotatedScreenshot({ screen, findings, selectedId }: AnnotatedScreenshotProps) {
-  if (screen.status === 'navigation-failed') {
-    const reason = screen.error ?? 'no reason was recorded';
-    return <Notice>{`This page could not be loaded (${reason}), so nothing on it was captured.`}</Notice>;
-  }
+export function AnnotatedScreenshot(props: AnnotatedScreenshotProps) {
+  // A new screen starts afresh: its image is measured again, and may fail to load on its own.
+  return <ScreenshotAndFindings key={props.screen.id} {...props} />;
+}
+
+function ScreenshotAndFindings({ screen, findings, selectedId }: AnnotatedScreenshotProps) {
+  const [isBroken, setBroken] = useState(false);
+  const [isMeasured, setMeasured] = useState(false);
+  const markBroken = useCallback(() => setBroken(true), []);
   const url = screen.screenshot === null ? null : evidenceUrl(screen.screenshot);
-  if (url === null) return <Notice>No screenshot was kept for this screen.</Notice>;
-  // A new screen starts measuring afresh.
+  const canPin = screen.status !== 'navigation-failed' && url !== null && !isBroken;
   return (
-    <PinnedScreenshot key={screen.id} screen={screen} url={url} findings={findings} selectedId={selectedId} />
+    <>
+      {screen.status === 'navigation-failed' ? (
+        <Notice>{`This page could not be loaded (${screen.error ?? 'no reason was recorded'}), so nothing on it was captured.`}</Notice>
+      ) : url === null ? (
+        <Notice>No screenshot was kept for this screen.</Notice>
+      ) : isBroken ? (
+        <Notice>The screenshot could not be loaded.</Notice>
+      ) : (
+        <PinnedScreenshot
+          screen={screen}
+          url={url}
+          findings={findings}
+          selectedId={selectedId}
+          onError={markBroken}
+          onMeasured={setMeasured}
+        />
+      )}
+      <FindingList
+        screen={screen}
+        findings={findings}
+        selectedId={selectedId}
+        arePinsShown={canPin && isMeasured}
+      />
+    </>
   );
 }
 
@@ -74,7 +101,15 @@ function measuredLabels(known: ReadonlyMap<string, number>, root: ParentNode): R
   return isSame ? known : new Map(measured);
 }
 
-function PinnedScreenshot({ screen, url, findings, selectedId }: AnnotatedScreenshotProps & { url: string }) {
+interface PinnedScreenshotProps extends AnnotatedScreenshotProps {
+  readonly url: string;
+  /** The image could not be loaded. */
+  readonly onError: () => void;
+  /** Whether the image has been measured, so the pins are drawn. */
+  readonly onMeasured: (isMeasured: boolean) => void;
+}
+
+function PinnedScreenshot({ screen, url, findings, selectedId, onError, onMeasured }: PinnedScreenshotProps) {
   const frame = useRef<HTMLDivElement>(null);
   const image = useRef<HTMLImageElement>(null);
   const [natural, setNatural] = useState<Size | null>(null);
@@ -110,6 +145,10 @@ function PinnedScreenshot({ screen, url, findings, selectedId }: AnnotatedScreen
       natural === null ? null : { width: shownWidth, height: (natural.height * shownWidth) / natural.width },
     [natural, shownWidth],
   );
+  const isMeasured = box !== null;
+  useEffect(() => {
+    onMeasured(isMeasured);
+  }, [isMeasured, onMeasured]);
   const placements = useMemo(
     () =>
       box === null || natural === null ? [] : placePins(findings, natural.width, box.width, box, labelWidths),
@@ -129,6 +168,7 @@ function PinnedScreenshot({ screen, url, findings, selectedId }: AnnotatedScreen
         alt={`Screenshot of ${screen.title} (${screen.route})`}
         decoding="async"
         onLoad={measure}
+        onError={onError}
         className="block h-auto w-full"
       />
       {/* Each pin is placed against the list, which covers the image; the items take no room. */}
@@ -144,25 +184,30 @@ function PinnedScreenshot({ screen, url, findings, selectedId }: AnnotatedScreen
 }
 
 /**
- * The screen's findings that have no place on the screenshot (occurrence findings, and step findings
- * without a target), fix-first, each a link that selects it.
+ * Fix-first, each a link that selects it: the screen's findings that have no place on the screenshot
+ * (occurrence findings, and step findings without a target) while the pins are shown, else all of them.
  */
-export function UnpinnedFindings({ screen, findings, selectedId }: AnnotatedScreenshotProps) {
+function FindingList({
+  screen,
+  findings,
+  selectedId,
+  arePinsShown,
+}: AnnotatedScreenshotProps & { readonly arePinsShown: boolean }) {
   const titleId = useId();
-  const unpinned = fixFirst(groups(findings.filter((finding) => !isPinnable(finding)))).flatMap(
-    (group) => group.findings,
-  );
-  if (unpinned.length === 0) return null;
+  const listed = fixFirstOrder(arePinsShown ? findings.filter((finding) => !isPinnable(finding)) : findings);
+  if (listed.length === 0) return null;
   return (
     <section aria-labelledby={titleId} className="rounded-lg border border-line bg-bg-1 p-4">
       <h2 id={titleId} className="font-semibold text-[15px]">
-        Also on this screen
+        {arePinsShown ? 'Also on this screen' : 'Findings on this screen'}
       </h2>
       <p className="mt-0.5 text-[13px] text-ink-2">
-        About the page as a whole, so not pinned to a place on it.
+        {arePinsShown
+          ? 'About the page as a whole, so not pinned to a place on it.'
+          : 'Listed here while there is no screenshot to pin them on.'}
       </p>
       <ul className="mt-2 grid gap-1">
-        {unpinned.map((finding) => (
+        {listed.map((finding) => (
           <li key={finding.id}>
             <a
               href={formatRoute({ view: 'screens', screenId: screen.id, findingId: finding.id })}

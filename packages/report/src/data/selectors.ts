@@ -1,5 +1,5 @@
 import type { Finding, Screen, Severity, SkipTally } from '@jayslifecode/lookover-core';
-import { compareText, type ReportState } from './reduce';
+import { compareText, type ReportState, talliedSkips } from './reduce';
 
 /*
  * What the views read from the report's state, computed and never stored. Each returns new arrays and
@@ -35,7 +35,7 @@ export interface Scorecard {
   readonly rejected: number;
   /** Confirmed findings every attempt (or every occurrence) of which reproduced. */
   readonly reproducedEveryTime: number;
-  /** What the lenses skipped on the screen, the most frequent first. */
+  /** What the lenses skipped on the screen, per reason, the most frequent first, then by reason. */
   readonly skipped: readonly SkipTally[];
 }
 
@@ -150,7 +150,8 @@ export function scorecard(state: ReportState, screenId: string): Scorecard {
     worthALook: state.worthALook.filter(onScreen).length,
     rejected: judgedWith(state, 'rejected').filter(onScreen).length,
     reproducedEveryTime: confirmed.filter(reproducedEveryTime).length,
-    skipped: state.inspections.get(screenId)?.skipped ?? [],
+    // As logged, a screen's skips are each lens's in the order met, so a reason can come twice.
+    skipped: talliedSkips(state.inspections.get(screenId)?.skipped ?? []),
   };
 }
 

@@ -1,13 +1,8 @@
 import type { EvidenceRef } from '@jayslifecode/lookover-core';
-import type {
-  FocusStop,
-  GalleryEntry,
-  GalleryState,
-  StateGallery as StateGalleryFile,
-  StyleSnapshot,
-} from '@jayslifecode/lookover-lenses';
+import type { GalleryState, StyleSnapshot } from '@jayslifecode/lookover-lenses';
 import { useEffect, useId, useRef, useState } from 'react';
 import { evidenceUrl, fetchJson } from '@/data/api';
+import { type GalleryControl, type GalleryFile, type GalleryStop, parseGallery } from './gallery-file';
 
 /*
  * The screen's state gallery: the interaction lens's `gallery-<screenId>` evidence, which it names on
@@ -17,8 +12,8 @@ import { evidenceUrl, fetchJson } from '@/data/api';
  * changed in its styles instead. Below, the screen's focus order, as a Tab walk reached it.
  *
  * Each gallery is fetched once, and kept while the view is mounted, so coming back to a screen asks for
- * nothing. The file comes from the page under review, so it is checked for its shape before it is used,
- * and every value is shown as text. A long gallery shows its first controls and focus stops, with a
+ * nothing. The file comes from the page under review, so it is read defensively (gallery-file.ts) and
+ * every value is shown as text. A long gallery shows its first controls and focus stops, with a
  * button for the rest.
  */
 
@@ -29,7 +24,7 @@ export interface StateGalleryProps {
 
 type GalleryLoad =
   | { readonly status: 'loading' }
-  | { readonly status: 'loaded'; readonly gallery: StateGalleryFile }
+  | { readonly status: 'loaded'; readonly gallery: GalleryFile }
   | { readonly status: 'failed'; readonly message: string };
 
 const LOADING: GalleryLoad = { status: 'loading' };
@@ -65,34 +60,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isEntry(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.role === 'string' &&
-    typeof value.name === 'string' &&
-    isRecord(value.states) &&
-    isRecord(value.crops)
-  );
-}
-
-function isStop(value: unknown): boolean {
-  return isRecord(value) && Number.isInteger(value.index) && typeof value.tag === 'string';
-}
-
-function isGalleryFile(value: unknown): value is StateGalleryFile {
-  return (
-    isRecord(value) &&
-    Array.isArray(value.entries) &&
-    value.entries.every(isEntry) &&
-    Array.isArray(value.focusOrder) &&
-    value.focusOrder.every(isStop)
-  );
-}
-
-async function loadGallery(url: string): Promise<StateGalleryFile> {
-  const body = await fetchJson(url);
-  if (!isGalleryFile(body)) throw new Error('the file is not a state gallery');
-  return body;
+async function loadGallery(url: string): Promise<GalleryFile> {
+  const gallery = parseGallery(await fetchJson(url));
+  if (gallery === null) throw new Error('the file is not a state gallery');
+  return gallery;
 }
 
 function messageOf(error: unknown): string {
@@ -138,7 +109,7 @@ function changeSummary(changes: readonly string[]): string {
   return more > 0 ? `${shown} (+${more} more)` : shown;
 }
 
-function StateChanges({ entry }: { readonly entry: GalleryEntry }) {
+function StateChanges({ entry }: { readonly entry: GalleryControl }) {
   const rest = entry.states.rest;
   if (rest === undefined) return <p className="text-[12.5px] text-ink-2">No style snapshot was taken.</p>;
   const changed = CHANGED_STATES.flatMap((state) => {
@@ -159,7 +130,7 @@ function StateChanges({ entry }: { readonly entry: GalleryEntry }) {
   );
 }
 
-function Crops({ entry }: { readonly entry: GalleryEntry }) {
+function Crops({ entry }: { readonly entry: GalleryControl }) {
   const subject = entry.name === '' ? entry.role : `${entry.name} (${entry.role})`;
   const crops = STATES.flatMap((state) => {
     const ref = entry.crops[state];
@@ -187,7 +158,7 @@ function Crops({ entry }: { readonly entry: GalleryEntry }) {
   );
 }
 
-function EntryRow({ entry }: { readonly entry: GalleryEntry }) {
+function EntryRow({ entry }: { readonly entry: GalleryControl }) {
   return (
     <li className="grid gap-2 border-line border-t py-3 first:border-t-0">
       <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -246,7 +217,7 @@ function ShowAll({
   );
 }
 
-function FocusOrder({ stops }: { readonly stops: readonly FocusStop[] }) {
+function FocusOrder({ stops }: { readonly stops: readonly GalleryStop[] }) {
   const titleId = useId();
   const listId = useId();
   const { shown, isExpanded, isLong, toggle } = useCollapsible(stops, FOCUS_ORDER_PREVIEW);
@@ -287,7 +258,7 @@ function FocusOrder({ stops }: { readonly stops: readonly FocusStop[] }) {
   );
 }
 
-function Controls({ entries }: { readonly entries: readonly GalleryEntry[] }) {
+function Controls({ entries }: { readonly entries: readonly GalleryControl[] }) {
   const listId = useId();
   const { shown, isExpanded, isLong, toggle } = useCollapsible(entries, GALLERY_PREVIEW_ROWS);
   if (entries.length === 0) {
