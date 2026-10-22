@@ -18,7 +18,8 @@ import { evidenceUrl, fetchJson } from '@/data/api';
  *
  * Each gallery is fetched once, and kept while the view is mounted, so coming back to a screen asks for
  * nothing. The file comes from the page under review, so it is checked for its shape before it is used,
- * and every value is shown as text.
+ * and every value is shown as text. A long gallery shows its first controls and focus stops, with a
+ * button for the rest.
  */
 
 export interface StateGalleryProps {
@@ -56,6 +57,9 @@ const PART_PREFIX: Readonly<Record<SnapshotPart, string>> = {
 };
 /** Per state, at most this many changed properties are listed; the rest are counted. */
 const MAX_CHANGES_SHOWN = 3;
+/** A long gallery shows this many controls, and its focus order this many stops, until asked for all. */
+export const GALLERY_PREVIEW_ROWS = 8;
+export const FOCUS_ORDER_PREVIEW = 12;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -204,8 +208,48 @@ function EntryRow({ entry }: { readonly entry: GalleryEntry }) {
   );
 }
 
+/** The first `preview` items until the reader asks for all of them. */
+function useCollapsible<T>(items: readonly T[], preview: number) {
+  const [isExpanded, setExpanded] = useState(false);
+  return {
+    shown: isExpanded ? items : items.slice(0, preview),
+    isExpanded,
+    isLong: items.length > preview,
+    toggle: () => setExpanded((expanded) => !expanded),
+  };
+}
+
+function ShowAll({
+  count,
+  noun,
+  isExpanded,
+  controls,
+  onToggle,
+}: {
+  readonly count: number;
+  readonly noun: string;
+  readonly isExpanded: boolean;
+  /** The id of the list it shows more of. */
+  readonly controls: string;
+  readonly onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={isExpanded}
+      aria-controls={controls}
+      onClick={onToggle}
+      className="mt-2 inline-flex min-h-8 cursor-pointer items-center rounded-md border border-line-strong bg-bg-2 px-3 font-semibold text-[12.5px] text-ink hover:bg-bg-0"
+    >
+      {isExpanded ? `Show fewer ${noun}` : `Show all ${count} ${noun}`}
+    </button>
+  );
+}
+
 function FocusOrder({ stops }: { readonly stops: readonly FocusStop[] }) {
   const titleId = useId();
+  const listId = useId();
+  const { shown, isExpanded, isLong, toggle } = useCollapsible(stops, FOCUS_ORDER_PREVIEW);
   return (
     <div className="mt-4 border-line border-t pt-3">
       <h3 id={titleId} className="font-semibold text-[13.5px]">
@@ -215,10 +259,11 @@ function FocusOrder({ stops }: { readonly stops: readonly FocusStop[] }) {
         <p className="mt-1 text-[12.5px] text-ink-2">Tab reached nothing on this screen.</p>
       ) : (
         <ol
+          id={listId}
           aria-labelledby={titleId}
           className="mt-2 grid list-decimal gap-1 pl-8 text-[12px] marker:text-ink-2"
         >
-          {stops.map((stop) => (
+          {shown.map((stop) => (
             <li key={stop.index} value={stop.index}>
               <code className="font-mono text-ink">{stop.tag}</code>{' '}
               <code className="break-all font-mono text-ink-2">{stop.selector ?? 'not found again'}</code>
@@ -229,7 +274,44 @@ function FocusOrder({ stops }: { readonly stops: readonly FocusStop[] }) {
           ))}
         </ol>
       )}
+      {isLong ? (
+        <ShowAll
+          count={stops.length}
+          noun="stops"
+          isExpanded={isExpanded}
+          controls={listId}
+          onToggle={toggle}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function Controls({ entries }: { readonly entries: readonly GalleryEntry[] }) {
+  const listId = useId();
+  const { shown, isExpanded, isLong, toggle } = useCollapsible(entries, GALLERY_PREVIEW_ROWS);
+  if (entries.length === 0) {
+    return <p className="mt-1 text-ink-2">No control on this screen was put in states.</p>;
+  }
+  return (
+    <>
+      <ul id={listId} aria-label="Controls in each state" className="mt-1">
+        {shown.map((entry, index) => (
+          // A selector can repeat in a gallery; its place in the list cannot.
+          // biome-ignore lint/suspicious/noArrayIndexKey: the gallery is never reordered
+          <EntryRow key={index} entry={entry} />
+        ))}
+      </ul>
+      {isLong ? (
+        <ShowAll
+          count={entries.length}
+          noun="controls"
+          isExpanded={isExpanded}
+          controls={listId}
+          onToggle={toggle}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -245,21 +327,10 @@ function GalleryBody({ load }: { readonly load: GalleryLoad | null }) {
   if (load.status === 'failed') {
     return <p className="mt-1 text-ink-2">The state gallery could not be loaded: {load.message}</p>;
   }
-  const { entries, focusOrder } = load.gallery;
   return (
     <>
-      {entries.length === 0 ? (
-        <p className="mt-1 text-ink-2">No control on this screen was put in states.</p>
-      ) : (
-        <ul aria-label="Controls in each state" className="mt-1">
-          {entries.map((entry, index) => (
-            // A selector can repeat in a gallery; its place in the list cannot.
-            // biome-ignore lint/suspicious/noArrayIndexKey: the gallery is never reordered
-            <EntryRow key={index} entry={entry} />
-          ))}
-        </ul>
-      )}
-      <FocusOrder stops={focusOrder} />
+      <Controls entries={load.gallery.entries} />
+      <FocusOrder stops={load.gallery.focusOrder} />
     </>
   );
 }
@@ -277,7 +348,8 @@ export function StateGallery({ gallery }: StateGalleryProps) {
       <h2 id={titleId} className="font-semibold text-[15px]">
         State gallery
       </h2>
-      <GalleryBody load={shown} />
+      {/* Each screen's gallery starts collapsed. */}
+      <GalleryBody key={url ?? 'none'} load={shown} />
     </section>
   );
 }

@@ -5,7 +5,7 @@ import { API_PATHS, EVIDENCE_PATH_PREFIX } from '../node/api';
 import { initialState, type ReportState, reduce, withFindingsFile } from '../src/data/reduce';
 import { formatRoute } from '../src/data/route';
 import { findingsOnScreen } from '../src/data/selectors';
-import { DOT_SIZE, pinOrder } from '../src/screens/pins';
+import { DOT_SIZE, type PinPlacement, pinFace, pinName, placePins } from '../src/screens/pins';
 import { ScreensView } from '../src/screens/screens-view';
 import { fixtureEvents, fixtureEvidenceText, fixtureFindings } from './fixture';
 import { REDUCED_MOTION, stubMatchMedia } from './media';
@@ -67,6 +67,16 @@ function pinNames(): (string | null)[] {
   return pins.map((pin) => pin.getAttribute('aria-label'));
 }
 
+/** The pins the view should draw for `screenId` at the stubbed sizes. */
+function placementsOn(screenId: string): PinPlacement[] {
+  const shown = { width: SHOWN_WIDTH, height: (NATURAL_HEIGHT * SHOWN_WIDTH) / NATURAL_WIDTH };
+  return placePins(findingsOnScreen(STATE, screenId), NATURAL_WIDTH, SHOWN_WIDTH, shown);
+}
+
+function pinButtons(): HTMLElement[] {
+  return within(screen.getByRole('list', { name: 'Pinned findings' })).getAllByRole('button');
+}
+
 function stepFindingsOn(screenId: string): Finding[] {
   return findingsOnScreen(STATE, screenId).filter((finding) => finding.shape === 'step');
 }
@@ -114,43 +124,110 @@ test('the first captured screen: one pin per confirmed step finding, named by it
   expect(within(unpinned).getByRole('link', { name: /A request the page made failed/ })).toBeDefined();
 });
 
-test("the organisations screen numbers its 24 pins fix-first, each at its target's top-right corner", () => {
+test("the organisations screen's 24 dense pins are drawn as cluster pins, each on its first finding's corner", () => {
   render(show(ORGANISATIONS));
   loadScreenshot();
 
-  const names = pinNames();
-  expect(names).toHaveLength(24);
-  expect(names).toEqual(names.map((_, index) => `${index + 1}. Tap target is smaller than 24 by 24 pixels`));
-  // Each pin sits on its target's top-right corner, halved: the screenshot is shown at half its width.
-  const pins = within(screen.getByRole('list', { name: 'Pinned findings' })).getAllByRole('button');
-  const corners = pinOrder(findingsOnScreen(STATE, ORGANISATIONS)).map(({ target: { box } }) => [
-    `${((box.x + box.width) * SHOWN_WIDTH) / NATURAL_WIDTH - DOT_SIZE / 2}px`,
-    `${(box.y * SHOWN_WIDTH) / NATURAL_WIDTH - DOT_SIZE / 2}px`,
-  ]);
-  expect(pins.map((pin) => [pin.style.left, pin.style.top])).toEqual(corners);
+  const placements = placementsOn(ORGANISATIONS);
+  // Every finding is drawn once, in one pin or one cluster, keeping its fix-first number.
+  const numbers = placements.flatMap(({ members }) => members.map(({ number }) => number));
+  expect(numbers.toSorted((a, b) => a - b)).toEqual(Array.from({ length: 24 }, (_, index) => index + 1));
+  // The icons sit 20 px apart (10 px shown), so they cluster.
+  expect(placements.every(({ members }) => members.length > 1)).toBe(true);
+  const pins = pinButtons();
+  expect(pins.map((pin) => pin.getAttribute('aria-label'))).toEqual(placements.map(pinName));
+  expect(pins[0]?.getAttribute('aria-label')).toMatch(
+    /^\d+ findings near Tap target is smaller than 24 by 24 pixels$/,
+  );
+  // The dot shows the cluster's count.
+  expect(pins.map((pin) => pin.firstElementChild?.textContent)).toEqual(placements.map(pinFace));
+  // Each sits on its first finding's top-right corner, halved: the screenshot is shown at half its width.
+  expect(pins.map((pin) => [pin.style.left, pin.style.top])).toEqual(
+    placements.map(
+      ({
+        finding: {
+          target: { box },
+        },
+      }) => [
+        `${((box.x + box.width) * SHOWN_WIDTH) / NATURAL_WIDTH - DOT_SIZE / 2}px`,
+        `${(box.y * SHOWN_WIDTH) / NATURAL_WIDTH - DOT_SIZE / 2}px`,
+      ],
+    ),
+  );
   const unpinned = screen.getByRole('region', { name: 'Also on this screen' });
   expect(within(unpinned).getByRole('link', { name: /The page scrolls sideways/ })).toBeDefined();
 });
 
-test("the route's finding is the selected pin; clicking a pin selects its finding in the route", () => {
-  const order = pinOrder(findingsOnScreen(STATE, ORGANISATIONS));
-  const chosen = order[1];
-  const clicked = order[0];
-  if (chosen === undefined || clicked === undefined)
-    throw new Error('The organisations screen has too few pins');
-  render(show(ORGANISATIONS, chosen.id));
+test("the route's finding marks its pin, or the cluster holding it; clicking a pin selects its finding", () => {
+  const [step] = stepFindingsOn(DASHBOARD);
+  if (step === undefined) throw new Error('The dashboard has no step finding');
+  const { rerender } = render(show(DASHBOARD, step.id));
   loadScreenshot();
 
-  const pins = within(screen.getByRole('list', { name: 'Pinned findings' })).getAllByRole('button');
-  expect(pins.map((pin) => pin.getAttribute('aria-current'))).toEqual(
-    order.map((finding) => (finding.id === chosen.id ? 'true' : null)),
-  );
-
-  fireEvent.click(pins[0] as HTMLElement);
-
+  const [pin] = pinButtons();
+  expect(pin?.getAttribute('aria-current')).toBe('true');
+  fireEvent.click(pin as HTMLElement);
   expect(window.location.hash).toBe(
-    formatRoute({ view: 'screens', screenId: ORGANISATIONS, findingId: clicked.id }),
+    formatRoute({ view: 'screens', screenId: DASHBOARD, findingId: step.id }),
   );
+
+  const placements = placementsOn(ORGANISATIONS);
+  const chosen = placements[1]?.members[1]?.finding;
+  if (chosen === undefined) throw new Error('The organisations screen has too few clusters');
+  rerender(show(ORGANISATIONS, chosen.id));
+  loadScreenshot();
+  expect(pinButtons().map((button) => button.getAttribute('aria-current'))).toEqual(
+    placements.map((_, index) => (index === 1 ? 'true' : null)),
+  );
+});
+
+test('a cluster pin opens a listbox of its findings: arrows move, Enter selects, Escape and outside clicks close', () => {
+  render(show(ORGANISATIONS));
+  loadScreenshot();
+  const placements = placementsOn(ORGANISATIONS);
+  const cluster = placements[0];
+  if (cluster === undefined) throw new Error('The organisations screen has no pin');
+  const pin = pinButtons()[0] as HTMLElement;
+  expect(pin.getAttribute('aria-haspopup')).toBe('listbox');
+  expect(pin.getAttribute('aria-expanded')).toBe('false');
+
+  fireEvent.click(pin);
+
+  const listbox = screen.getByRole('listbox', { name: `Findings near ${cluster.finding.title}` });
+  expect(pin.getAttribute('aria-expanded')).toBe('true');
+  expect(document.activeElement).toBe(listbox);
+  const options = within(listbox).getAllByRole('option');
+  expect(options.map((option) => option.textContent)).toEqual(
+    cluster.members.map(({ finding, number }) => `${number}. ${finding.title}Medium`),
+  );
+  expect(listbox.getAttribute('aria-activedescendant')).toBe(options[0]?.id);
+  fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+  expect(listbox.getAttribute('aria-activedescendant')).toBe(options[1]?.id);
+  expect(options[1]?.getAttribute('aria-selected')).toBe('true');
+  fireEvent.keyDown(listbox, { key: 'ArrowUp' });
+  fireEvent.keyDown(listbox, { key: 'ArrowUp' });
+  // The arrows wrap.
+  expect(listbox.getAttribute('aria-activedescendant')).toBe(options.at(-1)?.id);
+  fireEvent.keyDown(listbox, { key: 'Home' });
+  fireEvent.keyDown(listbox, { key: 'ArrowDown' });
+
+  fireEvent.keyDown(listbox, { key: 'Enter' });
+
+  const second = cluster.members[1]?.finding.id ?? null;
+  expect(window.location.hash).toBe(
+    formatRoute({ view: 'screens', screenId: ORGANISATIONS, findingId: second }),
+  );
+  expect(screen.queryByRole('listbox')).toBeNull();
+  expect(document.activeElement).toBe(pin);
+
+  fireEvent.click(pin);
+  fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' });
+  expect(screen.queryByRole('listbox')).toBeNull();
+  expect(document.activeElement).toBe(pin);
+
+  fireEvent.click(pin);
+  fireEvent.pointerDown(document.body);
+  expect(screen.queryByRole('listbox')).toBeNull();
 });
 
 test('pressing a pin springs its dot with a transform-only animation, and not under reduced motion', () => {
@@ -185,7 +262,8 @@ test("the state gallery: a row per control with its crops in each state, then th
   const fetchMock = stubEvidenceFetch();
   const { rerender } = render(show(DASHBOARD));
 
-  const controls = await galleryRows(12);
+  // The first 8 of the dashboard's 12 controls, until asked for all.
+  const controls = await galleryRows(8);
   const [brand] = controls;
   expect(
     within(brand as HTMLElement)
@@ -206,9 +284,9 @@ test("the state gallery: a row per control with its crops in each state, then th
 
   // Fetched once per screen: coming back to it asks for nothing new.
   rerender(show(LOGIN));
-  await galleryRows(9);
+  await screen.findByRole('button', { name: 'Show all 9 controls' });
   rerender(show(DASHBOARD));
-  await galleryRows(12);
+  await screen.findByRole('button', { name: 'Show all 12 controls' });
   const galleries = fetchMock.mock.calls
     .map(([input]) => String(input))
     .filter((url) => url.includes('gallery-'));
@@ -216,6 +294,27 @@ test("the state gallery: a row per control with its crops in each state, then th
     `${API_PATHS.evidence}gallery-${DASHBOARD}-8523815058704b90.json`,
     `${API_PATHS.evidence}gallery-${LOGIN}-fa83022d34d86ed0.json`,
   ]);
+});
+
+test('a long gallery shows its first 8 controls and 12 focus stops, and all of them when asked', async () => {
+  render(show(ORGANISATIONS));
+  await galleryRows(8);
+  const focusOrder = () => within(screen.getByRole('list', { name: 'Focus order' })).getAllByRole('listitem');
+  expect(focusOrder()).toHaveLength(12);
+
+  const controls = screen.getByRole('button', { name: 'Show all 43 controls' });
+  expect(controls.getAttribute('aria-expanded')).toBe('false');
+  fireEvent.click(controls);
+  await galleryRows(43);
+  expect(controls.getAttribute('aria-expanded')).toBe('true');
+  expect(controls.textContent).toBe('Show fewer controls');
+  fireEvent.click(controls);
+  await galleryRows(8);
+
+  const stops = screen.getByRole('button', { name: 'Show all 43 stops' });
+  fireEvent.click(stops);
+  expect(focusOrder()).toHaveLength(43);
+  expect(stops.getAttribute('aria-expanded')).toBe('true');
 });
 
 test('a screen whose inspection wrote no gallery says so', () => {
