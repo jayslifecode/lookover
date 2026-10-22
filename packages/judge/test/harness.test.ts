@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { release } from 'node:os';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
   type Attempt,
@@ -12,6 +13,7 @@ import {
   navigate,
   type Observer,
   type OccurrenceFinding,
+  PER_SCREEN_BUDGET_MS,
   type ReproductionTarget,
   type Screen,
   type StepFinding,
@@ -43,6 +45,10 @@ const CONSOLE_ERROR = 'observers.console-error';
 const PAGE_ERROR = 'observers.page-error';
 /** The flaky and vanishing pages serve their first variant on one load in this many, the first included. */
 const LOADS_PER_FIRST_VARIANT = 6;
+/** How long the slow stub target takes to measure. */
+const SLOW_TARGET_MS = 300;
+/** How far behind its target's start a deadline may be computed: a few awaits, never a timer. */
+const DEADLINE_SLACK_MS = 100;
 
 /** Serves `first` on the route's loads 1, 1 + `period`, 1 + 2 × `period`, … and `otherwise` on the rest. */
 function oncePer(period: number, first: string, otherwise: string): FixtureRoute {
@@ -310,6 +316,35 @@ describe('Harness', { timeout: BROWSER_TIMEOUT_MS }, () => {
     await expect(harnessWith({ navigate: blocked }).reproduce(batch)).rejects.toThrow(LookoverError);
     await expect(harnessWith({ lenses: [failing] }).reproduce(batch)).rejects.toThrow('The page crashed');
     expect(openContexts()).toBe(1);
+  });
+
+  test('each target is handed a deadline of its own, from when its measurement starts', async () => {
+    const ring = stepFindingOf(controls, FOCUS_VISIBLE);
+    const tabindex = occurrenceFindingOf(controls, POSITIVE_TABINDEX);
+    const [occurrence] = tabindex.occurrences;
+    if (occurrence === undefined) throw new Error('no occurrence');
+    let entered: { deadline: number; at: number }[] = [];
+    const slowFirst: Lens = {
+      name: lens.name,
+      rules: lens.rules,
+      inspect: (context) => lens.inspect(context),
+      reproduce: async (_target, context) => {
+        entered = [...entered, { deadline: context.deadline, at: performance.now() }];
+        if (entered.length === 1) await delay(SLOW_TARGET_MS);
+        return { reproduced: true, observed: 'stub', skipped: null, evidence: [] };
+      },
+    };
+    const targets: ReproductionTarget[] = [{ finding: tabindex, occurrence }, { finding: ring }];
+
+    await harnessWith({ lenses: [slowFirst], attempts: 1 }).reproduce({ screen: controls.screen, targets });
+
+    const [first, second] = entered;
+    if (first === undefined || second === undefined) throw new Error('expected two measured targets');
+    expect(second.deadline - first.deadline).toBeGreaterThanOrEqual(SLOW_TARGET_MS);
+    for (const { deadline, at } of entered) {
+      expect(deadline - at).toBeLessThanOrEqual(PER_SCREEN_BUDGET_MS);
+      expect(deadline - at).toBeGreaterThan(PER_SCREEN_BUDGET_MS - DEADLINE_SLACK_MS);
+    }
   });
 
   test('measures observer findings first, each observer collected once, then lens targets in rule order', async () => {

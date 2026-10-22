@@ -47,11 +47,6 @@ export interface HarnessOptions {
   navigate?: (page: Page, url: string) => Promise<unknown>;
 }
 
-/** A target's attempts, looked up by the target itself. */
-export interface AttemptsByTarget {
-  get(target: ReproductionTarget): Attempt[];
-}
-
 /** The crawl's own defaults (`CrawlOptions`), so an attempt's page settles as the captured one did. */
 const REPLAY_TIMING: Timing = { settleMs: 800, navigationTimeoutMs: 15_000 };
 const OBSERVERS = 'observers';
@@ -69,6 +64,9 @@ interface Recorded {
   attempt: Attempt;
 }
 
+/** What every target of an attempt is measured on; each target gets its own deadline over it. */
+type LoadedScreen = Omit<LensContext, 'deadline'>;
+
 /** Where a target falls in an attempt's measuring order: observers first, then by lens, then by rule. */
 interface Rank {
   lens: number;
@@ -80,7 +78,9 @@ interface Rank {
  * other. One attempt: a page in a new isolated context, fresh observers attached to it, the screen's URL
  * loaded, its elements extracted again, then every target measured on that one load (see
  * `inMeasuringOrder`) by the lens that reported it (`finding.source`) or, for an observer finding, by
- * `reproduceObservation`; the context is closed whatever happened. Every target's attempt is stored as
+ * `reproduceObservation`; the context is closed whatever happened. Each target is handed its own
+ * deadline, `PER_SCREEN_BUDGET_MS` ahead of the moment its measurement starts, so the targets measured
+ * before it never use up its time. Every target's attempt is stored as
  * `reproduction-<findingId>` JSON evidence (the attempt, the target's key, the URL, the reproduction and
  * the environment), which leads the attempt's evidence, followed by the reproduction's own.
  *
@@ -151,20 +151,15 @@ export class Harness {
     try {
       const observers = this.options.observers();
       for (const observer of observers) observer.attach(ipage);
-      const context = await this.load(ipage, screen, url);
-      return await this.measureEach(
-        targets,
-        context,
-        collectedOnce(observers),
-        performance.now() - startedAt,
-      );
+      const loaded = await this.load(ipage, screen, url);
+      return await this.measureEach(targets, loaded, collectedOnce(observers), performance.now() - startedAt);
     } finally {
       await ipage.close();
     }
   }
 
   /** The page at `url` with its elements extracted again, as a lens is handed a captured screen. */
-  private async load(ipage: InstrumentedPage, screen: Screen, url: string): Promise<LensContext> {
+  private async load(ipage: InstrumentedPage, screen: Screen, url: string): Promise<LoadedScreen> {
     await this.navigate(ipage.page, url);
     const { elements } = await extractElements(ipage);
     const others = this.options.viewports.filter(({ name }) => name !== screen.viewport.name);
@@ -174,20 +169,23 @@ export class Harness {
       ipage,
       viewports: [screen.viewport, ...others],
       interaction: this.options.interaction,
-      deadline: performance.now() + PER_SCREEN_BUDGET_MS,
     };
   }
 
-  /** Each target in turn on the one load; a target's duration counts the load it needed and its own measure. */
+  /**
+   * Each target in turn on the one load, each with a deadline of its own from when it starts; a target's
+   * duration counts the load it needed and its own measure.
+   */
   private async measureEach(
     targets: readonly ReproductionTarget[],
-    context: LensContext,
+    loaded: LoadedScreen,
     observers: readonly Observer[],
     loadMs: number,
   ): Promise<Outcome[]> {
     let outcomes: Outcome[] = [];
     for (const target of targets) {
       const startedAt = performance.now();
+      const context: LensContext = { ...loaded, deadline: startedAt + PER_SCREEN_BUDGET_MS };
       const reproduction = await this.measure(target, context, observers).catch(failedReproduction);
       const durationMs = Math.round(loadMs + performance.now() - startedAt);
       outcomes = [...outcomes, { target, reproduction, durationMs }];
