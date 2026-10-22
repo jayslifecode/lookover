@@ -286,4 +286,11 @@ test('drift compares the confirmed findings with the previous run; an intended f
   expect(result?.added).toHaveLength(25);
   expect(ids(result?.unchanged ?? [])).toEqual(['fc8addc0486b', 'da77d007d373']);
   expect(ids(result?.fixed ?? [])).toEqual(['gone']);
+  expect(ids(result?.intended ?? [])).toEqual(['e9839cc1b237']);
+  expect(result?.addedRoutes).toEqual(['/login', '/organisations']);
+  expect(result?.removedRoutes).toEqual([]);
+
+  // A run that was not judged lists candidates as its findings: none of them was confirmed, so none is fixed.
+  const unjudged = { ...previous, findings: [stepFinding({ id: 'seen', status: 'candidate' })] };
+  expect(ids(drift(withPrevious(state, unjudged))?.fixed ?? [])).toEqual([]);
 });

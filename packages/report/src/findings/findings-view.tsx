@@ -9,11 +9,9 @@ import {
   intendedFindings,
   rejectedFindings,
 } from '@/data/selectors';
-import { cn } from '@/lib/utils';
 import { RejectedHint } from '@/screens/scorecard';
-import { SEVERITY_DOT, SEVERITY_LABEL } from '@/screens/severity';
-import { type FindingFilters, isFiltered, matchesFilters, NO_FILTERS, routesOf } from './filter';
-import { FindingGroup, FindingLink } from './finding-group';
+import { type FindingFilters, isFiltered, matchesFilters, NO_FILTERS } from './filter';
+import { FindingGroup, FindingLine, FindingLink } from './finding-group';
 import { FindingPanel } from './finding-panel';
 import { FindingsFilters } from './findings-filters';
 
@@ -109,15 +107,7 @@ function WorthALook({
           {entries.map((entry) => (
             <li key={entry.id}>
               <FindingLink finding={entry} selectedId={selectedId}>
-                <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
-                  <span
-                    aria-hidden="true"
-                    className={cn('size-2 rounded-full', SEVERITY_DOT[entry.severity])}
-                  />
-                  {SEVERITY_LABEL[entry.severity]}
-                </span>
-                <span>{entry.title}</span>
-                <span className="font-mono text-[12px] text-ink-2">{routesOf(entry).join(', ')}</span>
+                <FindingLine finding={entry} />
               </FindingLink>
             </li>
           ))}

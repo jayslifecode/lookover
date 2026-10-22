@@ -1,4 +1,5 @@
 import type { Finding, Severity } from '@jayslifecode/lookover-core';
+import { routesOf } from '@/data/selectors';
 
 /*
  * The Findings view's filters, as pure functions over a finding: by severity and by lens (none chosen:
@@ -27,12 +28,6 @@ export const NO_FILTERS: FindingFilters = {
 /** `set` with `value` added, or taken out when it was in; a new set. */
 export function toggled<T>(set: ReadonlySet<T>, value: T): ReadonlySet<T> {
   return set.has(value) ? new Set([...set].filter((known) => known !== value)) : new Set([...set, value]);
-}
-
-/** The routes `finding` was seen on, each once. */
-export function routesOf(finding: Finding): string[] {
-  if (finding.shape === 'step') return [finding.trace.route];
-  return [...new Set(finding.occurrences.map((occurrence) => occurrence.route))];
 }
 
 function selectorsOf(finding: Finding): string[] {

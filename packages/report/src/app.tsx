@@ -4,18 +4,19 @@ import type { ReportError, ReportState } from './data/reduce';
 import { defaultRoute, navigate, type Route, type RouteView, useRoute, viewRoute } from './data/route';
 import { firstCapturedScreen } from './data/selectors';
 import { useReport } from './data/store';
+import { DriftView } from './drift/drift-view';
 import { FindingsView } from './findings/findings-view';
 import { LensFilter } from './glass/glass';
 import { cn } from './lib/utils';
 import { ScreensView } from './screens/screens-view';
+import { CostReadout } from './shell/cost-readout';
 import type { LiveStatus } from './shell/live-indicator';
 import { SegmentedControl, type SegmentedItem } from './shell/segmented-control';
 import { TopBar } from './shell/top-bar';
 
 /*
- * The report's shell: the top bar with the view switcher over the page, and the main area the current
- * route's view fills. The Screens and Findings views are in; the Drift view comes with the next task, and
- * until then the main area names the route it shows.
+ * The report's shell: the top bar with the view switcher and the cost readout over the page, and the
+ * main area the current route's view fills (Screens, Findings or Drift).
  */
 
 /**
@@ -41,14 +42,6 @@ const VIEW_TITLE: Readonly<Record<RouteView, string>> = {
 };
 
 const VIEW_PANEL_ID = 'report-view';
-
-function routeSummary(report: ReportState, route: Route): string {
-  if (report.manifest === null) return 'Loading the run…';
-  if (route.view === 'screens') return 'The screens the run captured.';
-  return report.manifest.previousRunId === null
-    ? 'This is the first run: there is nothing to compare it with.'
-    : `Compared with the run ${report.manifest.previousRunId}.`;
-}
 
 function MainArea({
   report,
@@ -81,17 +74,21 @@ function MainArea({
       </section>
     );
   }
+  if (route.view === 'drift' && report.manifest !== null) {
+    return (
+      <section id={VIEW_PANEL_ID} role="tabpanel" aria-label={VIEW_TITLE.drift}>
+        <DriftView report={report} />
+      </section>
+    );
+  }
   return (
     <section
       id={VIEW_PANEL_ID}
       role="tabpanel"
-      aria-labelledby="view-title"
+      aria-label={VIEW_TITLE[route.view]}
       className="rounded-lg border border-line bg-bg-1 p-6"
     >
-      <h1 id="view-title" className="font-bold text-2xl tracking-tight">
-        {VIEW_TITLE[route.view]}
-      </h1>
-      <p className="mt-1 max-w-[58ch] text-ink-2">{routeSummary(report, route)}</p>
+      <p className="m-0 text-ink-2">Loading the run…</p>
     </section>
   );
 }
@@ -109,6 +106,11 @@ export function App() {
         runName={manifest?.runId ?? 'Lookover report'}
         baseUrl={manifest?.baseUrl ?? null}
         status={manifest === null ? null : LIVE_STATUS[report.run.status]}
+        cost={
+          manifest === null ? undefined : (
+            <CostReadout totals={report.totals} isRunning={report.run.status === 'running'} />
+          )
+        }
         nav={
           <SegmentedControl
             items={VIEW_TABS}

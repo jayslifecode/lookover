@@ -1,10 +1,9 @@
 import type { Finding } from '@jayslifecode/lookover-core';
 import { type ReactNode, useId } from 'react';
 import { formatRoute } from '@/data/route';
-import type { FindingGroup as Group } from '@/data/selectors';
+import { type FindingGroup as Group, routesOf } from '@/data/selectors';
 import { cn } from '@/lib/utils';
 import { SEVERITY_DOT, SEVERITY_LABEL } from '@/screens/severity';
-import { routesOf } from './filter';
 
 /*
  * One fix-first group of the Findings view (a solid surface): what it is about, as a button that opens
@@ -31,6 +30,20 @@ export function subjectOf(finding: Finding): string {
   const target = finding.target;
   if (target === null) return finding.title;
   return target.name === '' ? target.role : `${target.role} "${target.name}"`;
+}
+
+/** A finding on one line: its severity, its title and the routes it was seen on. */
+export function FindingLine({ finding }: { readonly finding: Finding }) {
+  return (
+    <>
+      <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-2">
+        <span aria-hidden="true" className={cn('size-2 rounded-full', SEVERITY_DOT[finding.severity])} />
+        {SEVERITY_LABEL[finding.severity]}
+      </span>
+      <span>{finding.title}</span>
+      <span className="font-mono text-[12px] text-ink-2">{routesOf(finding).join(', ')}</span>
+    </>
+  );
 }
 
 /** A link that selects `finding` in the Findings view. */

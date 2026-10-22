@@ -13,6 +13,11 @@ function severityRank(severity: Severity): number {
   return SEVERITY_ORDER.indexOf(severity);
 }
 
+/** The more severe finding first; a stable sort keeps the order of equally severe ones. */
+export function compareSeverity(a: Finding, b: Finding): number {
+  return severityRank(a.severity) - severityRank(b.severity);
+}
+
 /** Findings about one component (one signature, else one component name, else one rule). */
 export interface FindingGroup {
   /** Unique among the groups. */
@@ -39,14 +44,30 @@ export interface Scorecard {
   readonly skipped: readonly SkipTally[];
 }
 
-/** How the confirmed findings changed since the previous run, told apart by id. */
+/**
+ * How the confirmed findings changed since the previous run, told apart by id, and which routes came and
+ * went. The report has the previous run's findings but not its screen map, so the routes are compared
+ * with the routes the previous run's findings name: a route it captured without a finding counts as added.
+ */
 export interface Drift {
-  /** Confirmed now, not a finding of the previous run. */
+  /** Confirmed now, not confirmed in the previous run. */
   readonly added: readonly Finding[];
-  /** A finding of the previous run that is neither confirmed nor intended now. */
+  /** Confirmed in the previous run, and neither confirmed nor intended now. */
   readonly fixed: readonly Finding[];
-  /** Confirmed now and a finding of the previous run; this run's version of each. */
+  /** Confirmed in both runs; this run's version of each. */
   readonly unchanged: readonly Finding[];
+  /** Confirmed in the previous run and decided intended since: never fixed. This run's version of each. */
+  readonly intended: readonly Finding[];
+  /** The routes of this run's screens that no finding of the previous run names, sorted. */
+  readonly addedRoutes: readonly string[];
+  /** The routes the previous run's findings name that no screen of this run is on, sorted. */
+  readonly removedRoutes: readonly string[];
+}
+
+/** The routes `finding` was seen on, each once, in the order first seen. */
+export function routesOf(finding: Finding): string[] {
+  if (finding.shape === 'step') return [finding.trace.route];
+  return [...new Set(finding.occurrences.map((occurrence) => occurrence.route))];
 }
 
 /** The distinct screens `finding` was seen on, in the order first seen. */
@@ -199,17 +220,35 @@ export function scorecard(state: ReportState, screenId: string): Scorecard {
   };
 }
 
+function sortedDifference(source: ReadonlySet<string>, other: ReadonlySet<string>): string[] {
+  return [...source].filter((value) => !other.has(value)).toSorted(compareText);
+}
+
 /** `null` until the previous run's findings are loaded, and for a first run. */
 export function drift(state: ReportState): Drift | null {
-  if (state.previous === null) return null;
-  const before = state.previous.findings;
+  const { previous } = state;
+  if (previous === null) return null;
+  // A run that was not judged lists its candidates as findings: those were never confirmed.
+  const before = previous.findings.filter((finding) => finding.status === 'confirmed');
   const current = confirmedFindings(state);
+  const intended = intendedFindings(state);
   const beforeIds = new Set(before.map((finding) => finding.id));
   const currentIds = new Set(current.map((finding) => finding.id));
-  const intendedIds = new Set(intendedFindings(state).map((finding) => finding.id));
+  const intendedIds = new Set(intended.map((finding) => finding.id));
+  const listedBefore = [
+    ...previous.findings,
+    ...previous.worthALook,
+    ...previous.rejected,
+    ...previous.intended,
+  ];
+  const routesBefore = new Set(listedBefore.flatMap(routesOf));
+  const routesNow = new Set(state.screens.map((screen) => screen.route));
   return {
     added: current.filter((finding) => !beforeIds.has(finding.id)),
     fixed: before.filter((finding) => !currentIds.has(finding.id) && !intendedIds.has(finding.id)),
     unchanged: current.filter((finding) => beforeIds.has(finding.id)),
+    intended: intended.filter((finding) => beforeIds.has(finding.id)),
+    addedRoutes: sortedDifference(routesNow, routesBefore),
+    removedRoutes: sortedDifference(routesBefore, routesNow),
   };
 }
