@@ -14,8 +14,16 @@ export interface CliResult {
 export interface RunCliOptions {
   /** Added to this process's environment. */
   readonly env?: Readonly<Record<string, string>>;
+  /** Left out of the environment the CLI gets, whatever this process's holds. */
+  readonly withoutEnv?: readonly string[];
   /** Kills the CLI after this long (it then exits non-zero). Default: no limit. */
   readonly timeoutMs?: number;
+}
+
+function childEnv(options: RunCliOptions): NodeJS.ProcessEnv {
+  const removed = new Set(options.withoutEnv ?? []);
+  const merged = { ...process.env, ...options.env };
+  return Object.fromEntries(Object.entries(merged).filter(([name]) => !removed.has(name)));
 }
 
 /** Runs `lookover <args>` in `cwd` without a terminal and resolves with how it ended. */
@@ -32,7 +40,7 @@ export function runCli(
       {
         cwd,
         encoding: 'utf8',
-        env: { ...process.env, ...options.env },
+        env: childEnv(options),
         ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs }),
       },
       (error, stdout, stderr) => {

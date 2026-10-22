@@ -26,6 +26,8 @@ export interface Seed {
   readonly expectedSeverity: Severity;
   /** A clean control: it looks like the issue, and Lookover must not report it. */
   readonly control?: boolean;
+  /** A control Lookover sees as a candidate and must reject (the timing control). */
+  readonly expectedStatus?: 'rejected';
 }
 
 export interface Seeds {
@@ -89,12 +91,16 @@ export function placesOf(finding: Finding, map: AppMap): Place[] {
  */
 export function reportsSeed(finding: Finding, seed: Seed, map: AppMap): boolean {
   if (finding.rule.id !== seed.rule) return false;
+  return placesOf(finding, map).some((place) => isSeedPlace(place, seed));
+}
+
+/** Whether `place` is where `seed` is: its route, its element when it names one, its viewport when it has one. */
+export function isSeedPlace(place: Place, seed: Seed): boolean {
   const viewport = SEED_VIEWPORTS[seed.id];
-  return placesOf(finding, map).some(
-    (place) =>
-      place.route === seed.route &&
-      (seed.selector === undefined || place.selector === seed.selector) &&
-      (viewport === undefined || place.viewport === viewport),
+  return (
+    place.route === seed.route &&
+    (seed.selector === undefined || place.selector === seed.selector) &&
+    (viewport === undefined || place.viewport === viewport)
   );
 }
 
@@ -112,12 +118,13 @@ function isSeedsFile(value: unknown): value is { version: 1; issues: Seed[] } {
 
 function isSeed(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false;
-  const { id, route, rule, selector, control } = value as Record<string, unknown>;
+  const { id, route, rule, selector, control, expectedStatus } = value as Record<string, unknown>;
   return (
     typeof id === 'string' &&
     typeof route === 'string' &&
     typeof rule === 'string' &&
     (selector === undefined || typeof selector === 'string') &&
-    (control === undefined || typeof control === 'boolean')
+    (control === undefined || typeof control === 'boolean') &&
+    (expectedStatus === undefined || expectedStatus === 'rejected')
   );
 }

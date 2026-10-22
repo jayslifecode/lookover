@@ -1,33 +1,58 @@
-import { access, copyFile, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import {
-  type AppMap,
+  type DecidedBy,
   type Finding,
-  type FindingsFile,
   isFailedScreen,
-  type LensSkip,
   loadConfig,
   RunLog,
   readLatestFindings,
-  type Screen,
 } from '@jayslifecode/lookover-core';
-import type { GalleryState, StateGallery } from '@jayslifecode/lookover-lenses';
 import { RULE_IDS } from '@jayslifecode/lookover-rules';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { CANDIDATES_NOTE } from '../../src/commands/run-summary.js';
+import { CANDIDATES_NOTE, HARNESS_ONLY_NOTE } from '../../src/commands/run-summary.js';
 import { type CliResult, runCli } from '../run-cli.js';
-import { BENCH_APP_DIR, BENCH_DATA_FILES, BENCH_URL, E2E_OUTPUT_DIR } from './bench-env.js';
-import { findingsFor, readSeeds, reportsSeed, type Seed } from './seeds.js';
+import { BENCH_APP_DIR, BENCH_DATA_FILES, BENCH_URL } from './bench-env.js';
+import { inspectedSkips, wasMeasured } from './controls.js';
+import {
+  attemptEvidenceProblems,
+  attemptProblems,
+  firstConfirmedMs,
+  seedJudgementProblems,
+} from './judged.js';
+import {
+  allFindings,
+  CREDENTIALS,
+  FORM_AUTH,
+  isMissing,
+  keepOutput,
+  onlyRunDir,
+  patchConfig,
+  readAll,
+  readAppMap,
+  readFindings,
+} from './project.js';
+import { findingsFor, readSeeds, reportsSeed } from './seeds.js';
 
 /** The whole run must finish within this, measured around the `lookover run` process. */
-const RUN_BUDGET_MS = 150_000;
+const RUN_BUDGET_MS = 240_000;
 /** Stops a hung CLI well before the test times out, so the failure says what happened. */
-const PROCESS_TIMEOUT_MS = 240_000;
+const PROCESS_TIMEOUT_MS = 360_000;
+/** The first confirmed finding is logged within this of `run.started`: judging streams while the crawl goes on. */
+const FIRST_CONFIRMED_MS = 60_000;
 const MAX_SCREENS = '12';
 const MIN_SCREENS = 6;
-/** The ten seeds yield at least one candidate each. */
-const MIN_CANDIDATES = 10;
+/** The ten seeds are confirmed, one finding each at least. */
+const MIN_CONFIRMED = 10;
+/**
+ * The suite never spends money on the judge model: the CLI runs without ANTHROPIC_API_KEY, as in CI,
+ * unless LOOKOVER_E2E_MODEL=1 asks for the model on purpose (then a finding may be decided by it).
+ */
+const IS_MODEL_OPTED_IN = process.env.LOOKOVER_E2E_MODEL === '1';
+const API_KEY_ENV = 'ANTHROPIC_API_KEY';
+const DECIDED_BY: readonly DecidedBy[] = IS_MODEL_OPTED_IN ? ['harness', 'model'] : ['harness'];
+const TIMING_CONTROL_MESSAGE = /^flaky: /;
 const EDIT_ROUTE = '/organisations/[id]';
 const LOGIN_ROUTE = '/login';
 const LOGOUT_PATH = '/logout';
@@ -36,137 +61,9 @@ const SIGN_IN_TITLE = /^Sign in\b/;
 /** The one route the bench logs a console error on (seed observers-001). */
 const CONSOLE_ERROR_ROUTE = '/reports';
 
-const CREDENTIALS = {
-  LOOKOVER_USERNAME: 'demo@lookover.dev',
-  LOOKOVER_PASSWORD: 'demo-password',
-} as const;
-
-const FORM_AUTH = {
-  type: 'form',
-  loginUrl: '/login',
-  usernameSelector: 'input[name="email"]',
-  passwordSelector: 'input[name="password"]',
-  submitSelector: 'button[type="submit"]',
-  successUrl: 'http://localhost:3123/',
-} as const;
-
-async function patchConfig(dir: string, patch: Record<string, unknown>): Promise<void> {
-  const path = join(dir, 'lookover.config.json');
-  const config = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
-  await writeFile(path, `${JSON.stringify({ ...config, ...patch }, null, 2)}\n`, 'utf8');
-}
-
-function readAll(paths: readonly string[]): Promise<Buffer[]> {
-  return Promise.all(paths.map((path) => readFile(path)));
-}
-
-async function onlyRunDir(project: string): Promise<string> {
-  const runsDir = join(project, '.lookover', 'runs');
-  const runs = await readdir(runsDir);
-  expect(runs).toHaveLength(1);
-  return join(runsDir, runs[0] ?? '');
-}
-
-async function readAppMap(project: string): Promise<AppMap> {
-  return JSON.parse(await readFile(join(project, '.lookover', 'app-map.json'), 'utf8')) as AppMap;
-}
-
-async function readFindings(project: string): Promise<FindingsFile> {
-  return JSON.parse(await readFile(join(project, '.lookover', 'findings.json'), 'utf8')) as FindingsFile;
-}
-
-function allFindings(file: FindingsFile): Finding[] {
-  return [...file.findings, ...file.worthALook];
-}
-
-/** The lens's state gallery of a screen (`gallery-<screenId>-<hash>.json`); `null` when it wrote none. */
-async function readGallery(runDir: string, screenId: string): Promise<StateGallery | null> {
-  const evidenceDir = join(runDir, 'evidence');
-  const name = (await readdir(evidenceDir)).find((file) => file.startsWith(`gallery-${screenId}-`));
-  if (name === undefined) return null;
-  return JSON.parse(await readFile(join(evidenceDir, name), 'utf8')) as StateGallery;
-}
-
-/** What the lenses left out on each inspected screen, by screen id, from the run log. */
-async function inspectedSkips(runDir: string): Promise<ReadonlyMap<string, readonly LensSkip[]>> {
-  const events = await RunLog.read(join(runDir, 'run.jsonl'));
-  return new Map(
-    events.flatMap((event) => (event.type === 'screen.inspected' ? [[event.screenId, event.skipped]] : [])),
-  );
-}
-
-/** The state a control's rule is judged in, which its gallery entry must hold. */
-const JUDGED_STATE: Readonly<Record<string, GalleryState>> = {
-  'interaction.focus-visible-missing': 'focus',
-  'interaction.hover-state-missing': 'hover',
-};
-const TARGET_SIZE_RULE = 'interaction.target-size';
-/** The skips that would leave an element's target size unjudged: the whole static step, its rule, a node gone. */
-const TARGET_SIZE_SKIPS: ReadonlySet<string> = new Set([
-  'time-budget:static',
-  'time-budget:target-size',
-  'gone',
-]);
-
-/**
- * Whether the lens measured the control on `screen`, so that it not being flagged means it passed: a
- * forced-state control has a gallery entry that was not skipped and holds the state its rule needs; a
- * target-size control is one of the screen's elements, on a screen inspected without a skip that could
- * have left it out.
- */
-async function wasMeasured(
-  control: Seed,
-  screen: Screen,
-  runDir: string,
-  skips: ReadonlyMap<string, readonly LensSkip[]>,
-): Promise<boolean> {
-  const state = JUDGED_STATE[control.rule];
-  if (state !== undefined) {
-    const gallery = await readGallery(runDir, screen.id);
-    const entry = gallery?.entries.find((candidate) => candidate.selector === control.selector);
-    return entry !== undefined && entry.skipped === null && entry.states[state] !== undefined;
-  }
-  if (control.rule === TARGET_SIZE_RULE) {
-    const skipped = skips.get(screen.id);
-    const isListed = screen.elements.some((element) => element.selector === control.selector);
-    return isListed && skipped !== undefined && !skipped.some(({ reason }) => TARGET_SIZE_SKIPS.has(reason));
-  }
-  throw new Error(`${control.id}: no way to tell whether a control of ${control.rule} was measured`);
-}
-
 /** The route a finding's fix prompt leads with: its trace's, or its first occurrence's. */
 function leadRouteOf(finding: Finding): string | undefined {
   return finding.shape === 'step' ? finding.trace.route : finding.occurrences[0]?.route;
-}
-
-async function isMissing(path: string): Promise<boolean> {
-  return access(path).then(
-    () => false,
-    () => true,
-  );
-}
-
-/** Keeps what the run printed, logged and found next to the bench server's log, for a failed CI run. */
-async function keepOutput(project: string, run: CliResult): Promise<void> {
-  const seconds = (run.durationMs / 1_000).toFixed(1);
-  const transcript = [
-    `exit ${run.code} after ${seconds} s`,
-    '--- stdout ---',
-    run.stdout,
-    '--- stderr ---',
-    run.stderr,
-  ].join('\n');
-  await writeFile(join(E2E_OUTPUT_DIR, 'lookover-run.log'), transcript, 'utf8');
-  const runs = await readdir(join(project, '.lookover', 'runs')).catch(() => []);
-  for (const runId of runs) {
-    for (const file of ['run.jsonl', 'findings.json']) {
-      await copyFile(
-        join(project, '.lookover', 'runs', runId, file),
-        join(E2E_OUTPUT_DIR, `${runId}.${file}`),
-      ).catch(() => undefined);
-    }
-  }
-  process.stdout.write(`lookover run: exit ${run.code} in ${seconds} s\n`);
 }
 
 describe('lookover run against the bench app', () => {
@@ -192,8 +89,9 @@ describe('lookover run against the bench app', () => {
     await patchConfig(project, { auth: FORM_AUTH });
 
     dataBefore = await readAll(BENCH_DATA_FILES);
-    run = await runCli(project, ['run', '--yes', '--max-screens', MAX_SCREENS], {
+    run = await runCli(project, ['run', '--yes', '--no-report', '--max-screens', MAX_SCREENS], {
       env: CREDENTIALS,
+      ...(IS_MODEL_OPTED_IN ? {} : { withoutEnv: [API_KEY_ENV] }),
       timeoutMs: PROCESS_TIMEOUT_MS,
     });
     dataAfter = await readAll(BENCH_DATA_FILES);
@@ -267,7 +165,50 @@ describe('lookover run against the bench app', () => {
       expect(missed.map((seed) => seed.id)).toEqual([]);
     });
 
-    test('flags no control, among the candidates or the worth-a-look entries', async () => {
+    test('confirms every seeded issue, reproduced 3 times of 3 in Chromium, by the harness without a key', async () => {
+      const { issues } = await readSeeds();
+      const map = await readAppMap(project);
+      const file = await readFindings(project);
+
+      const problems = issues.flatMap((seed) =>
+        findingsFor(file, seed)
+          .filter((finding) => reportsSeed(finding, seed, map))
+          .flatMap((finding) => seedJudgementProblems(finding, seed, map, DECIDED_BY)),
+      );
+
+      expect(problems).toEqual([]);
+      expect(file.environment?.browser).toMatch(/^chromium /);
+    });
+
+    test('rejects the timing control (control-004) as timing, and the console error it logs', async () => {
+      const { controls } = await readSeeds();
+      const map = await readAppMap(project);
+      const file = await readFindings(project);
+      const timing = controls.filter((seed) => seed.expectedStatus === 'rejected');
+
+      const unrejected = timing.filter(
+        (seed) =>
+          !file.rejected.some(
+            (finding) => reportsSeed(finding, seed, map) && finding.judgement?.attribution === 'timing',
+          ),
+      );
+      const flakyErrors = (findings: readonly Finding[]) =>
+        findings.filter(
+          (finding) =>
+            finding.rule.id === 'observers.console-error' &&
+            finding.shape === 'occurrence' &&
+            finding.occurrences.some((occurrence) =>
+              TIMING_CONTROL_MESSAGE.test(String(occurrence.measured.message)),
+            ),
+        );
+
+      expect(timing.map((seed) => seed.id)).toEqual(['control-004']);
+      expect(unrejected.map((seed) => seed.id)).toEqual([]);
+      expect(flakyErrors(file.rejected).map((finding) => finding.judgement?.attribution)).toEqual(['timing']);
+      expect(flakyErrors(allFindings(file))).toEqual([]);
+    });
+
+    test('flags no control, among the confirmed findings or the worth-a-look entries', async () => {
       const { controls } = await readSeeds();
       const map = await readAppMap(project);
       const findings = allFindings(await readFindings(project));
@@ -289,7 +230,8 @@ describe('lookover run against the bench app', () => {
       const skips = await inspectedSkips(runDir);
 
       const unmeasured: string[] = [];
-      for (const control of controls) {
+      // The timing control is measured when it is rejected, which its own test asserts.
+      for (const control of controls.filter((seed) => seed.expectedStatus === undefined)) {
         const screens = map.screens.filter(
           (screen) => screen.route === control.route && !isFailedScreen(screen),
         );
@@ -379,10 +321,55 @@ describe('lookover run against the bench app', () => {
     expect(missing).toEqual([]);
   });
 
-  test('ends the run log with run.finished', async () => {
-    const events = await RunLog.read(join(await onlyRunDir(project), 'run.jsonl'));
+  describe('the judge', () => {
+    test('logs the first confirmed finding within a minute of run.started, while the crawl goes on', async () => {
+      const events = await RunLog.read(join(await onlyRunDir(project), 'run.jsonl'));
 
-    expect(events.at(-1)?.type).toBe('run.finished');
+      const ms = firstConfirmedMs(events);
+      process.stdout.write(
+        `first confirmed finding: ${ms === null ? 'none' : `${ms} ms`} after run.started\n`,
+      );
+
+      expect(ms).not.toBeNull();
+      expect(ms).toBeLessThan(FIRST_CONFIRMED_MS);
+    });
+
+    test('ends the run log with run.finished, counting what became of the findings', async () => {
+      const events = await RunLog.read(join(await onlyRunDir(project), 'run.jsonl'));
+      const file = await readFindings(project);
+      const finished = events.at(-1);
+
+      expect(finished?.type).toBe('run.finished');
+      expect(finished).toMatchObject({
+        confirmed: file.findings.filter((finding) => finding.status === 'confirmed').length,
+        rejected: file.rejected.length,
+        intended: 0,
+        worthALook: file.worthALook.length,
+        judge: file.judge,
+      });
+      expect(finished?.type === 'run.finished' && finished.confirmed).toBeGreaterThanOrEqual(MIN_CONFIRMED);
+    });
+
+    test('lists only confirmed findings, and decides without the model when there is no key', async () => {
+      const file = await readFindings(project);
+
+      expect(file.findings.filter((finding) => finding.status !== 'confirmed')).toEqual([]);
+      expect(file.rejected.length).toBeGreaterThan(0);
+      if (!IS_MODEL_OPTED_IN) expect(file.judge).toMatchObject({ model: null, unavailable: 'no-api-key' });
+    });
+
+    test('gives every confirmed and rejected finding three attempts per target, each with evidence', async () => {
+      const file = await readFindings(project);
+
+      expect([...file.findings, ...file.rejected].flatMap(attemptProblems)).toEqual([]);
+    });
+
+    test("keeps every attempt's evidence inside the run directory", async () => {
+      const file = await readFindings(project);
+      const runDir = await onlyRunDir(project);
+
+      expect(await attemptEvidenceProblems([...file.findings, ...file.rejected], runDir)).toEqual([]);
+    });
   });
 
   test('prints one progress line per screen, then the summary', async () => {
@@ -402,24 +389,36 @@ describe('lookover run against the bench app', () => {
       'Run dir',
       'App map',
       'Duration',
-      'Candidates',
+      'Confirmed',
+      'Rejected',
+      'Intended',
       'Worth a look',
       'Skipped',
+      'Judge',
       'Findings',
     ]) {
       expect(run.stdout).toMatch(new RegExp(`^ {2}${row} +\\S`, 'm'));
     }
+    expect(run.stdout).not.toMatch(/^ {2}Candidates /m);
   });
 
-  test('prints at least ten candidates, with a line for the missing focus ring', () => {
-    const candidates = /^ {2}Candidates +(\d+)$/m.exec(run.stdout)?.[1];
+  test('prints at least ten confirmed findings, with a line for the missing focus ring reproduced 3/3', () => {
+    const confirmed = /^ {2}Confirmed +(\d+)$/m.exec(run.stdout)?.[1];
 
-    expect(Number(candidates)).toBeGreaterThanOrEqual(MIN_CANDIDATES);
-    expect(run.stdout).toMatch(/^ {2}\S+ +interaction\.focus-visible-missing +\d+ {2}\S/m);
+    expect(Number(confirmed)).toBeGreaterThanOrEqual(MIN_CONFIRMED);
+    expect(run.stdout).toMatch(
+      /^ {2}\S+ +interaction\.focus-visible-missing +\d+ {2}\S.* {2}reproduced 3\/3$/m,
+    );
   });
 
-  test('ends the candidates with the note that nothing has judged them yet', () => {
-    expect(run.stdout.split('\n')).toContain(CANDIDATES_NOTE);
+  test('says the judge model was not used, and how to enable it, when there is no key', () => {
+    if (IS_MODEL_OPTED_IN) {
+      expect(run.stdout).toMatch(/^ {2}Judge +claude-\S+ · \d+ calls? \(\d+ cached\) · /m);
+      return;
+    }
+    expect(run.stdout).toMatch(/^ {2}Judge +harness only \(no ANTHROPIC_API_KEY\)$/m);
+    expect(run.stdout.split('\n')).toContain(HARNESS_ONLY_NOTE);
+    expect(run.stdout.split('\n')).not.toContain(CANDIDATES_NOTE);
   });
 
   test('leaves lookover.config.json loadable', async () => {
