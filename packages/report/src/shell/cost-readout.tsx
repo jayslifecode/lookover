@@ -1,5 +1,6 @@
 import type { JudgeTotals } from '@jayslifecode/lookover-core';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ON_GLASS_FOCUS } from '@/findings/panel-styles';
 
 /*
  * What the judge model cost the run, in the top bar: `34 calls · 61k tokens · ≈ $0.19`, with a tooltip
@@ -81,7 +82,10 @@ export function CostReadout({ totals, isFinished }: CostReadoutProps) {
   if (!isUsed(totals)) return <span className={READOUT}>{text}</span>;
   return (
     <Tooltip>
-      <TooltipTrigger className={`${READOUT} cursor-help rounded-full bg-transparent px-1 py-0.5`}>
+      {/* At least 24 px tall, like every target, with the two-tone ring of a control on glass. */}
+      <TooltipTrigger
+        className={`${READOUT} ${ON_GLASS_FOCUS} inline-flex min-h-6 cursor-help items-center rounded-full bg-transparent px-1.5`}
+      >
         {text}
       </TooltipTrigger>
       <TooltipContent>
