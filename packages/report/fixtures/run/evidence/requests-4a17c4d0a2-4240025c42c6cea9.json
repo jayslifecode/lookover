@@ -9,7 +9,7 @@
       "status": 200,
       "resourceType": "document",
       "failure": null,
-      "durationMs": 27
+      "durationMs": 41
     },
     {
       "method": "GET",
@@ -17,7 +17,7 @@
       "status": 200,
       "resourceType": "stylesheet",
       "failure": null,
-      "durationMs": 5
+      "durationMs": 7
     },
     {
       "method": "GET",
@@ -25,15 +25,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 5
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_compiled_react-dom_0znzu5c2_wrmm._.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 10
+      "durationMs": 7
     },
     {
       "method": "GET",
@@ -41,7 +33,15 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 11
+      "durationMs": 13
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_compiled_react-dom_0znzu5c2_wrmm._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 13
     },
     {
       "method": "GET",
@@ -49,7 +49,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 20
+      "durationMs": 25
     },
     {
       "method": "GET",
@@ -57,23 +57,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 24
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_0pj-6s2ffbhy1._.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 25
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/0zix_%40swc_helpers_cjs_0hi-e474n4mns._.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 32
+      "durationMs": 26
     },
     {
       "method": "GET",
@@ -81,7 +65,23 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 35
+      "durationMs": 32
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/0zix_%40swc_helpers_cjs_0hi-e474n4mns._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 34
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_0pj-6s2ffbhy1._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 34
     },
     {
       "method": "GET",
@@ -97,7 +97,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 41
+      "durationMs": 43
     },
     {
       "method": "GET",
@@ -105,7 +105,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 54
+      "durationMs": 46
     },
     {
       "method": "GET",
@@ -113,7 +113,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 54
+      "durationMs": 46
     },
     {
       "method": "GET",
@@ -121,7 +121,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 62
+      "durationMs": 59
     },
     {
       "method": "GET",
@@ -129,7 +129,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 63
+      "durationMs": 61
     },
     {
       "method": "GET",
@@ -137,7 +137,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 68
+      "durationMs": 63
     },
     {
       "method": "GET",
@@ -145,7 +145,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 4
+      "durationMs": 6
     },
     {
       "method": "GET",
@@ -153,7 +153,7 @@
       "status": 500,
       "resourceType": "fetch",
       "failure": null,
-      "durationMs": 9
+      "durationMs": 11
     },
     {
       "method": "GET",
@@ -162,14 +162,6 @@
       "resourceType": "fetch",
       "failure": null,
       "durationMs": 12
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/__nextjs_font/geist-latin.woff2",
-      "status": 200,
-      "resourceType": "font",
-      "failure": null,
-      "durationMs": 8
     }
   ]
 }

@@ -1,23 +1,15 @@
 {
-  "screenId": "57682dba9d",
-  "url": "http://localhost:3123/login",
+  "screenId": "38a8049145",
+  "url": "http://localhost:3123/organisations",
   "dropped": 0,
   "entries": [
     {
       "method": "GET",
-      "url": "http://localhost:3123/login",
+      "url": "http://localhost:3123/organisations",
       "status": 200,
       "resourceType": "document",
       "failure": null,
-      "durationMs": 45
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_1tubo6fv-9z4x._.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 7
+      "durationMs": 156
     },
     {
       "method": "GET",
@@ -25,7 +17,15 @@
       "status": 200,
       "resourceType": "stylesheet",
       "failure": null,
-      "durationMs": 10
+      "durationMs": 15
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_1tubo6fv-9z4x._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 14
     },
     {
       "method": "GET",
@@ -33,7 +33,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 15
+      "durationMs": 16
     },
     {
       "method": "GET",
@@ -41,7 +41,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 16
+      "durationMs": 17
     },
     {
       "method": "GET",
@@ -49,7 +49,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 24
+      "durationMs": 28
     },
     {
       "method": "GET",
@@ -57,7 +57,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 24
+      "durationMs": 29
     },
     {
       "method": "GET",
@@ -65,7 +65,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 29
+      "durationMs": 33
     },
     {
       "method": "GET",
@@ -73,7 +73,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 30
+      "durationMs": 37
     },
     {
       "method": "GET",
@@ -81,23 +81,15 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 30
+      "durationMs": 37
     },
     {
       "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/bench_app_1urspxgmkk327._.js",
+      "url": "http://localhost:3123/_next/static/chunks/bench_app_0rbirx_agxtvw._.js",
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 36
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_02i515gfhd2nd._.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 44
+      "durationMs": 41
     },
     {
       "method": "GET",
@@ -109,11 +101,19 @@
     },
     {
       "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/_002eiw_kvn_kd._.js",
+      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_02i515gfhd2nd._.js",
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 46
+      "durationMs": 49
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/_1d8qqxef8u-i9._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 50
     },
     {
       "method": "GET",
@@ -121,7 +121,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 71
+      "durationMs": 63
     },
     {
       "method": "GET",
@@ -129,7 +129,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 71
+      "durationMs": 65
     },
     {
       "method": "GET",
@@ -137,7 +137,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 74
+      "durationMs": 69
     },
     {
       "method": "GET",
@@ -145,7 +145,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 5
+      "durationMs": 27
     },
     {
       "method": "GET",
@@ -153,7 +153,7 @@
       "status": 200,
       "resourceType": "font",
       "failure": null,
-      "durationMs": 7
+      "durationMs": 13
     }
   ]
 }

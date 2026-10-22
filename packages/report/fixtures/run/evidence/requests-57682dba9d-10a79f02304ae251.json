@@ -1,15 +1,15 @@
 {
-  "screenId": "4a17c4d0a2",
-  "url": "http://localhost:3123/",
+  "screenId": "57682dba9d",
+  "url": "http://localhost:3123/login",
   "dropped": 0,
   "entries": [
     {
       "method": "GET",
-      "url": "http://localhost:3123/",
+      "url": "http://localhost:3123/login",
       "status": 200,
       "resourceType": "document",
       "failure": null,
-      "durationMs": 28
+      "durationMs": 44
     },
     {
       "method": "GET",
@@ -17,7 +17,7 @@
       "status": 200,
       "resourceType": "stylesheet",
       "failure": null,
-      "durationMs": 6
+      "durationMs": 8
     },
     {
       "method": "GET",
@@ -25,15 +25,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 6
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_compiled_react-dom_cjs_react-dom_development_01n3iu_naj2nu.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 12
+      "durationMs": 14
     },
     {
       "method": "GET",
@@ -41,15 +33,15 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 12
+      "durationMs": 15
     },
     {
       "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_compiled_0y6fhqjgune8y._.js",
+      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_compiled_react-dom_cjs_react-dom_development_01n3iu_naj2nu.js",
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 22
+      "durationMs": 15
     },
     {
       "method": "GET",
@@ -61,31 +53,15 @@
     },
     {
       "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_compiled_0y6fhqjgune8y._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 28
+    },
+    {
+      "method": "GET",
       "url": "http://localhost:3123/_next/static/chunks/0lg0_next_dist_0pj-6s2ffbhy1._.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 27
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/bench_app_1anvha4rlo79g._.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 29
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/0zix_%40swc_helpers_cjs_0hi-e474n4mns._.js",
-      "status": 200,
-      "resourceType": "script",
-      "failure": null,
-      "durationMs": 30
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/bench_app_219uq1sj0q91c._.js",
       "status": 200,
       "resourceType": "script",
       "failure": null,
@@ -93,19 +69,35 @@
     },
     {
       "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/0zix_%40swc_helpers_cjs_0hi-e474n4mns._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 47
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/bench_app_1anvha4rlo79g._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 51
+    },
+    {
+      "method": "GET",
       "url": "http://localhost:3123/_next/static/chunks/turbopack-bench_app_08yebp0r8dtza._.js",
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 36
+      "durationMs": 62
     },
     {
       "method": "GET",
-      "url": "http://localhost:3123/_next/static/chunks/_07k3op0x2ln9x._.js",
+      "url": "http://localhost:3123/_next/static/chunks/bench_app_1urspxgmkk327._.js",
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 38
+      "durationMs": 62
     },
     {
       "method": "GET",
@@ -113,7 +105,15 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 38
+      "durationMs": 67
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3123/_next/static/chunks/_002eiw_kvn_kd._.js",
+      "status": 200,
+      "resourceType": "script",
+      "failure": null,
+      "durationMs": 69
     },
     {
       "method": "GET",
@@ -121,7 +121,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 49
+      "durationMs": 76
     },
     {
       "method": "GET",
@@ -129,7 +129,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 51
+      "durationMs": 83
     },
     {
       "method": "GET",
@@ -137,7 +137,7 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
-      "durationMs": 51
+      "durationMs": 83
     },
     {
       "method": "GET",
@@ -145,23 +145,15 @@
       "status": 200,
       "resourceType": "script",
       "failure": null,
+      "durationMs": 13
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:3123/__nextjs_font/geist-latin.woff2",
+      "status": 200,
+      "resourceType": "font",
+      "failure": null,
       "durationMs": 6
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/api/stats",
-      "status": 500,
-      "resourceType": "fetch",
-      "failure": null,
-      "durationMs": 10
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:3123/api/stats",
-      "status": 500,
-      "resourceType": "fetch",
-      "failure": null,
-      "durationMs": 14
     }
   ]
 }

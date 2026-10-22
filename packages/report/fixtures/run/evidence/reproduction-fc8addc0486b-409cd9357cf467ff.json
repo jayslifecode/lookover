@@ -1,5 +1,5 @@
 {
-  "attempt": 3,
+  "attempt": 2,
   "target": "fc8addc0486b|4a17c4d0a2||desktop",
   "url": "http://localhost:3123/",
   "reproduction": {
@@ -11,9 +11,9 @@
         "kind": "requests",
         "label": "Network requests on /",
         "ref": {
-          "id": "7972ef2dd0fc0587",
-          "path": "evidence/requests-4a17c4d0a2-7972ef2dd0fc0587.json",
-          "bytes": 4966,
+          "id": "4240025c42c6cea9",
+          "path": "evidence/requests-4a17c4d0a2-4240025c42c6cea9.json",
+          "bytes": 4764,
           "kind": "json"
         }
       }

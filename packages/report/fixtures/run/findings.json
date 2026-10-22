@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "runId": "20261022-195459-canl",
-  "createdAt": "2026-10-22T10:55:06.562Z",
+  "runId": "20261022-212802-kwtz",
+  "createdAt": "2026-10-22T12:28:10.521Z",
   "findings": [
     {
       "shape": "occurrence",
@@ -28,14 +28,14 @@
             "reproduced": true,
             "observed": "GET /api/stats answered 500",
             "skipped": null,
-            "durationMs": 907,
+            "durationMs": 926,
             "evidence": [
               {
                 "kind": "measurements",
                 "label": "reproduction 1",
                 "ref": {
-                  "id": "47cf43de97f18931",
-                  "path": "evidence/reproduction-fc8addc0486b-47cf43de97f18931.json",
+                  "id": "1dc8d1b4b9f1a6b0",
+                  "path": "evidence/reproduction-fc8addc0486b-1dc8d1b4b9f1a6b0.json",
                   "bytes": 750,
                   "kind": "json"
                 }
@@ -44,9 +44,9 @@
                 "kind": "requests",
                 "label": "Network requests on /",
                 "ref": {
-                  "id": "3e0afbe670c321cf",
-                  "path": "evidence/requests-4a17c4d0a2-3e0afbe670c321cf.json",
-                  "bytes": 4964,
+                  "id": "da1e8560040ff645",
+                  "path": "evidence/requests-4a17c4d0a2-da1e8560040ff645.json",
+                  "bytes": 4966,
                   "kind": "json"
                 }
               }
@@ -62,14 +62,14 @@
             "reproduced": true,
             "observed": "GET /api/stats answered 500",
             "skipped": null,
-            "durationMs": 811,
+            "durationMs": 848,
             "evidence": [
               {
                 "kind": "measurements",
                 "label": "reproduction 2",
                 "ref": {
-                  "id": "18d7e8082279ccb1",
-                  "path": "evidence/reproduction-fc8addc0486b-18d7e8082279ccb1.json",
+                  "id": "409cd9357cf467ff",
+                  "path": "evidence/reproduction-fc8addc0486b-409cd9357cf467ff.json",
                   "bytes": 750,
                   "kind": "json"
                 }
@@ -78,8 +78,8 @@
                 "kind": "requests",
                 "label": "Network requests on /",
                 "ref": {
-                  "id": "ecf8ce6e74ef1a55",
-                  "path": "evidence/requests-4a17c4d0a2-ecf8ce6e74ef1a55.json",
+                  "id": "4240025c42c6cea9",
+                  "path": "evidence/requests-4a17c4d0a2-4240025c42c6cea9.json",
                   "bytes": 4764,
                   "kind": "json"
                 }
@@ -96,14 +96,14 @@
             "reproduced": true,
             "observed": "GET /api/stats answered 500",
             "skipped": null,
-            "durationMs": 870,
+            "durationMs": 901,
             "evidence": [
               {
                 "kind": "measurements",
                 "label": "reproduction 3",
                 "ref": {
-                  "id": "91881c518a821ed0",
-                  "path": "evidence/reproduction-fc8addc0486b-91881c518a821ed0.json",
+                  "id": "783408785e7994a8",
+                  "path": "evidence/reproduction-fc8addc0486b-783408785e7994a8.json",
                   "bytes": 750,
                   "kind": "json"
                 }
@@ -112,9 +112,9 @@
                 "kind": "requests",
                 "label": "Network requests on /",
                 "ref": {
-                  "id": "7972ef2dd0fc0587",
-                  "path": "evidence/requests-4a17c4d0a2-7972ef2dd0fc0587.json",
-                  "bytes": 4966,
+                  "id": "e04bfb2761b39e5f",
+                  "path": "evidence/requests-4a17c4d0a2-e04bfb2761b39e5f.json",
+                  "bytes": 4965,
                   "kind": "json"
                 }
               }
@@ -141,7 +141,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.547Z"
+        "judgedAt": "2026-10-22T12:28:18.296Z"
       },
       "title": "A request the page made failed on the server",
       "expected": "Every request the page makes is answered without a server error, that is, without a status of 500 or higher.",
@@ -152,15 +152,15 @@
           "kind": "requests",
           "label": "Network requests on /",
           "ref": {
-            "id": "09225f8992d06d75",
-            "path": "evidence/requests-4a17c4d0a2-09225f8992d06d75.json",
+            "id": "f05593e55be8a8c2",
+            "path": "evidence/requests-4a17c4d0a2-f05593e55be8a8c2.json",
             "bytes": 4965,
             "kind": "json"
           }
         }
       ],
       "fixPrompt": "In / (http://localhost:3123/), GET /api/stats answered 500.\nOccurrences (1):\n/ page — method=GET, url=http://localhost:3123/api/stats, status=500, failure=null, resourceType=fetch\nRule: A request the page made failed on the server. Expected: Every request the page makes is answered without a server error, that is, without a status of 500 or higher. The server broke while handling the request, so the data or action the page asked for did not happen. Users see an empty list, a spinner that never ends or a save that silently fails.\nFix: Fix the server code behind this request so it stops failing, and make the page show a clear message when a request fails anyway.\nTell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:01.732Z",
+      "createdAt": "2026-10-22T12:28:05.499Z",
       "occurrences": [
         {
           "screenId": "4a17c4d0a2",
@@ -203,7 +203,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 908,
+            "durationMs": 928,
             "evidence": [
               {
                 "kind": "measurements",
@@ -233,7 +233,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 812,
+            "durationMs": 850,
             "evidence": [
               {
                 "kind": "measurements",
@@ -263,7 +263,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 870,
+            "durationMs": 902,
             "evidence": [
               {
                 "kind": "measurements",
@@ -308,7 +308,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:05.102Z"
+        "judgedAt": "2026-10-22T12:28:08.992Z"
       },
       "title": "Control cannot be reached with the keyboard",
       "expected": "Everything you can click can also be reached with the Tab key and used with Enter or Space.",
@@ -327,7 +327,7 @@
         }
       ],
       "fixPrompt": "In / (http://localhost:3123/), the button \"Organisations 12\" (selector `[data-testid=\"stat-organisations\"]`, React component StatCard) cannot receive keyboard focus.\nRule: Control cannot be reached with the keyboard. Expected: Everything you can click can also be reached with the Tab key and used with Enter or Space. People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.\nFix: Make this control a real `<button>` or `<a href>` element, or at least give it `tabindex=0` and key handlers for Enter and Space. Reference: WCAG 2.2 2.1.1 Keyboard (https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:02.257Z",
+      "createdAt": "2026-10-22T12:28:06.028Z",
       "screenId": "4a17c4d0a2",
       "target": {
         "selector": "[data-testid=\"stat-organisations\"]",
@@ -391,7 +391,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 830,
+            "durationMs": 863,
             "evidence": [
               {
                 "kind": "measurements",
@@ -421,7 +421,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 815,
+            "durationMs": 801,
             "evidence": [
               {
                 "kind": "measurements",
@@ -451,7 +451,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 800,
+            "durationMs": 791,
             "evidence": [
               {
                 "kind": "measurements",
@@ -496,7 +496,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.541Z"
+        "judgedAt": "2026-10-22T12:28:18.291Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -515,7 +515,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Northwind Logistics\" (selector `a[aria-label=\"Edit Northwind Logistics\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.087Z",
+      "createdAt": "2026-10-22T12:28:10.011Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Northwind Logistics\"]",
@@ -579,7 +579,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 862,
             "evidence": [
               {
                 "kind": "measurements",
@@ -609,7 +609,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 814,
+            "durationMs": 800,
             "evidence": [
               {
                 "kind": "measurements",
@@ -639,7 +639,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 790,
             "evidence": [
               {
                 "kind": "measurements",
@@ -684,7 +684,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.542Z"
+        "judgedAt": "2026-10-22T12:28:18.291Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -703,7 +703,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Northwind Logistics\" (selector `button[aria-label=\"Copy email for Northwind Logistics\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.089Z",
+      "createdAt": "2026-10-22T12:28:10.013Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Northwind Logistics\"]",
@@ -767,7 +767,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -797,7 +797,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 814,
+            "durationMs": 800,
             "evidence": [
               {
                 "kind": "measurements",
@@ -827,7 +827,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -872,7 +872,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.542Z"
+        "judgedAt": "2026-10-22T12:28:18.292Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -891,7 +891,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Bluefin Analytics\" (selector `a[aria-label=\"Edit Bluefin Analytics\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.090Z",
+      "createdAt": "2026-10-22T12:28:10.015Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Bluefin Analytics\"]",
@@ -955,7 +955,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -985,7 +985,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 800,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1015,7 +1015,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1060,7 +1060,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.542Z"
+        "judgedAt": "2026-10-22T12:28:18.292Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -1079,7 +1079,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Bluefin Analytics\" (selector `button[aria-label=\"Copy email for Bluefin Analytics\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.092Z",
+      "createdAt": "2026-10-22T12:28:10.016Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Bluefin Analytics\"]",
@@ -1143,7 +1143,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1173,7 +1173,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1203,7 +1203,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1248,7 +1248,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.542Z"
+        "judgedAt": "2026-10-22T12:28:18.292Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -1267,7 +1267,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Copperleaf Studio\" (selector `a[aria-label=\"Edit Copperleaf Studio\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.094Z",
+      "createdAt": "2026-10-22T12:28:10.018Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Copperleaf Studio\"]",
@@ -1331,7 +1331,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1361,7 +1361,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1391,7 +1391,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1436,7 +1436,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.543Z"
+        "judgedAt": "2026-10-22T12:28:18.292Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -1455,7 +1455,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Copperleaf Studio\" (selector `button[aria-label=\"Copy email for Copperleaf Studio\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.095Z",
+      "createdAt": "2026-10-22T12:28:10.019Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Copperleaf Studio\"]",
@@ -1519,7 +1519,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1549,7 +1549,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 801,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1579,7 +1579,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1624,7 +1624,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.543Z"
+        "judgedAt": "2026-10-22T12:28:18.292Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -1643,7 +1643,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Delta Harbour Trading\" (selector `a[aria-label=\"Edit Delta Harbour Trading\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.097Z",
+      "createdAt": "2026-10-22T12:28:10.021Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Delta Harbour Trading\"]",
@@ -1707,7 +1707,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1737,7 +1737,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1767,7 +1767,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1812,7 +1812,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.543Z"
+        "judgedAt": "2026-10-22T12:28:18.292Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -1831,7 +1831,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Delta Harbour Trading\" (selector `button[aria-label=\"Copy email for Delta Harbour Trading\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.098Z",
+      "createdAt": "2026-10-22T12:28:10.022Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Delta Harbour Trading\"]",
@@ -1895,7 +1895,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1925,7 +1925,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -1955,7 +1955,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2000,7 +2000,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.543Z"
+        "judgedAt": "2026-10-22T12:28:18.293Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -2019,7 +2019,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Evergreen Clinics\" (selector `a[aria-label=\"Edit Evergreen Clinics\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.100Z",
+      "createdAt": "2026-10-22T12:28:10.024Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Evergreen Clinics\"]",
@@ -2083,7 +2083,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2113,7 +2113,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 814,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2143,7 +2143,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2188,7 +2188,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.543Z"
+        "judgedAt": "2026-10-22T12:28:18.293Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -2207,7 +2207,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Evergreen Clinics\" (selector `button[aria-label=\"Copy email for Evergreen Clinics\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.101Z",
+      "createdAt": "2026-10-22T12:28:10.025Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Evergreen Clinics\"]",
@@ -2271,7 +2271,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 828,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2301,7 +2301,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2331,7 +2331,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2376,7 +2376,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.544Z"
+        "judgedAt": "2026-10-22T12:28:18.293Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -2395,7 +2395,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Foxglove Education\" (selector `a[aria-label=\"Edit Foxglove Education\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.103Z",
+      "createdAt": "2026-10-22T12:28:10.027Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Foxglove Education\"]",
@@ -2459,7 +2459,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2489,7 +2489,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2519,7 +2519,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 799,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2564,7 +2564,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.544Z"
+        "judgedAt": "2026-10-22T12:28:18.293Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -2583,7 +2583,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Foxglove Education\" (selector `button[aria-label=\"Copy email for Foxglove Education\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.104Z",
+      "createdAt": "2026-10-22T12:28:10.029Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Foxglove Education\"]",
@@ -2647,7 +2647,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 860,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2677,7 +2677,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2707,7 +2707,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 790,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2752,7 +2752,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.544Z"
+        "judgedAt": "2026-10-22T12:28:18.293Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -2771,7 +2771,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Granite Peak Builders\" (selector `a[aria-label=\"Edit Granite Peak Builders\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.106Z",
+      "createdAt": "2026-10-22T12:28:10.030Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Granite Peak Builders\"]",
@@ -2835,7 +2835,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 860,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2865,7 +2865,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2895,7 +2895,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -2940,7 +2940,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.544Z"
+        "judgedAt": "2026-10-22T12:28:18.294Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -2959,7 +2959,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Granite Peak Builders\" (selector `button[aria-label=\"Copy email for Granite Peak Builders\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.108Z",
+      "createdAt": "2026-10-22T12:28:10.032Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Granite Peak Builders\"]",
@@ -3023,7 +3023,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 860,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3053,7 +3053,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3083,7 +3083,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3128,7 +3128,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.544Z"
+        "judgedAt": "2026-10-22T12:28:18.294Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -3147,7 +3147,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Harbourlight Media\" (selector `a[aria-label=\"Edit Harbourlight Media\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.110Z",
+      "createdAt": "2026-10-22T12:28:10.033Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Harbourlight Media\"]",
@@ -3211,7 +3211,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 860,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3241,7 +3241,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 800,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3271,7 +3271,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3316,7 +3316,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.545Z"
+        "judgedAt": "2026-10-22T12:28:18.294Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -3335,7 +3335,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Harbourlight Media\" (selector `button[aria-label=\"Copy email for Harbourlight Media\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.111Z",
+      "createdAt": "2026-10-22T12:28:10.035Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Harbourlight Media\"]",
@@ -3399,7 +3399,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 829,
+            "durationMs": 860,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3429,7 +3429,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 813,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3459,7 +3459,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3504,7 +3504,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.545Z"
+        "judgedAt": "2026-10-22T12:28:18.294Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -3523,7 +3523,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Ironbark Engineering\" (selector `a[aria-label=\"Edit Ironbark Engineering\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.113Z",
+      "createdAt": "2026-10-22T12:28:10.036Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Ironbark Engineering\"]",
@@ -3587,7 +3587,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 860,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3617,7 +3617,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 814,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3647,7 +3647,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 790,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3692,7 +3692,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.545Z"
+        "judgedAt": "2026-10-22T12:28:18.294Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -3711,7 +3711,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Ironbark Engineering\" (selector `button[aria-label=\"Copy email for Ironbark Engineering\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.114Z",
+      "createdAt": "2026-10-22T12:28:10.038Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Ironbark Engineering\"]",
@@ -3775,7 +3775,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 860,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3805,7 +3805,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 818,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3835,7 +3835,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 798,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3880,7 +3880,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.545Z"
+        "judgedAt": "2026-10-22T12:28:18.295Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -3899,7 +3899,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Juniper Foods\" (selector `a[aria-label=\"Edit Juniper Foods\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.116Z",
+      "createdAt": "2026-10-22T12:28:10.039Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Juniper Foods\"]",
@@ -3963,7 +3963,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -3993,7 +3993,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4023,7 +4023,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4068,7 +4068,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.545Z"
+        "judgedAt": "2026-10-22T12:28:18.295Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -4087,7 +4087,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Juniper Foods\" (selector `button[aria-label=\"Copy email for Juniper Foods\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.117Z",
+      "createdAt": "2026-10-22T12:28:10.041Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Juniper Foods\"]",
@@ -4151,7 +4151,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4181,7 +4181,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 820,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4211,7 +4211,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4256,7 +4256,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.546Z"
+        "judgedAt": "2026-10-22T12:28:18.295Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -4275,7 +4275,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Kestrel Aviation\" (selector `a[aria-label=\"Edit Kestrel Aviation\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.119Z",
+      "createdAt": "2026-10-22T12:28:10.042Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Kestrel Aviation\"]",
@@ -4339,7 +4339,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4369,7 +4369,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 816,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4399,7 +4399,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4444,7 +4444,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.546Z"
+        "judgedAt": "2026-10-22T12:28:18.295Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -4463,7 +4463,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Kestrel Aviation\" (selector `button[aria-label=\"Copy email for Kestrel Aviation\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.120Z",
+      "createdAt": "2026-10-22T12:28:10.044Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Kestrel Aviation\"]",
@@ -4527,7 +4527,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4557,7 +4557,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 818,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4587,7 +4587,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4632,7 +4632,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.546Z"
+        "judgedAt": "2026-10-22T12:28:18.295Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -4651,7 +4651,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the link \"Edit Lumen Energy\" (selector `a[aria-label=\"Edit Lumen Energy\"]`, React component LinkComponent) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.122Z",
+      "createdAt": "2026-10-22T12:28:10.045Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "a[aria-label=\"Edit Lumen Energy\"]",
@@ -4715,7 +4715,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 827,
+            "durationMs": 861,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4745,7 +4745,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 829,
+            "durationMs": 799,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4775,7 +4775,7 @@
             "reproduced": true,
             "observed": "16×16 px, nearest other target 12 px away",
             "skipped": null,
-            "durationMs": 797,
+            "durationMs": 789,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4820,7 +4820,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.546Z"
+        "judgedAt": "2026-10-22T12:28:18.296Z"
       },
       "title": "Tap target is smaller than 24 by 24 pixels",
       "expected": "Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour.",
@@ -4839,7 +4839,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the button \"Copy email for Lumen Energy\" (selector `button[aria-label=\"Copy email for Lumen Energy\"]`, React component CopyEmailButton) 16×16 px, nearest other target 12 px away.\nRule: Tap target is smaller than 24 by 24 pixels. Expected: Every button, link and field is at least 24 by 24 pixels, or has enough empty space around it to be tapped without hitting a neighbour. Small targets are hard to hit with a finger, a trackpad or an unsteady hand. People tap the wrong thing, or give up.\nFix: Make this control at least 24 by 24 pixels, for example with padding or `min-width` and `min-height`, or leave enough space that a 24 pixel circle centred on it touches no other control and no other small control's circle. Reference: WCAG 2.2 2.5.8 Target Size (Minimum) (https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.123Z",
+      "createdAt": "2026-10-22T12:28:10.047Z",
       "screenId": "38a8049145",
       "target": {
         "selector": "button[aria-label=\"Copy email for Lumen Energy\"]",
@@ -4907,7 +4907,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1154,
+            "durationMs": 1192,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4941,7 +4941,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1163,
+            "durationMs": 1131,
             "evidence": [
               {
                 "kind": "measurements",
@@ -4975,7 +4975,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1129,
+            "durationMs": 1113,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5009,7 +5009,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1171,
+            "durationMs": 1196,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5043,7 +5043,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1154,
+            "durationMs": 1141,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5077,7 +5077,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1128,
+            "durationMs": 1121,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5111,7 +5111,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1174,
+            "durationMs": 1203,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5145,7 +5145,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1152,
+            "durationMs": 1144,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5179,7 +5179,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1139,
+            "durationMs": 1124,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5213,7 +5213,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1183,
+            "durationMs": 1205,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5247,7 +5247,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1227,
+            "durationMs": 1136,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5281,7 +5281,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1157,
+            "durationMs": 1129,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5315,7 +5315,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1166,
+            "durationMs": 1194,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5349,7 +5349,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1165,
+            "durationMs": 1131,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5383,7 +5383,7 @@
             "reproduced": true,
             "observed": "the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport",
             "skipped": null,
-            "durationMs": 1143,
+            "durationMs": 1128,
             "evidence": [
               {
                 "kind": "measurements",
@@ -5428,7 +5428,7 @@
             "height": 844
           }
         },
-        "judgedAt": "2026-10-22T10:55:14.547Z"
+        "judgedAt": "2026-10-22T12:28:18.296Z"
       },
       "title": "The page scrolls sideways at this screen size",
       "expected": "The page fits the width of the screen, so you never have to scroll sideways to read it, apart from things like wide tables that scroll inside their own box.",
@@ -5447,7 +5447,7 @@
         }
       ],
       "fixPrompt": "In /organisations (http://localhost:3123/organisations), the page scrolls sideways at mobile 390×844: it is 745 px wide in a 390 px wide viewport.\nOccurrences (5):\n/organisations [data-testid=\"organisations-table\"] — right=745, width=720, viewportWidth=390\n/organisations [data-testid=\"organisations-table\"] > thead:nth-of-type(1) — right=745, width=720, viewportWidth=390\n/organisations [data-testid=\"organisations-table\"] > thead:nth-of-type(1) > tr:nth-of-type(1) — right=745, width=720, viewportWidth=390\n/organisations [data-testid=\"organisations-table\"] > thead:nth-of-type(1) > tr:nth-of-type(1) > th:nth-of-type(5) — right=745, width=83.703125, viewportWidth=390\n/organisations [data-testid=\"organisations-table\"] > tbody:nth-of-type(1) — right=745, width=720, viewportWidth=390\nRule: The page scrolls sideways at this screen size. Expected: The page fits the width of the screen, so you never have to scroll sideways to read it, apart from things like wide tables that scroll inside their own box. On a phone, a page that scrolls sideways hides content off screen and is awkward to read and use. It is one of the most visible signs that a site was not checked on a small screen.\nFix: Make the elements reported as overflowing fit the screen width, for example with `max-width: 100%`, wrapping text, or `overflow-x: auto` on their own container instead of the page. Reference: WCAG 2.2 1.4.10 Reflow (https://www.w3.org/WAI/WCAG22/Understanding/reflow.html).\nTell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:06.386Z",
+      "createdAt": "2026-10-22T12:28:10.311Z",
       "occurrences": [
         {
           "screenId": "38a8049145",
@@ -5566,7 +5566,7 @@
         "cached": false,
         "droppedOccurrences": [],
         "environment": null,
-        "judgedAt": "2026-10-22T10:55:02.491Z"
+        "judgedAt": "2026-10-22T12:28:06.290Z"
       },
       "title": "Control cannot be reached with the keyboard",
       "expected": "Everything you can click can also be reached with the Tab key and used with Enter or Space.",
@@ -5585,7 +5585,7 @@
         }
       ],
       "fixPrompt": "In / (http://localhost:3123/), the button \"Latest registration 2025-04-08\" (selector `[data-testid=\"stat-latest-registration\"]`, React component StatCard) cannot receive keyboard focus.\nRule: Control cannot be reached with the keyboard. Expected: Everything you can click can also be reached with the Tab key and used with Enter or Space. People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.\nFix: Make this control a real `<button>` or `<a href>` element, or at least give it `tabindex=0` and key handlers for Enter and Space. Reference: WCAG 2.2 2.1.1 Keyboard (https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:55:02.258Z",
+      "createdAt": "2026-10-22T12:28:06.030Z",
       "screenId": "4a17c4d0a2",
       "target": {
         "selector": "[data-testid=\"stat-latest-registration\"]",

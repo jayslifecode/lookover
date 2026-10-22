@@ -7,6 +7,7 @@ import { createReportStore, type ReportApi, type ReportStore } from '../src/data
 import { eventsOf, fixtureEvents, fixtureFindings, fixturePreviousFindings } from './fixture';
 
 const EVENTS = fixtureEvents();
+const PREVIOUS_RUN_ID = fixturePreviousFindings().runId;
 const MANIFEST: RunManifest = {
   runId: '20261022-195459-canl',
   baseUrl: 'http://localhost:3123',
@@ -100,12 +101,12 @@ test('a finished run: the manifest, then the event stream, and its findings file
 
 test('a running run builds from its events, and loads the findings file once they close the run', async () => {
   const server = fakeServer({
-    manifest: { status: 'running', previousRunId: '20261022-195451-z1gy' },
+    manifest: { status: 'running', previousRunId: PREVIOUS_RUN_ID },
     files: { 'findings.json': fixtureFindings(), 'decisions.json': { version: 1, decisions: {} } },
   });
   const report = started(server.api);
   await vi.waitFor(() => expect(server.subscribe).toHaveBeenCalled());
-  await vi.waitFor(() => expect(report.getSnapshot().previous?.runId).toBe('20261022-195451-z1gy'));
+  await vi.waitFor(() => expect(report.getSnapshot().previous?.runId).toBe(PREVIOUS_RUN_ID));
 
   const finished = EVENTS.findIndex((event) => event.type === 'run.finished');
   server.emit(EVENTS.slice(0, finished));

@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "runId": "20261022-195459-canl",
-  "createdAt": "2026-10-22T10:55:14.563Z",
+  "runId": "20261022-212802-kwtz",
+  "createdAt": "2026-10-22T12:28:18.313Z",
   "baseUrl": "http://localhost:3123",
   "routes": [
     {
@@ -354,7 +354,7 @@
       ],
       "redirectedFrom": null,
       "discoveredFrom": null,
-      "capturedAt": "2026-10-22T10:55:01.730Z"
+      "capturedAt": "2026-10-22T12:28:05.497Z"
     },
     {
       "id": "57682dba9d",
@@ -688,7 +688,7 @@
       ],
       "redirectedFrom": null,
       "discoveredFrom": null,
-      "capturedAt": "2026-10-22T10:55:03.209Z"
+      "capturedAt": "2026-10-22T12:28:07.026Z"
     },
     {
       "id": "38a8049145",
@@ -720,7 +720,7 @@
             "width": 134.109375,
             "height": 28
           },
-          "backendNodeId": 901,
+          "backendNodeId": 906,
           "disabled": false,
           "focusable": true
         },
@@ -735,7 +735,7 @@
             "width": 72.015625,
             "height": 17
           },
-          "backendNodeId": 905,
+          "backendNodeId": 910,
           "disabled": false,
           "focusable": true
         },
@@ -750,7 +750,7 @@
             "width": 91.640625,
             "height": 17
           },
-          "backendNodeId": 907,
+          "backendNodeId": 912,
           "disabled": false,
           "focusable": true
         },
@@ -765,7 +765,7 @@
             "width": 51.796875,
             "height": 17
           },
-          "backendNodeId": 909,
+          "backendNodeId": 914,
           "disabled": false,
           "focusable": true
         },
@@ -780,7 +780,7 @@
             "width": 54.9375,
             "height": 17
           },
-          "backendNodeId": 911,
+          "backendNodeId": 916,
           "disabled": false,
           "focusable": true
         },
@@ -795,7 +795,7 @@
             "width": 54.546875,
             "height": 17
           },
-          "backendNodeId": 913,
+          "backendNodeId": 918,
           "disabled": false,
           "focusable": true
         },
@@ -810,7 +810,7 @@
             "width": 146.8125,
             "height": 36
           },
-          "backendNodeId": 918,
+          "backendNodeId": 923,
           "disabled": false,
           "focusable": true
         },
@@ -825,7 +825,7 @@
             "width": 131.46875,
             "height": 17
           },
-          "backendNodeId": 932,
+          "backendNodeId": 937,
           "disabled": false,
           "focusable": true
         },
@@ -840,7 +840,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 938,
+          "backendNodeId": 943,
           "disabled": false,
           "focusable": true
         },
@@ -855,7 +855,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 941,
+          "backendNodeId": 946,
           "disabled": false,
           "focusable": true
         },
@@ -870,7 +870,7 @@
             "width": 110.234375,
             "height": 17
           },
-          "backendNodeId": 947,
+          "backendNodeId": 952,
           "disabled": false,
           "focusable": true
         },
@@ -885,7 +885,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 953,
+          "backendNodeId": 958,
           "disabled": false,
           "focusable": true
         },
@@ -900,7 +900,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 956,
+          "backendNodeId": 961,
           "disabled": false,
           "focusable": true
         },
@@ -915,7 +915,7 @@
             "width": 119.65625,
             "height": 17
           },
-          "backendNodeId": 962,
+          "backendNodeId": 967,
           "disabled": false,
           "focusable": true
         },
@@ -930,7 +930,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 968,
+          "backendNodeId": 973,
           "disabled": false,
           "focusable": true
         },
@@ -945,7 +945,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 971,
+          "backendNodeId": 976,
           "disabled": false,
           "focusable": true
         },
@@ -960,7 +960,7 @@
             "width": 146.0625,
             "height": 17
           },
-          "backendNodeId": 977,
+          "backendNodeId": 982,
           "disabled": false,
           "focusable": true
         },
@@ -975,7 +975,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 983,
+          "backendNodeId": 988,
           "disabled": false,
           "focusable": true
         },
@@ -990,7 +990,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 986,
+          "backendNodeId": 991,
           "disabled": false,
           "focusable": true
         },
@@ -1005,7 +1005,7 @@
             "width": 114.53125,
             "height": 17
           },
-          "backendNodeId": 992,
+          "backendNodeId": 997,
           "disabled": false,
           "focusable": true
         },
@@ -1020,7 +1020,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 998,
+          "backendNodeId": 1003,
           "disabled": false,
           "focusable": true
         },
@@ -1035,7 +1035,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1001,
+          "backendNodeId": 1006,
           "disabled": false,
           "focusable": true
         },
@@ -1050,7 +1050,7 @@
             "width": 127.953125,
             "height": 17
           },
-          "backendNodeId": 1007,
+          "backendNodeId": 1012,
           "disabled": false,
           "focusable": true
         },
@@ -1065,7 +1065,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1013,
+          "backendNodeId": 1018,
           "disabled": false,
           "focusable": true
         },
@@ -1080,7 +1080,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1016,
+          "backendNodeId": 1021,
           "disabled": false,
           "focusable": true
         },
@@ -1095,7 +1095,7 @@
             "width": 141.625,
             "height": 17
           },
-          "backendNodeId": 1022,
+          "backendNodeId": 1027,
           "disabled": false,
           "focusable": true
         },
@@ -1110,7 +1110,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1028,
+          "backendNodeId": 1033,
           "disabled": false,
           "focusable": true
         },
@@ -1125,7 +1125,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1031,
+          "backendNodeId": 1036,
           "disabled": false,
           "focusable": true
         },
@@ -1140,7 +1140,7 @@
             "width": 127.015625,
             "height": 17
           },
-          "backendNodeId": 1037,
+          "backendNodeId": 1042,
           "disabled": false,
           "focusable": true
         },
@@ -1155,7 +1155,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1043,
+          "backendNodeId": 1048,
           "disabled": false,
           "focusable": true
         },
@@ -1170,7 +1170,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1046,
+          "backendNodeId": 1051,
           "disabled": false,
           "focusable": true
         },
@@ -1185,7 +1185,7 @@
             "width": 137.25,
             "height": 17
           },
-          "backendNodeId": 1052,
+          "backendNodeId": 1057,
           "disabled": false,
           "focusable": true
         },
@@ -1200,7 +1200,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1058,
+          "backendNodeId": 1063,
           "disabled": false,
           "focusable": true
         },
@@ -1215,7 +1215,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1061,
+          "backendNodeId": 1066,
           "disabled": false,
           "focusable": true
         },
@@ -1230,7 +1230,7 @@
             "width": 93.78125,
             "height": 17
           },
-          "backendNodeId": 1067,
+          "backendNodeId": 1072,
           "disabled": false,
           "focusable": true
         },
@@ -1245,7 +1245,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1073,
+          "backendNodeId": 1078,
           "disabled": false,
           "focusable": true
         },
@@ -1260,7 +1260,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1076,
+          "backendNodeId": 1081,
           "disabled": false,
           "focusable": true
         },
@@ -1275,7 +1275,7 @@
             "width": 102.359375,
             "height": 17
           },
-          "backendNodeId": 1082,
+          "backendNodeId": 1087,
           "disabled": false,
           "focusable": true
         },
@@ -1290,7 +1290,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1088,
+          "backendNodeId": 1093,
           "disabled": false,
           "focusable": true
         },
@@ -1305,7 +1305,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1091,
+          "backendNodeId": 1096,
           "disabled": false,
           "focusable": true
         },
@@ -1320,7 +1320,7 @@
             "width": 94.375,
             "height": 17
           },
-          "backendNodeId": 1097,
+          "backendNodeId": 1102,
           "disabled": false,
           "focusable": true
         },
@@ -1335,7 +1335,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1103,
+          "backendNodeId": 1108,
           "disabled": false,
           "focusable": true
         },
@@ -1350,7 +1350,7 @@
             "width": 16,
             "height": 16
           },
-          "backendNodeId": 1106,
+          "backendNodeId": 1111,
           "disabled": false,
           "focusable": true
         }
@@ -1475,7 +1475,7 @@
       ],
       "redirectedFrom": null,
       "discoveredFrom": null,
-      "capturedAt": "2026-10-22T10:55:04.918Z"
+      "capturedAt": "2026-10-22T12:28:08.863Z"
     }
   ]
 }

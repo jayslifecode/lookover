@@ -123,12 +123,13 @@ test("screen.inspected folds each screen's skips into the run's tally, once per 
 
 test("the fixture's log reduces to the run's findings, counts and judge totals", () => {
   const file = fixtureFindings();
+  const [finished] = eventsOf(EVENTS, 'run.finished');
   const state = replay(EVENTS);
 
   expect(state.run).toMatchObject({
     status: 'finished',
     baseUrl: BASE_URL,
-    durationMs: 15504,
+    durationMs: finished?.durationMs,
     error: null,
     counts: { screens: 3, confirmed: 27, rejected: 0, intended: 1, worthALook: 0 },
   });

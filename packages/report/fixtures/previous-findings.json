@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "runId": "20261022-195451-z1gy",
-  "createdAt": "2026-10-22T10:54:57.455Z",
+  "runId": "20261022-212755-bal6",
+  "createdAt": "2026-10-22T12:28:01.156Z",
   "findings": [
     {
       "shape": "occurrence",
@@ -28,14 +28,14 @@
             "reproduced": true,
             "observed": "GET /api/stats answered 500",
             "skipped": null,
-            "durationMs": 898,
+            "durationMs": 920,
             "evidence": [
               {
                 "kind": "measurements",
                 "label": "reproduction 1",
                 "ref": {
-                  "id": "4fb88ca7a535014b",
-                  "path": "evidence/reproduction-fc8addc0486b-4fb88ca7a535014b.json",
+                  "id": "9d37251be2a63188",
+                  "path": "evidence/reproduction-fc8addc0486b-9d37251be2a63188.json",
                   "bytes": 750,
                   "kind": "json"
                 }
@@ -44,9 +44,9 @@
                 "kind": "requests",
                 "label": "Network requests on /",
                 "ref": {
-                  "id": "0cf142f10f6ec887",
-                  "path": "evidence/requests-4a17c4d0a2-0cf142f10f6ec887.json",
-                  "bytes": 4967,
+                  "id": "ea3552800df9a184",
+                  "path": "evidence/requests-4a17c4d0a2-ea3552800df9a184.json",
+                  "bytes": 4966,
                   "kind": "json"
                 }
               }
@@ -62,14 +62,14 @@
             "reproduced": true,
             "observed": "GET /api/stats answered 500",
             "skipped": null,
-            "durationMs": 810,
+            "durationMs": 818,
             "evidence": [
               {
                 "kind": "measurements",
                 "label": "reproduction 2",
                 "ref": {
-                  "id": "56d3948c7635c04d",
-                  "path": "evidence/reproduction-fc8addc0486b-56d3948c7635c04d.json",
+                  "id": "7774ec6c1bc65be7",
+                  "path": "evidence/reproduction-fc8addc0486b-7774ec6c1bc65be7.json",
                   "bytes": 750,
                   "kind": "json"
                 }
@@ -78,8 +78,8 @@
                 "kind": "requests",
                 "label": "Network requests on /",
                 "ref": {
-                  "id": "0d06c0f2165f8b9e",
-                  "path": "evidence/requests-4a17c4d0a2-0d06c0f2165f8b9e.json",
+                  "id": "60e16220e2ab9f72",
+                  "path": "evidence/requests-4a17c4d0a2-60e16220e2ab9f72.json",
                   "bytes": 4966,
                   "kind": "json"
                 }
@@ -96,14 +96,14 @@
             "reproduced": true,
             "observed": "GET /api/stats answered 500",
             "skipped": null,
-            "durationMs": 861,
+            "durationMs": 850,
             "evidence": [
               {
                 "kind": "measurements",
                 "label": "reproduction 3",
                 "ref": {
-                  "id": "ee0010812dd69e47",
-                  "path": "evidence/reproduction-fc8addc0486b-ee0010812dd69e47.json",
+                  "id": "282d01484eab5211",
+                  "path": "evidence/reproduction-fc8addc0486b-282d01484eab5211.json",
                   "bytes": 750,
                   "kind": "json"
                 }
@@ -112,9 +112,9 @@
                 "kind": "requests",
                 "label": "Network requests on /",
                 "ref": {
-                  "id": "73542967a740cb13",
-                  "path": "evidence/requests-4a17c4d0a2-73542967a740cb13.json",
-                  "bytes": 4966,
+                  "id": "631f0893859f476d",
+                  "path": "evidence/requests-4a17c4d0a2-631f0893859f476d.json",
+                  "bytes": 4965,
                   "kind": "json"
                 }
               }
@@ -141,7 +141,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:54:58.425Z"
+        "judgedAt": "2026-10-22T12:28:02.174Z"
       },
       "title": "A request the page made failed on the server",
       "expected": "Every request the page makes is answered without a server error, that is, without a status of 500 or higher.",
@@ -152,15 +152,15 @@
           "kind": "requests",
           "label": "Network requests on /",
           "ref": {
-            "id": "b9a1167ceab64fa4",
-            "path": "evidence/requests-4a17c4d0a2-b9a1167ceab64fa4.json",
+            "id": "b25a74c53be724dc",
+            "path": "evidence/requests-4a17c4d0a2-b25a74c53be724dc.json",
             "bytes": 4967,
             "kind": "json"
           }
         }
       ],
       "fixPrompt": "In / (http://localhost:3123/), GET /api/stats answered 500.\nOccurrences (1):\n/ page — method=GET, url=http://localhost:3123/api/stats, status=500, failure=null, resourceType=fetch\nRule: A request the page made failed on the server. Expected: Every request the page makes is answered without a server error, that is, without a status of 500 or higher. The server broke while handling the request, so the data or action the page asked for did not happen. Users see an empty list, a spinner that never ends or a save that silently fails.\nFix: Fix the server code behind this request so it stops failing, and make the page show a clear message when a request fails anyway.\nTell me which file you changed.",
-      "createdAt": "2026-10-22T10:54:55.030Z",
+      "createdAt": "2026-10-22T12:27:58.723Z",
       "occurrences": [
         {
           "screenId": "4a17c4d0a2",
@@ -203,7 +203,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 898,
+            "durationMs": 922,
             "evidence": [
               {
                 "kind": "measurements",
@@ -233,7 +233,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 812,
+            "durationMs": 819,
             "evidence": [
               {
                 "kind": "measurements",
@@ -263,7 +263,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 863,
+            "durationMs": 852,
             "evidence": [
               {
                 "kind": "measurements",
@@ -308,7 +308,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:54:58.423Z"
+        "judgedAt": "2026-10-22T12:28:02.172Z"
       },
       "title": "Control cannot be reached with the keyboard",
       "expected": "Everything you can click can also be reached with the Tab key and used with Enter or Space.",
@@ -327,7 +327,7 @@
         }
       ],
       "fixPrompt": "In / (http://localhost:3123/), the button \"Organisations 12\" (selector `[data-testid=\"stat-organisations\"]`, React component StatCard) cannot receive keyboard focus.\nRule: Control cannot be reached with the keyboard. Expected: Everything you can click can also be reached with the Tab key and used with Enter or Space. People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.\nFix: Make this control a real `<button>` or `<a href>` element, or at least give it `tabindex=0` and key handlers for Enter and Space. Reference: WCAG 2.2 2.1.1 Keyboard (https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:54:55.574Z",
+      "createdAt": "2026-10-22T12:27:59.290Z",
       "screenId": "4a17c4d0a2",
       "target": {
         "selector": "[data-testid=\"stat-organisations\"]",
@@ -391,7 +391,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 897,
+            "durationMs": 920,
             "evidence": [
               {
                 "kind": "measurements",
@@ -421,7 +421,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 810,
+            "durationMs": 818,
             "evidence": [
               {
                 "kind": "measurements",
@@ -451,7 +451,7 @@
             "reproduced": true,
             "observed": "cannot receive keyboard focus",
             "skipped": null,
-            "durationMs": 861,
+            "durationMs": 850,
             "evidence": [
               {
                 "kind": "measurements",
@@ -496,7 +496,7 @@
             "height": 900
           }
         },
-        "judgedAt": "2026-10-22T10:54:58.424Z"
+        "judgedAt": "2026-10-22T12:28:02.173Z"
       },
       "title": "Control cannot be reached with the keyboard",
       "expected": "Everything you can click can also be reached with the Tab key and used with Enter or Space.",
@@ -515,7 +515,7 @@
         }
       ],
       "fixPrompt": "In / (http://localhost:3123/), the button \"Latest registration 2025-04-08\" (selector `[data-testid=\"stat-latest-registration\"]`, React component StatCard) cannot receive keyboard focus.\nRule: Control cannot be reached with the keyboard. Expected: Everything you can click can also be reached with the Tab key and used with Enter or Space. People who cannot use a mouse, including many screen reader and switch users, are shut out of anything the keyboard cannot reach. If it is a main action, they cannot use the app.\nFix: Make this control a real `<button>` or `<a href>` element, or at least give it `tabindex=0` and key handlers for Enter and Space. Reference: WCAG 2.2 2.1.1 Keyboard (https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html).\nKeep the control's accessible name, then tell me which file you changed.",
-      "createdAt": "2026-10-22T10:54:55.576Z",
+      "createdAt": "2026-10-22T12:27:59.292Z",
       "screenId": "4a17c4d0a2",
       "target": {
         "selector": "[data-testid=\"stat-latest-registration\"]",
