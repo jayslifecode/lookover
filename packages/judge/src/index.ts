@@ -21,3 +21,4 @@ export {
   replaySummary,
   runReplay,
 } from './replay.js';
+export { generateStandaloneScript, MAX_BUNDLE_BYTES } from './standalone/generate.js';

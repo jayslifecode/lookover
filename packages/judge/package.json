@@ -17,7 +17,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node --experimental-strip-types scripts/bundle-standalone.ts",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run"
   },
