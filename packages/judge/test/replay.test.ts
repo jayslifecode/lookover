@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   type Attempt,
+  BrowserSession,
   configSchema,
   type LookoverConfig,
   type StepFinding,
@@ -16,7 +17,7 @@ import {
   redirect,
   SESSION_COOKIE,
 } from '@jayslifecode/lookover-test-support';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   attemptLines,
   isFullyReproduced,
@@ -38,6 +39,10 @@ const POSITIVE_TABINDEX = 'interaction.positive-tabindex';
 const CONTRAST_FAIL = 'interaction.text-contrast-fail';
 const LEAKED_EMAIL = 'jay@example.com';
 const STATE_FILE = 'state.json';
+/** What a `full` config needs before anything acts on the app: the user's word that its data is disposable. */
+const ACKNOWLEDGEMENT = { disposableData: true, acknowledgedAt: '2026-10-22T09:00:00.000Z' };
+/** A host the network envelope does not allow unless `allowHosts` lists it. */
+const OFF_ENVELOPE_URL = 'http://app.example.test:3000';
 /** A cookie the browser keeps until it closes. */
 const SESSION_LIFETIME = -1;
 
@@ -123,11 +128,17 @@ describe('runReplay', { timeout: BROWSER_TIMEOUT_MS }, () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await rm(cwd, { recursive: true, force: true });
   });
 
   function configWith(overrides: Record<string, unknown> = {}): LookoverConfig {
-    return configSchema.parse({ baseUrl: bed.url, interaction: 'full', ...overrides });
+    return configSchema.parse({
+      baseUrl: bed.url,
+      interaction: 'full',
+      acknowledgement: ACKNOWLEDGEMENT,
+      ...overrides,
+    });
   }
 
   function replay(overrides: Partial<ReplayOptions> & Pick<ReplayOptions, 'finding'>) {
@@ -216,6 +227,25 @@ describe('runReplay', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(result).toMatchObject({ reproduced: 1, of: 1 });
     expect(result.attempts[0]?.observed).toContain('Write to [email]');
     expect(JSON.stringify(result)).not.toContain(LEAKED_EMAIL);
+  });
+
+  test.each([
+    [
+      'a full config without the disposable-data acknowledgement',
+      { acknowledgement: undefined },
+      'E_ACK_REQUIRED',
+    ],
+    ['a base URL on a host that is not allowed', { baseUrl: OFF_ENVELOPE_URL }, 'E_NAVIGATION_BLOCKED'],
+  ])('refuses %s before it launches a browser', async (_what, overrides, code) => {
+    const launched = vi.spyOn(BrowserSession, 'launch');
+
+    const replaying = replay({
+      finding: stepFindingOf(controls, FOCUS_VISIBLE),
+      config: configWith(overrides),
+    });
+
+    await expect(replaying).rejects.toMatchObject({ name: 'LookoverError', code });
+    expect(launched).not.toHaveBeenCalled();
   });
 
   test('writes nothing under the project directory', async () => {

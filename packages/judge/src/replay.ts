@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   type Attempt,
+  assertAcknowledged,
+  assertBaseUrlAllowed,
   type BrowserSession,
   createRun,
   defaultObservers,
@@ -74,14 +76,19 @@ const NOT_SEEN = 'not seen again';
 const MS_PER_SECOND = 1_000;
 
 /**
- * Measures one finding again, as the judge does, in a browser session of its own: launched inside the
- * network envelope as the engine launches a run's (the config's `allowHosts`, its storage state), the
- * config's confirmed backends enforced (any other backend is blocked, with no probe to ask), and logged
- * in as `config.auth` says. Its evidence and log go to a temporary run directory that is removed
- * afterwards, so nothing is written under the project. The session is always closed.
+ * Measures one finding again, as the judge does, in a browser session of its own. First the gates a run
+ * applies before it opens a browser, so a config built in code cannot skip them: `E_ACK_REQUIRED` for a
+ * `full` config without the disposable-data acknowledgement, `E_NAVIGATION_BLOCKED` for a base URL off
+ * the allowed hosts. The session is launched inside the network envelope as the engine launches a run's
+ * (the config's `allowHosts`, its storage state), the config's confirmed backends enforced (any other
+ * backend is blocked, with no probe to ask), and logged in as `config.auth` says. Its evidence and log go
+ * to a temporary run directory that is removed afterwards, so nothing is written under the project. The
+ * session is always closed.
  */
 export async function runReplay(options: ReplayOptions): Promise<ReplayResult> {
   const { config, finding, headless, env } = options;
+  assertAcknowledged(config);
+  assertBaseUrlAllowed(config);
   const auth = resolveAuth(config.auth, options.cwd);
   return inTemporaryRun(config, async (ctx) => {
     const session = await launchSession({

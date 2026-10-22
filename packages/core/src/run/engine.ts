@@ -366,8 +366,12 @@ function firstViewport(config: LookoverConfig): Viewport {
   return viewport;
 }
 
-/** The browser may only open allowed hosts, so a base URL elsewhere could never be crawled. */
-function assertBaseUrlAllowed(config: LookoverConfig): void {
+/**
+ * The gate on the base URL: throws `E_NAVIGATION_BLOCKED`, with the `--allow-host` hint, for a base URL
+ * off the allowed hosts, since the browser may only open allowed hosts and could never reach it.
+ * `runReview` applies it before opening a browser, as does anything else that drives one from a config.
+ */
+export function assertBaseUrlAllowed(config: Pick<LookoverConfig, 'baseUrl' | 'allowHosts'>): void {
   const host = normaliseHost(new URL(config.baseUrl).hostname);
   if (isAllowedHost(host, config.allowHosts)) {
     return;
