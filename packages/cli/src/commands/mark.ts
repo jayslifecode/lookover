@@ -10,6 +10,7 @@ import {
 } from '@jayslifecode/lookover-core';
 import type { Command } from 'commander';
 import * as ui from '../ui.js';
+import { findFinding, parseFindingId } from './finding-id.js';
 
 /** What `lookover mark <finding id> <status> [--note <text>]` is given. */
 export interface MarkInput {
@@ -28,10 +29,7 @@ const STATUSES: readonly MarkStatus[] = ['intended', 'clear'];
 /** Where `lookover run` keeps the project's findings and decisions, under the project directory. */
 const LOOKOVER_DIR = '.lookover';
 const FINDINGS_PATH = `${LOOKOVER_DIR}/${FINDINGS_FILE}`;
-/** An ambiguous prefix lists at most this many of the ids it matches. */
-const LISTED_MATCHES = 5;
 const STATUS_HINT = 'Use intended or clear, e.g. lookover mark <finding id> intended';
-const ID_HINT = `Copy the id of a finding from ${FINDINGS_PATH}; the start of it is enough when only one id starts so`;
 
 export function registerMark(program: Command): void {
   program
@@ -57,11 +55,11 @@ export function registerMark(program: Command): void {
  * `intended` or `clear`, a note with `clear`, an id no finding has, or a prefix several ids start with.
  */
 export async function runMark(input: MarkInput, cwd: string = process.cwd()): Promise<void> {
-  const query = parseId(input.id);
+  const query = parseFindingId(input.id, FINDINGS_PATH);
   const status = parseStatus(input.status);
   const note = parseNote(input.note, status);
   const lookoverDir = join(cwd, LOOKOVER_DIR);
-  const id = resolveFindingId(await latestFindings(lookoverDir), query);
+  const { id } = findFinding(await latestFindings(lookoverDir), query, FINDINGS_PATH);
   if (status === 'intended') {
     await writeDecision(lookoverDir, id, { status: 'intended', at: new Date().toISOString(), note });
     ui.success(`Marked ${id} as intended`);
@@ -74,14 +72,6 @@ export async function runMark(input: MarkInput, cwd: string = process.cwd()): Pr
   }
   await writeDecision(lookoverDir, id, null);
   ui.success(`Cleared the decision on ${id}`);
-}
-
-function parseId(value: string): string {
-  const id = value.trim();
-  if (id === '') {
-    throw new LookoverError('E_USAGE', 'The finding id is empty', ID_HINT);
-  }
-  return id;
 }
 
 function parseStatus(value: string): MarkStatus {
@@ -121,31 +111,4 @@ async function latestFindings(lookoverDir: string): Promise<FindingsFile> {
     );
   }
   return file;
-}
-
-/** The one id of `file` that is `query` or starts with it. */
-function resolveFindingId(file: FindingsFile, query: string): string {
-  const ids = [
-    ...new Set(
-      [...file.findings, ...file.rejected, ...file.intended, ...file.worthALook].map(({ id }) => id),
-    ),
-  ];
-  if (ids.includes(query)) {
-    return query;
-  }
-  const matches = ids.filter((id) => id.startsWith(query));
-  const [only] = matches;
-  if (only === undefined) {
-    throw new LookoverError('E_USAGE', `No finding in ${FINDINGS_PATH} has the id "${query}"`, ID_HINT);
-  }
-  if (matches.length > 1) {
-    const listed = matches.slice(0, LISTED_MATCHES).join(', ');
-    const more = matches.length > LISTED_MATCHES ? ', …' : '';
-    throw new LookoverError(
-      'E_USAGE',
-      `"${query}" is the start of ${matches.length} finding ids: ${listed}${more}`,
-      'Give more of the id, so that only one finding id starts with it',
-    );
-  }
-  return only;
 }

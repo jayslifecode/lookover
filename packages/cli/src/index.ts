@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import { registerInit } from './commands/init.js';
 import { registerMark } from './commands/mark.js';
+import { registerReplay } from './commands/replay.js';
 import { registerRun } from './commands/run.js';
 import { EXIT_INVALID, EXIT_OK, fail } from './ui.js';
 
@@ -23,6 +24,7 @@ const program = new Command()
 registerInit(program);
 registerRun(program, version);
 registerMark(program);
+registerReplay(program, version);
 
 process.on('unhandledRejection', fail);
 program.parseAsync(process.argv).catch(fail);
