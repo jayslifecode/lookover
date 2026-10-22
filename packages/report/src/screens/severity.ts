@@ -28,3 +28,11 @@ export const SEVERITY_DOT: Readonly<Record<Severity, string>> = {
   medium: 'bg-medium',
   low: 'bg-low',
 };
+
+/** A border in the severity's colour, half strength: the finding panel's severity badge. */
+export const SEVERITY_EDGE: Readonly<Record<Severity, string>> = {
+  blocker: 'border-high/55',
+  high: 'border-high/55',
+  medium: 'border-medium/55',
+  low: 'border-low/55',
+};

@@ -68,6 +68,11 @@ function pinStyle({ left, top, labelShift }: PinPlacement): CSSProperties {
   return { left, top, '--lx': `${labelShift}px` } as CSSProperties;
 }
 
+/** The findings a pin holds, as its `data-pin-findings`: the panel's transform grows from this pin. */
+function pinFindings({ members }: PinPlacement): string {
+  return members.map(({ finding }) => finding.id).join(' ');
+}
+
 /** The press spring on the dot; a new press replaces the one still running. */
 function usePress(): (dot: HTMLElement | null) => void {
   const bounce = useRef<Animation | null>(null);
@@ -114,6 +119,7 @@ function SinglePin({ screenId, placement, selectedId }: PinProps) {
       type="button"
       aria-label={pinName(placement)}
       aria-current={placement.finding.id === selectedId ? 'true' : undefined}
+      data-pin-findings={pinFindings(placement)}
       className={PIN}
       style={pinStyle(placement)}
       onClick={select}
@@ -270,6 +276,7 @@ function ClusterPin(props: PinProps) {
         aria-expanded={isOpen}
         aria-controls={isOpen ? listId : undefined}
         aria-current={hasSelected ? 'true' : undefined}
+        data-pin-findings={pinFindings(placement)}
         className={PIN}
         style={pinStyle(placement)}
         onPointerDown={() => {

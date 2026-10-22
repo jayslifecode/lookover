@@ -1,13 +1,18 @@
 // @vitest-environment node
+import type { Finding } from '@jayslifecode/lookover-core';
 import { expect, test } from 'vitest';
-import { initialState, reduce, withFindingsFile, withPrevious } from '../src/data/reduce';
+import { initialState, reduce, withDecisions, withFindingsFile, withPrevious } from '../src/data/reduce';
 import {
   confirmedFindings,
+  decisionOf,
   drift,
+  findingById,
   findingsOnScreen,
   firstCapturedScreen,
   fixFirst,
   groups,
+  intendedFindings,
+  rejectedFindings,
   scorecard,
 } from '../src/data/selectors';
 import {
@@ -175,6 +180,54 @@ test('confirmed findings leave out candidates, rejected and intended ones; a scr
   expect(ids(findingsOnScreen(state, 's1'))).toEqual(['a', 'c']);
   expect(ids(findingsOnScreen(state, 's2'))).toEqual(['b', 'c']);
   expect(findingsOnScreen(state, 's3')).toEqual([]);
+});
+
+test("the user's decisions win once they are loaded: a decided finding is intended, an undecided one is not", () => {
+  const file = findingsFile({
+    findings: [stepFinding({ id: 'a' }), stepFinding({ id: 'b' })],
+    rejected: [stepFinding({ id: 'r', status: 'rejected' })],
+    intended: [stepFinding({ id: 'i', status: 'intended' })],
+  });
+  const unloaded = withFindingsFile(initialState(), file);
+  // Until the decisions are in, the findings file says.
+  expect(ids(confirmedFindings(unloaded))).toEqual(['a', 'b']);
+  expect(ids(intendedFindings(unloaded))).toEqual(['i']);
+  expect(ids(rejectedFindings(unloaded))).toEqual(['r']);
+  expect(decisionOf(unloaded, file.intended[0] as Finding)?.note).toBe(
+    file.intended[0]?.judgement?.note ?? null,
+  );
+
+  const decided = withDecisions(unloaded, {
+    version: 1,
+    decisions: { b: { status: 'intended', at: '2026-10-22T13:00:00.000Z', note: 'On purpose' } },
+  });
+  expect(ids(confirmedFindings(decided))).toEqual(['a']);
+  expect(ids(intendedFindings(decided))).toEqual(['b']);
+  expect(decisionOf(decided, file.findings[1] as Finding)).toEqual({
+    status: 'intended',
+    at: '2026-10-22T13:00:00.000Z',
+    note: 'On purpose',
+  });
+  // `i` was taken back: it is neither confirmed (it was never reproduced) nor intended any more.
+  expect(decisionOf(decided, file.intended[0] as Finding)).toBeNull();
+  expect(ids(rejectedFindings(decided))).toEqual(['r']);
+  // Both are high findings of the fixture's dashboard; the decided one leaves its scorecard.
+  expect(scorecard(unloaded, '4a17c4d0a2').confirmed.high).toBe(2);
+  expect(scorecard(decided, '4a17c4d0a2').confirmed.high).toBe(1);
+});
+
+test('a finding is found by id among the judged, the candidates and the worth-a-look entries', () => {
+  const state = withFindingsFile(initialState(), {
+    ...findingsFile({
+      findings: [stepFinding({ id: 'a' })],
+      rejected: [stepFinding({ id: 'r', status: 'rejected' })],
+    }),
+    worthALook: [stepFinding({ id: 'w', status: 'candidate' })],
+  });
+  expect(findingById(state, 'a')?.id).toBe('a');
+  expect(findingById(state, 'r')?.id).toBe('r');
+  expect(findingById(state, 'w')?.id).toBe('w');
+  expect(findingById(state, 'nope')).toBeNull();
 });
 
 test("a screen's scorecard counts its confirmed findings by severity, its skips and what reproduced every time", () => {

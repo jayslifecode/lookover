@@ -158,3 +158,17 @@ test('an event of a known type without its payload is reported, and the run is s
   expect(state.judged.size).toBe(0);
   expect(state.lastSeq).toBe(third?.seq);
 });
+
+test("the decisions the server answers a decision with replace the store's, and the store tells its readers", async () => {
+  const server = fakeServer({ files: { 'findings.json': fixtureFindings() } });
+  const report = started(server.api);
+  await vi.waitFor(() => expect(report.getSnapshot().decisions).toEqual({ version: 1, decisions: {} }));
+  const listener = vi.fn();
+  report.subscribe(listener);
+  const decision = { status: 'intended', at: '2026-10-22T13:00:00.000Z', note: 'On purpose' } as const;
+
+  report.applyDecisions({ da77d007d373: decision });
+
+  expect(report.getSnapshot().decisions).toEqual({ version: 1, decisions: { da77d007d373: decision } });
+  expect(listener).toHaveBeenCalledTimes(1);
+});

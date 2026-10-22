@@ -1,4 +1,5 @@
 import type { RunStatus } from '../node/api';
+import { Toaster } from './components/ui/sonner';
 import type { ReportError, ReportState } from './data/reduce';
 import { defaultRoute, navigate, type Route, type RouteView, useRoute, viewRoute } from './data/route';
 import { confirmedFindings, firstCapturedScreen } from './data/selectors';
@@ -114,6 +115,8 @@ export function App() {
       <main className={cn('mx-auto mt-6', route.view === 'screens' ? 'max-w-[1392px]' : 'max-w-[1120px]')}>
         <MainArea report={report} route={route} error={manifestError} />
       </main>
+      {/* Bottom centre: clear of the finding panel on the right. */}
+      <Toaster position="bottom-center" />
     </div>
   );
 }

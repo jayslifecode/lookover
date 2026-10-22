@@ -1,4 +1,4 @@
-import type { Finding, Screen, Severity, SkipTally } from '@jayslifecode/lookover-core';
+import type { Decision, Finding, Screen, Severity, SkipTally } from '@jayslifecode/lookover-core';
 import { compareText, type ReportState, talliedSkips } from './reduce';
 
 /*
@@ -61,12 +61,50 @@ export function isOnScreen(finding: Finding, screenId: string): boolean {
   return finding.occurrences.some((occurrence) => occurrence.screenId === screenId);
 }
 
-function judgedWith(state: ReportState, status: Finding['status']): Finding[] {
-  return [...state.judged.values()].filter((finding) => finding.status === status);
+/**
+ * The user's word on `finding`, which wins over how it was judged. Once the project's decisions are
+ * loaded they say (a decision made or taken back in the report shows at once); until then, the findings
+ * file's own `intended` status, with the note it was decided with.
+ */
+export function decisionOf(state: ReportState, finding: Finding): Decision | null {
+  if (state.decisions !== null) {
+    const { decisions } = state.decisions;
+    return Object.hasOwn(decisions, finding.id) ? (decisions[finding.id] ?? null) : null;
+  }
+  if (finding.status !== 'intended') return null;
+  const judgedAt = finding.judgement?.judgedAt ?? finding.createdAt;
+  return { status: 'intended', at: judgedAt, note: finding.judgement?.note ?? null };
 }
 
+function judgedWith(state: ReportState, status: Finding['status']): Finding[] {
+  return [...state.judged.values()].filter(
+    (finding) => finding.status === status && decisionOf(state, finding) === null,
+  );
+}
+
+/** Reproduced and not decided intended by the user. */
 export function confirmedFindings(state: ReportState): Finding[] {
   return judgedWith(state, 'confirmed');
+}
+
+/** Decided intended by the user, whatever the judge made of them. */
+export function intendedFindings(state: ReportState): Finding[] {
+  return [...state.judged.values()].filter((finding) => decisionOf(state, finding) !== null);
+}
+
+/** Judged and not reproduced, or explained away; never listed as findings. */
+export function rejectedFindings(state: ReportState): Finding[] {
+  return judgedWith(state, 'rejected');
+}
+
+/** The finding `id` names: judged, still a candidate, or worth a look; `null` when the run has none. */
+export function findingById(state: ReportState, id: string): Finding | null {
+  return (
+    state.judged.get(id) ??
+    state.candidates.get(id) ??
+    state.worthALook.find((finding) => finding.id === id) ??
+    null
+  );
 }
 
 export function findingsOnScreen(state: ReportState, screenId: string): Finding[] {
@@ -148,7 +186,7 @@ export function scorecard(state: ReportState, screenId: string): Scorecard {
   return {
     confirmed: countBySeverity(confirmed),
     worthALook: state.worthALook.filter(onScreen).length,
-    rejected: judgedWith(state, 'rejected').filter(onScreen).length,
+    rejected: rejectedFindings(state).filter(onScreen).length,
     reproducedEveryTime: confirmed.filter(reproducedEveryTime).length,
     // As logged, a screen's skips are each lens's in the order met, so a reason can come twice.
     skipped: talliedSkips(state.inspections.get(screenId)?.skipped ?? []),
@@ -162,7 +200,7 @@ export function drift(state: ReportState): Drift | null {
   const current = confirmedFindings(state);
   const beforeIds = new Set(before.map((finding) => finding.id));
   const currentIds = new Set(current.map((finding) => finding.id));
-  const intendedIds = new Set(judgedWith(state, 'intended').map((finding) => finding.id));
+  const intendedIds = new Set(intendedFindings(state).map((finding) => finding.id));
   return {
     added: current.filter((finding) => !beforeIds.has(finding.id)),
     fixed: before.filter((finding) => !currentIds.has(finding.id) && !intendedIds.has(finding.id)),

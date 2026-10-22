@@ -38,9 +38,12 @@ export interface ReportStore {
   start(): void;
   /** Stops the stream and the loads in flight. */
   stop(): void;
+  /** Takes the project's decisions as the server answered a decision (`POST /api/decisions`). */
+  applyDecisions(decisions: DecisionsFile['decisions']): void;
 }
 
 const NO_DECISIONS: DecisionsFile = { version: 1, decisions: {} };
+const DECISIONS_VERSION = 1;
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -146,6 +149,9 @@ export function createReportStore(server: ReportApi = api): ReportStore {
       // A load stopped half way is asked for again on the next start.
       isFindingsRequested = state.findingsSource === 'file';
     },
+    applyDecisions(decisions) {
+      update((current) => withDecisions(current, { version: DECISIONS_VERSION, decisions }));
+    },
   };
 }
 
@@ -154,4 +160,9 @@ const reportStore = createReportStore();
 
 export function useReport(): ReportState {
   return useSyncExternalStore(reportStore.subscribe, reportStore.getSnapshot, reportStore.getSnapshot);
+}
+
+/** The page's store takes the decisions the server answered a decision with; every view shows them. */
+export function applyDecisions(decisions: DecisionsFile['decisions']): void {
+  reportStore.applyDecisions(decisions);
 }

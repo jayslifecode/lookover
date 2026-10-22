@@ -4,15 +4,17 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RULES } from '@jayslifecode/lookover-rules';
 import { build } from 'vite';
 import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 
 /*
  * The report must not reach out of the machine. It is built here, into a directory of its own (so the
  * test checks the current sources, whatever `dist/` holds), and the output is read statically: no place
- * that loads something names another origin, and the only absolute URLs at all are XML namespace names
- * and the documentation links in React's and Base UI's error messages, which are text and never
- * fetched. A real browser counting requests is the end-to-end suite's job.
+ * that loads something names another origin, and the only absolute URLs at all are XML namespace names,
+ * the documentation links in React's and Base UI's error messages, and the standards the rules catalogue
+ * cites, which are text or links the reader may follow, and never fetched. A real browser counting
+ * requests is the end-to-end suite's job.
  */
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url));
@@ -25,6 +27,13 @@ const TEXT_EXTENSIONS = new Set(['.html', '.js', '.css', '.json', '.svg', '.txt'
  * (`https://base-ui.com/production-error?code=…`) put in their production error messages.
  */
 const ALLOWED_URL_PREFIXES = ['http://www.w3.org/', 'https://react.dev/', 'https://base-ui.com/'];
+/**
+ * The standards the rules catalogue cites (`reference.url`), exactly: the finding panel shows each as a
+ * link that opens in a new tab without a referrer.
+ */
+const REFERENCE_URLS: ReadonlySet<string> = new Set(
+  RULES.flatMap((rule) => (rule.reference === null ? [] : [rule.reference.url])),
+);
 const ABSOLUTE_URL = /https?:\/\/[^\s"'`)<>\\]+/g;
 /** A reference that leaves the page's own origin: a scheme with a host, or protocol-relative. */
 const EXTERNAL_REFERENCE = /^\s*(?:(?:https?|wss?):)?\/\//i;
@@ -43,6 +52,7 @@ const LOADING_POSITIONS: readonly { readonly kind: string; readonly pattern: Reg
 function unexpectedAbsoluteUrls(text: string): string[] {
   return [...text.matchAll(ABSOLUTE_URL)]
     .map(([url]) => url)
+    .filter((url) => !REFERENCE_URLS.has(url))
     .filter((url) => !ALLOWED_URL_PREFIXES.some((prefix) => url.startsWith(prefix)));
 }
 
@@ -115,6 +125,8 @@ test('the origin check catches every way of loading from elsewhere, and lets err
   expect(loads.map((text) => externalLoads(text).length)).toEqual(loads.map(() => 1));
   // Six of them are http(s) URLs; the protocol-relative and the wss:// ones are caught as loads only.
   expect(unexpectedAbsoluteUrls(loads.join('\n'))).toHaveLength(6);
+  // Only the catalogue's own references are let be, not the rest of their site.
+  expect(unexpectedAbsoluteUrls('"https://www.w3.org/WAI/WCAG22/Understanding/other.html"')).toHaveLength(1);
 
   const harmless = [
     'var t=`https://react.dev/errors/`+e;',
@@ -124,6 +136,7 @@ test('the origin check catches every way of loading from elsewhere, and lets err
     'src:url(./manrope-latin-wght-normal.woff2) format("woff2-variations")',
     'fetch("/api/run",{signal:t})',
     'new EventSource("/api/events")',
+    '{url:"https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html"}',
   ];
   for (const text of harmless) {
     expect(externalLoads(text), text).toEqual([]);

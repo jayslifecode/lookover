@@ -36,6 +36,7 @@
     "@fontsource-variable/jetbrains-mono": "^5.3",
     "@fontsource-variable/manrope": "^5.3",
     "@jayslifecode/lookover-lenses": "workspace:*",
+    "@jayslifecode/lookover-rules": "workspace:*",
     "@tailwindcss/vite": "^4.3",
     "@testing-library/dom": "^10.4",
     "@testing-library/react": "^16.3",
