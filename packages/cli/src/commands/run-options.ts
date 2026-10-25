@@ -46,9 +46,9 @@ export interface RunOptions {
   readonly isJudged: boolean;
   /** Overrides `config.model.judge` for this run; `undefined` keeps the config's. */
   readonly judgeModel: string | undefined;
-  /** Serve the live report while the run goes on (used once the report exists). */
+  /** Serve the live report while the run goes on; `--no-report` serves nothing. */
   readonly shouldReport: boolean;
-  /** Open the served report in the browser (used once the report exists). */
+  /** Open the served report in the browser; `--no-open` only prints its URL. */
   readonly shouldOpen: boolean;
 }
 
@@ -135,6 +135,11 @@ function parseJudgeModel(value: string | undefined): string | undefined {
     );
   }
   return model;
+}
+
+/** One new instance of every lens `lookover run` can run: what a replay of any run's finding may need. */
+export function createAvailableLenses(): Lens[] {
+  return AVAILABLE_LENSES.map((name) => LENS_FACTORIES[name]());
 }
 
 /** A new instance of the lens `name`. Throws `E_USAGE` for a lens that does not exist yet. */

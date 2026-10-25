@@ -21,6 +21,7 @@ import {
   runReplay,
 } from '@jayslifecode/lookover-judge';
 import type { Command } from 'commander';
+import { LOOKOVER_DIR, RUN_ID, RUNS_DIR } from '../report/runs.js';
 import * as ui from '../ui.js';
 import { findFinding, parseFindingId } from './finding-id.js';
 import { createLens } from './run-options.js';
@@ -47,14 +48,10 @@ interface FindingsSource {
   readonly run: string | null;
 }
 
-const LOOKOVER_DIR = '.lookover';
-const RUNS_DIR = 'runs';
 const REPLAYS_DIR = 'replays';
 const SCRIPT_EXTENSION = '.mjs';
 const LATEST_PATH = `${LOOKOVER_DIR}/${FINDINGS_FILE}`;
 const POSITIVE_INTEGER = /^[1-9]\d*$/;
-/** A run directory's name: no separator or dot can lead it out of `.lookover/runs`. */
-const RUN_ID = /^[0-9A-Za-z][\w-]*$/;
 
 /** `lookoverVersion` is recorded in the replay's environment. */
 export function registerReplay(program: Command, lookoverVersion: string): void {
