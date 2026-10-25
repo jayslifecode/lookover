@@ -1,6 +1,6 @@
 import type { Decision, Finding, Screen, Severity, SkipTally } from '@jayslifecode/lookover-core';
-import { STREAM_RECONNECTING } from './api';
-import { compareText, type ReportState, talliedSkips } from './reduce';
+import { NO_EVENT_SOURCE, STREAM_CLOSED, STREAM_RECONNECTING } from './api';
+import { compareText, isRunClosed, type ReportState, talliedSkips } from './reduce';
 
 /*
  * What the views read from the report's state, computed and never stored. Each returns new arrays and
@@ -43,8 +43,8 @@ export interface Scorecard {
   readonly reproducedEveryTime: number;
   /** What the lenses skipped on the screen, per reason, the most frequent first, then by reason. */
   readonly skipped: readonly SkipTally[];
-  /** While the run is going: the candidates seen on the screen and not judged yet, being reproduced. */
-  readonly reproducing: readonly Finding[];
+  /** The candidates on the screen nothing has judged (`unjudgedCandidates`). */
+  readonly candidates: readonly Finding[];
 }
 
 /**
@@ -55,16 +55,22 @@ export interface Scorecard {
 export interface Drift {
   /** Confirmed now, not confirmed in the previous run. */
   readonly added: readonly Finding[];
-  /** Confirmed in the previous run, and neither confirmed nor intended now. */
-  readonly fixed: readonly Finding[];
+  /**
+   * Confirmed in the previous run, and neither confirmed, intended, still a candidate nor decided intended
+   * now; `null` while the run is going, since a finding it has not met yet is not fixed.
+   */
+  readonly fixed: readonly Finding[] | null;
   /** Confirmed in both runs; this run's version of each. */
   readonly unchanged: readonly Finding[];
   /** Confirmed in the previous run and decided intended since: never fixed. This run's version of each. */
   readonly intended: readonly Finding[];
   /** The routes of this run's screens that no finding of the previous run names, sorted. */
   readonly addedRoutes: readonly string[];
-  /** The routes the previous run's findings name that no screen of this run is on, sorted. */
-  readonly removedRoutes: readonly string[];
+  /**
+   * The routes the previous run's findings name that no screen of this run is on, sorted; `null` while
+   * the run is going, since it may yet reach them.
+   */
+  readonly removedRoutes: readonly string[] | null;
 }
 
 /** The routes `finding` was seen on, each once, in the order first seen. */
@@ -225,12 +231,19 @@ function reproducedEveryTime(finding: Finding): boolean {
   return judgement !== null && judgement.of > 0 && judgement.reproduced === judgement.of;
 }
 
+/** Whether the judge was turned off (`--no-judge`): nothing is reproduced or judged. */
+export function isJudgeOff(state: ReportState): boolean {
+  return state.judgeUnavailable === 'disabled';
+}
+
 /**
- * While the run is going, the candidates not judged yet: they are being reproduced. None once the run is
- * over, when what is still a candidate (a run not judged) will not be reproduced.
+ * The candidates nothing has judged: while the run is going, those being reproduced; with the judge
+ * turned off, all of them, for good. None once a judged run is over, when what is still a candidate
+ * will not be reproduced.
  */
-export function reproducingFindings(state: ReportState): Finding[] {
-  return state.run.status === 'running' ? [...state.candidates.values()] : [];
+export function unjudgedCandidates(state: ReportState): Finding[] {
+  if (isJudgeOff(state) || state.run.status === 'running') return [...state.candidates.values()];
+  return [];
 }
 
 export function scorecard(state: ReportState, screenId: string): Scorecard {
@@ -243,7 +256,7 @@ export function scorecard(state: ReportState, screenId: string): Scorecard {
     reproducedEveryTime: confirmed.filter(reproducedEveryTime).length,
     // As logged, a screen's skips are each lens's in the order met, so a reason can come twice.
     skipped: talliedSkips(state.inspections.get(screenId)?.skipped ?? []),
-    reproducing: reproducingFindings(state).filter(onScreen),
+    candidates: unjudgedCandidates(state).filter(onScreen),
   };
 }
 
@@ -256,8 +269,33 @@ export function runScorecard(state: ReportState): Scorecard {
     rejected: rejectedFindings(state).length,
     reproducedEveryTime: confirmed.filter(reproducedEveryTime).length,
     skipped: state.skipped,
-    reproducing: reproducingFindings(state),
+    candidates: unjudgedCandidates(state),
   };
+}
+
+/** The stream's messages that mean it stopped for good: the page no longer follows the run. */
+const STREAM_STOPPED: ReadonlySet<string> = new Set([STREAM_CLOSED, NO_EVENT_SOURCE]);
+
+function eventsError(state: ReportState): string | null {
+  return state.errors.find((error) => error.source === 'events')?.message ?? null;
+}
+
+/** Whether the page follows the run's events live: not once its stream stopped for good. */
+export function isFollowing(state: ReportState): boolean {
+  const message = eventsError(state);
+  return message === null || !STREAM_STOPPED.has(message);
+}
+
+/**
+ * What the event stream reported that the reader should see, other than a reconnect (the indicator says
+ * that): a message that was not an event, or a stream that stopped while the run is going. `null` when
+ * there is none, or the stream stopped after the run closed, when following it no longer matters.
+ */
+export function streamProblem(state: ReportState): string | null {
+  const message = eventsError(state);
+  if (message === null || message === STREAM_RECONNECTING) return null;
+  if (STREAM_STOPPED.has(message) && isRunClosed(state)) return null;
+  return message;
 }
 
 /** Whether the run is going and its event stream dropped, so the browser is reconnecting it. */
@@ -291,12 +329,17 @@ export function drift(state: ReportState): Drift | null {
   ];
   const routesBefore = new Set(listedBefore.flatMap(routesOf));
   const routesNow = new Set(state.screens.map((screen) => screen.route));
+  const decided = state.decisions?.decisions ?? {};
+  // Met again in this run (confirmed, intended, or still a candidate), or decided intended since.
+  const isStillThere = ({ id }: Finding) =>
+    currentIds.has(id) || intendedIds.has(id) || state.candidates.has(id) || Object.hasOwn(decided, id);
+  const isOver = state.run.status !== 'running';
   return {
     added: current.filter((finding) => !beforeIds.has(finding.id)),
-    fixed: before.filter((finding) => !currentIds.has(finding.id) && !intendedIds.has(finding.id)),
+    fixed: isOver ? before.filter((finding) => !isStillThere(finding)) : null,
     unchanged: current.filter((finding) => beforeIds.has(finding.id)),
     intended: intended.filter((finding) => beforeIds.has(finding.id)),
     addedRoutes: sortedDifference(routesNow, routesBefore),
-    removedRoutes: sortedDifference(routesBefore, routesNow),
+    removedRoutes: isOver ? sortedDifference(routesBefore, routesNow) : null,
   };
 }

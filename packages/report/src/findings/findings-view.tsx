@@ -8,24 +8,26 @@ import {
   groups,
   intendedFindings,
   isDecisionCleared,
+  isJudgeOff,
   rejectedFindings,
-  reproducingFindings,
   runScorecard,
+  unjudgedCandidates,
 } from '@/data/selectors';
 import { RejectedHint } from '@/screens/scorecard';
 import { NoMatches, NothingConfirmed } from '@/shell/empty-states';
+import { Candidates } from './candidates';
 import { type FindingFilters, isFiltered, matchesFilters, NO_FILTERS } from './filter';
 import { FindingGroup, FindingLine, FindingLink } from './finding-group';
 import { FindingPanel } from './finding-panel';
 import { FindingsFilters } from './findings-filters';
-import { Reproducing } from './reproducing';
 
 /*
  * The Findings view (`#/findings?f=<findingId>`): the confirmed findings in fix-first groups (one per
  * component the findings share, the most severe and widespread first), narrowed by severity, lens and a
  * search, or the findings the user marked intended; the lower-confidence entries in a section of their
  * own when the Worth a look switch is on, never mixed with the findings. While the run is going, the
- * candidates not judged yet are listed as being reproduced, apart from the findings. An empty list says
+ * candidates not judged yet are listed as being reproduced, apart from the findings (with the judge
+ * turned off, as candidates, which nothing will reproduce). An empty list says
  * why and what to do. A chosen finding shows in the panel beside the list from `xl`, below it on a phone.
  * Everything here but the panel is solid.
  */
@@ -107,6 +109,7 @@ function EmptyList({
     return (
       <NothingConfirmed
         card={runScorecard(report)}
+        isJudgeOff={isJudgeOff(report)}
         isWorthALookShown={isWorthALookShown}
         onShowWorthALook={() => onWorthALookChange(true)}
       />
@@ -177,9 +180,9 @@ export function FindingsView({ report, findingId }: FindingsViewProps) {
       ),
     [report],
   );
-  const reproducing =
+  const candidates =
     filters.status === 'confirmed'
-      ? reproducingFindings(report).filter((finding) => matchesFilters(finding, filters))
+      ? unjudgedCandidates(report).filter((finding) => matchesFilters(finding, filters))
       : [];
   const isOpen = (group: Group) =>
     toggledOpen.get(group.key) ?? group.findings.some((finding) => finding.id === findingId);
@@ -220,9 +223,9 @@ export function FindingsView({ report, findingId }: FindingsViewProps) {
             ))}
           </ul>
         )}
-        {reproducing.length === 0 ? null : (
+        {candidates.length === 0 ? null : (
           <section className="rounded-lg border border-line bg-bg-1 p-4">
-            <Reproducing findings={reproducing} level={2} />
+            <Candidates findings={candidates} isJudgeOff={isJudgeOff(report)} level={2} />
           </section>
         )}
         {isWorthALookShown ? <WorthALook report={report} filters={filters} selectedId={findingId} /> : null}

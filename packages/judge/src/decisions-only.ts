@@ -6,6 +6,7 @@ import {
   type Judge,
   type JudgeOutcome,
   type RunContext,
+  type RunEventBody,
 } from '@jayslifecode/lookover-core';
 
 export interface DecisionsOnlyOptions {
@@ -22,9 +23,13 @@ export interface DecisionsOnlyOptions {
  * `finding.judged` at once, the first time its id is seen. `drain` moves the intended candidates from
  * `findings` into `intended` (after the ones the file already has, in the order of `findings`, once per
  * id) and leaves everything else as the inspection found it, unjudged: `judge` and `environment` are
- * `null`. Worth-a-look entries are left where they are, as the pipeline leaves them. `attach` does
- * nothing: the session is never used.
+ * `null`. Worth-a-look entries are left where they are, as the pipeline leaves them. `attach` never uses
+ * the session; it logs, once, that the judge was turned off (`judge.unavailable`, reason `disabled`), as
+ * the pipeline logs that it has no key, so the report can say the candidates will not be reproduced.
  */
+/** What a `--no-judge` run logs when the judge is attached. */
+const JUDGE_OFF_MESSAGE = 'The judge was turned off with --no-judge';
+
 export function createDecisionsOnlyJudge(options: DecisionsOnlyOptions): Judge {
   const { ctx, decisions } = options;
   const now = options.now ?? (() => new Date().toISOString());
@@ -32,10 +37,11 @@ export function createDecisionsOnlyJudge(options: DecisionsOnlyOptions): Judge {
   let intended: ReadonlyMap<string, Finding> = new Map();
   let lastWrite: Promise<void> = Promise.resolve();
   let writeFailure: { error: unknown } | null = null;
+  let isAttached = false;
 
   /** Queues a log write the caller cannot wait for; `drain` waits for it and throws if it failed. */
-  const logSoon = (finding: Finding): void => {
-    lastWrite = ctx.log.append({ type: 'finding.judged', finding }).then(
+  const logSoon = (body: RunEventBody): void => {
+    lastWrite = ctx.log.append(body).then(
       () => undefined,
       (error: unknown) => {
         writeFailure ??= { error };
@@ -44,12 +50,16 @@ export function createDecisionsOnlyJudge(options: DecisionsOnlyOptions): Judge {
   };
 
   return {
-    attach: () => undefined,
+    attach: () => {
+      if (isAttached) return;
+      isAttached = true;
+      logSoon({ type: 'judge.unavailable', reason: 'disabled', message: JUDGE_OFF_MESSAGE });
+    },
     onScreenInspected: (_screen, findings, _worthALook) => {
       const fresh = findings.filter((finding) => !intended.has(finding.id));
       const decided = applyDecisions(fresh, decisions, now()).intended;
       intended = new Map([...intended, ...decided.map((finding) => [finding.id, finding] as const)]);
-      for (const finding of decided) logSoon(finding);
+      for (const finding of decided) logSoon({ type: 'finding.judged', finding });
     },
     drain: async (file: FindingsFile): Promise<JudgeOutcome> => {
       await lastWrite;

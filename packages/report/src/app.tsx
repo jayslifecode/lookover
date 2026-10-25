@@ -1,7 +1,7 @@
 import { Toaster } from './components/ui/sonner';
 import type { ReportState } from './data/reduce';
 import { defaultRoute, navigate, type Route, type RouteView, useRoute, viewRoute } from './data/route';
-import { firstCapturedScreen, isReconnecting } from './data/selectors';
+import { firstCapturedScreen, isFollowing, isReconnecting, streamProblem } from './data/selectors';
 import { useReport } from './data/store';
 import { DriftView } from './drift/drift-view';
 import { FindingsView } from './findings/findings-view';
@@ -14,12 +14,14 @@ import { ErrorBoundary } from './shell/error-boundary';
 import { liveStatusOf } from './shell/live-indicator';
 import { RunFailedNotice } from './shell/run-failed-notice';
 import { SegmentedControl, type SegmentedItem } from './shell/segmented-control';
+import { StreamNotice } from './shell/stream-notice';
 import { TopBar } from './shell/top-bar';
 
 /*
  * The report's shell: the top bar with the view switcher, the cost readout and where the run is, over
  * the page, and the main area the current route's view fills (Screens, Findings or Drift). A run that
- * failed says so at the top of the main area; with no run yet, the page says how to make one. Each view
+ * failed says so at the top of the main area, as does an event stream that reported a problem other than
+ * a reconnect; with no run yet, the page says how to make one. Each view
  * is held by an error boundary, so one that cannot render leaves the rest of the page standing.
  */
 
@@ -66,9 +68,11 @@ function NoView({ report }: { readonly report: ReportState }) {
 
 function MainArea({ report, route }: { readonly report: ReportState; readonly route: Route }) {
   const { error } = report.run;
+  const problem = streamProblem(report);
   return (
     <>
       {report.run.status === 'failed' && error !== null ? <RunFailedNotice error={error} /> : null}
+      {problem === null ? null : <StreamNotice message={problem} />}
       <section id={VIEW_PANEL_ID} role="tabpanel" aria-label={VIEW_TITLE[route.view]}>
         {report.manifest === null ? (
           <NoView report={report} />
@@ -95,9 +99,14 @@ export function App() {
         baseUrl={manifest?.baseUrl ?? null}
         status={manifest === null ? null : liveStatusOf(report)}
         isReconnecting={isReconnecting(report)}
+        isFollowing={isFollowing(report)}
         cost={
           manifest === null ? undefined : (
-            <CostReadout totals={report.totals} isFinished={report.run.status === 'finished'} />
+            <CostReadout
+              totals={report.totals}
+              isFinished={report.run.status === 'finished'}
+              judgeUnavailable={report.judgeUnavailable}
+            />
           )
         }
         nav={

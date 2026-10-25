@@ -73,6 +73,8 @@ export function NoMatches({ onClear }: { readonly onClear: () => void }) {
 export interface NothingConfirmedProps {
   /** The run's numbers. */
   readonly card: ScorecardData;
+  /** The judge was turned off (`--no-judge`): nothing was tried, so nothing could be confirmed. */
+  readonly isJudgeOff: boolean;
   readonly isWorthALookShown: boolean;
   readonly onShowWorthALook: () => void;
 }
@@ -94,17 +96,32 @@ function WorthALookPointer({ card, isWorthALookShown, onShowWorthALook }: Nothin
   );
 }
 
+function WhyNothing({ isJudgeOff }: { readonly isJudgeOff: boolean }) {
+  if (!isJudgeOff) {
+    return (
+      <EmptyText className="text-ink">
+        Nothing was confirmed in this run: nothing the lenses saw reproduced every time.
+      </EmptyText>
+    );
+  }
+  return (
+    <EmptyText className="text-ink">
+      The judge was turned off for this run, so nothing was reproduced or confirmed. Run{' '}
+      <Command>lookover run</Command> without --no-judge to reproduce and judge the candidates.
+    </EmptyText>
+  );
+}
+
 /** The Findings view of a finished run that confirmed nothing: the run in numbers, and where to look. */
 export function NothingConfirmed(props: NothingConfirmedProps) {
   return (
     <div className="grid gap-4">
       <div className={EMPTY_BOX}>
-        <EmptyText className="text-ink">
-          Nothing was confirmed in this run: nothing the lenses saw reproduced every time.
-        </EmptyText>
+        <WhyNothing isJudgeOff={props.isJudgeOff} />
         <WorthALookPointer {...props} />
       </div>
-      <Scorecard card={props.card} title="Run scorecard" scope="run" />
+      {/* The view lists the candidates itself, under the scorecard. */}
+      <Scorecard card={{ ...props.card, candidates: [] }} title="Run scorecard" scope="run" />
     </div>
   );
 }

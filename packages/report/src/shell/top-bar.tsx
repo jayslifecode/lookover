@@ -18,13 +18,23 @@ export interface TopBarProps {
   readonly status: LiveStatus | null;
   /** The run's event stream dropped and is reconnecting. */
   readonly isReconnecting?: boolean;
+  /** Whether the page follows the run live; not once its stream stopped for good. */
+  readonly isFollowing?: boolean;
   /** The view switcher. */
   readonly nav?: ReactNode;
   /** What the judge model cost. */
   readonly cost?: ReactNode;
 }
 
-export function TopBar({ runName, baseUrl, status, isReconnecting = false, nav, cost }: TopBarProps) {
+export function TopBar({
+  runName,
+  baseUrl,
+  status,
+  isReconnecting = false,
+  isFollowing = true,
+  nav,
+  cost,
+}: TopBarProps) {
   return (
     <Glass
       as="header"
@@ -42,7 +52,9 @@ export function TopBar({ runName, baseUrl, status, isReconnecting = false, nav, 
       )}
       <div className="flex shrink-0 items-center gap-3">
         {cost}
-        {status === null ? null : <LiveIndicator status={status} isReconnecting={isReconnecting} />}
+        {status === null ? null : (
+          <LiveIndicator status={status} isReconnecting={isReconnecting} isFollowing={isFollowing} />
+        )}
         <ThemeToggle />
       </div>
     </Glass>

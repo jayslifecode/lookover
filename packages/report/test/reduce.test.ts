@@ -204,3 +204,19 @@ test('an unknown event leaves the state as it was; a known one the report does n
   expect(observed.screens).toBe(state.screens);
   expect(observed.judged).toBe(state.judged);
 });
+
+test('judge.unavailable keeps why the judge model is not used; a judge turned off (--no-judge) is a reason of its own', () => {
+  expect(initialState().judgeUnavailable).toBeNull();
+  expect(replay(EVENTS).judgeUnavailable).toBe('no-api-key');
+
+  const off = replay([
+    started,
+    eventOf(
+      { type: 'judge.unavailable', reason: 'disabled', message: 'The judge was turned off with --no-judge' },
+      2,
+    ),
+  ]);
+  expect(off.judgeUnavailable).toBe('disabled');
+  // The findings file loaded at the end keeps it.
+  expect(withFindingsFile(off, fixtureFindings()).judgeUnavailable).toBe('disabled');
+});

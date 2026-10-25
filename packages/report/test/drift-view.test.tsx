@@ -1,10 +1,20 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, test } from 'vitest';
 import type { RunManifest } from '../node/api';
-import { type ReportState, withError, withManifest, withPrevious } from '../src/data/reduce';
+import {
+  initialState,
+  type ReportState,
+  reduce,
+  withDecisions,
+  withError,
+  withFindingsFile,
+  withManifest,
+  withPrevious,
+} from '../src/data/reduce';
 import { formatRoute } from '../src/data/route';
+import { confirmedFindings, drift } from '../src/data/selectors';
 import { DriftView } from '../src/drift/drift-view';
-import { fixturePreviousFindings, stepFinding } from './fixture';
+import { eventOf, findingsFile, fixtureEvents, fixturePreviousFindings, stepFinding } from './fixture';
 import { INTENDED, KEYBOARD } from './panel-helpers';
 import { STATE } from './screens-helpers';
 
@@ -14,6 +24,8 @@ import { STATE } from './screens-helpers';
  */
 
 const PREVIOUS = fixturePreviousFindings();
+const EVENTS = fixtureEvents();
+const HELD = 'Fixed and removed are known when the run finishes.';
 const REQUEST_FAILED = 'fc8addc0486b';
 const RUN: RunManifest = {
   runId: '20261022-212802-kwtz',
@@ -117,4 +129,48 @@ test('while the run is still going, the comparison says it is of what is confirm
   render(<DriftView report={{ ...report, run: { ...report.run, status: 'running' } }} />);
 
   expect(screen.getByText('The run is still going: this compares what is confirmed so far.')).toBeDefined();
+});
+
+/** The fixture run as it stands once its events up to `seq` are in, against the previous run. */
+function liveAt(seq: number): ReportState {
+  const running = withManifest(initialState(), { ...RUN, status: 'running' });
+  const state = EVENTS.filter((event) => event.seq <= seq).reduce(reduce, running);
+  return withPrevious(state, PREVIOUS);
+}
+
+test('while the run is going, Fixed and Removed are held; New and Still there come from what is judged so far', () => {
+  // seq 21: the dashboard's three candidates (the previous run's three findings) are still being reproduced.
+  const early = liveAt(21);
+  expect(drift(early)?.fixed).toBeNull();
+  expect(drift(early)?.removedRoutes).toBeNull();
+  const { rerender } = render(<DriftView report={early} />);
+  expect(within(region('Fixed')).getByText(HELD)).toBeDefined();
+  expect(hrefs(region('Fixed'))).toEqual([]);
+  expect(within(region('Screens by route')).queryByRole('list', { name: 'Removed' })).toBeNull();
+  expect(within(region('Screens by route')).getByText(HELD)).toBeDefined();
+  expect(screen.getByText(`Since the run ${PREVIOUS.runId}, so far: 0 new · 0 still there`)).toBeDefined();
+
+  // seq 30: the keyboard finding is confirmed again, the intended one decided: still nothing is fixed.
+  rerender(<DriftView report={liveAt(30)} />);
+  expect(hrefs(region('Still there'))).toEqual([formatRoute({ view: 'findings', findingId: KEYBOARD })]);
+  expect(hrefs(region('Intended'))).toEqual([formatRoute({ view: 'findings', findingId: INTENDED })]);
+  expect(within(region('Fixed')).getByText(HELD)).toBeDefined();
+});
+
+test('once the run is over, what is still a candidate or decided intended is never fixed', () => {
+  // A run that failed while the dashboard's three were still candidates.
+  const failed = reduce(
+    liveAt(21),
+    eventOf({ type: 'run.failed', error: { code: 'E_RUN_FAILED', message: 'Stopped' } }, 22),
+  );
+  expect(drift(failed)?.fixed).toEqual([]);
+
+  // A finished run that never met the intended finding again: the decisions still say it is intended.
+  const unmet = withFindingsFile(STATE, findingsFile({ findings: confirmedFindings(STATE) }));
+  const decided = withDecisions(unmet, {
+    version: 1,
+    decisions: { [INTENDED]: { status: 'intended', at: '2026-10-22T12:28:02.508Z', note: null } },
+  });
+  expect(drift(withPrevious(decided, PREVIOUS))?.fixed).toEqual([]);
+  expect(drift(withPrevious(unmet, PREVIOUS))?.fixed?.map(({ id }) => id)).toEqual([INTENDED]);
 });

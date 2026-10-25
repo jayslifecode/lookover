@@ -5,8 +5,11 @@ import { ON_GLASS_FOCUS } from '@/findings/panel-styles';
 /*
  * What the judge model cost the run, in the top bar: `34 calls · 61k tokens · ≈ $0.19`, with a tooltip
  * that breaks it down (the model, the calls and cache hits, each kind of token), or why the model was
- * not used. The totals come with the end of the run, so a run still going (or one that failed before
- * it ended) shows nothing. Its text is --ink, the ink that reads on the glass bar over any content.
+ * not used. As the CLI's summary does, a model that answered and then failed keeps its cost, marked
+ * `· judge model failed partway`; only a model never asked (no model in the totals) reads as not used.
+ * The totals come with the end of the run, so a run still going (or one that failed before it ended)
+ * shows nothing, unless the judge was turned off, which the run says when it starts. Its text is --ink,
+ * the ink that reads on the glass bar over any content.
  */
 
 export interface CostReadoutProps {
@@ -14,12 +17,15 @@ export interface CostReadoutProps {
   readonly totals: JudgeTotals | null;
   /** Whether the run finished: only then do no totals mean the judge model was off. */
   readonly isFinished: boolean;
+  /** Why the judge model is not used, as the run said (`judge.unavailable`), before its totals come. */
+  readonly judgeUnavailable?: JudgeTotals['unavailable'];
 }
 
 const TOKENS_PER_K = 1_000;
 const USD_DECIMALS = 2;
 const NUMBER_LOCALE = 'en-US';
 const OFF = 'judge model off';
+const FAILED_PARTWAY = 'judge model failed partway';
 const UNAVAILABLE_TEXT: Readonly<Record<NonNullable<JudgeTotals['unavailable']>, string>> = {
   disabled: OFF,
   'no-api-key': 'judge model not used (no API key)',
@@ -46,17 +52,23 @@ function totalTokens({ usage }: JudgeTotals): number {
   return usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
 }
 
-/** Whether the judge model was used, so there is a cost to break down. */
-function isUsed(totals: JudgeTotals | null): totals is JudgeTotals {
-  return totals !== null && totals.unavailable === null;
+/** Whether the judge model was asked (the totals name it), or never needed: there is a cost to show. */
+function isAsked(totals: JudgeTotals): boolean {
+  return totals.model !== null || totals.unavailable === null;
 }
 
 export function costText(totals: JudgeTotals | null): string {
   if (totals === null) return OFF;
-  if (totals.unavailable !== null) return UNAVAILABLE_TEXT[totals.unavailable];
+  if (!isAsked(totals) && totals.unavailable !== null) return UNAVAILABLE_TEXT[totals.unavailable];
   const cost =
     totals.estimatedUsd === null ? 'cost unknown' : `≈ $${totals.estimatedUsd.toFixed(USD_DECIMALS)}`;
-  return `${plural(totals.calls, 'call', 'calls')} · ${formatTokens(totalTokens(totals))} tokens · ${cost}`;
+  const parts = [
+    plural(totals.calls, 'call', 'calls'),
+    `${formatTokens(totalTokens(totals))} tokens`,
+    cost,
+    ...(totals.unavailable === 'api-error' ? [FAILED_PARTWAY] : []),
+  ];
+  return parts.join(' · ');
 }
 
 function Breakdown({ totals }: { readonly totals: JudgeTotals }) {
@@ -76,10 +88,11 @@ function Breakdown({ totals }: { readonly totals: JudgeTotals }) {
   );
 }
 
-export function CostReadout({ totals, isFinished }: CostReadoutProps) {
-  if (totals === null && !isFinished) return null;
+export function CostReadout({ totals, isFinished, judgeUnavailable = null }: CostReadoutProps) {
+  const isTurnedOff = totals === null && judgeUnavailable === 'disabled';
+  if (totals === null && !isFinished && !isTurnedOff) return null;
   const text = costText(totals);
-  if (!isUsed(totals)) return <span className={READOUT}>{text}</span>;
+  if (totals === null || !isAsked(totals)) return <span className={READOUT}>{text}</span>;
   return (
     <Tooltip>
       {/* At least 24 px tall, like every target, with the two-tone ring of a control on glass. */}

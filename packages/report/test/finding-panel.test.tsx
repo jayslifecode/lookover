@@ -322,6 +322,16 @@ test("with nothing selected the panel shows the run's summary, never nothing", (
   const withCost = screen.getByRole('complementary', { name: 'Run summary' });
   expect(within(withCost).getByText('Judged by claude-sonnet-5-5 · 12 calls · $0.0421')).toBeDefined();
   expect(within(withCost).getByText('This run has no finding no-such-finding.')).toBeDefined();
+
+  // A model that failed partway keeps what it cost.
+  rerender(
+    <FindingPanel report={{ ...STATE, totals: { ...totals, unavailable: 'api-error' } }} findingId={null} />,
+  );
+  expect(
+    screen.getByText(
+      'Judged by claude-sonnet-5-5 · 12 calls · $0.0421 · the model failed partway; reproduction alone decided the rest',
+    ),
+  ).toBeDefined();
 });
 
 test('from xl the panel is a fixed box under the top bar, and its body is what scrolls', () => {

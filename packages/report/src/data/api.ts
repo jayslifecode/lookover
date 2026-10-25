@@ -183,6 +183,10 @@ export function evidenceUrl(ref: Pick<EvidenceRef, 'path'>): string | null {
 
 /** What `subscribe` tells `onError` while the browser reconnects a dropped stream. */
 export const STREAM_RECONNECTING = 'The live event stream dropped; reconnecting';
+/** What `subscribe` tells `onError` when the stream stopped for good: the page no longer follows the run. */
+export const STREAM_CLOSED =
+  'The live event stream was closed by the report server; reload the page to follow the run';
+export const NO_EVENT_SOURCE = 'This browser cannot follow the run live: it has no EventSource';
 
 /**
  * Follows the run's events. The browser reconnects a dropped stream by itself and sends the last `id`
@@ -199,7 +203,7 @@ export function subscribe(
   onOpen?: () => void,
 ): () => void {
   if (typeof EventSource !== 'function') {
-    onError('This browser cannot follow the run live: it has no EventSource');
+    onError(NO_EVENT_SOURCE);
     return () => undefined;
   }
   let seen = lastSeq;
@@ -223,7 +227,7 @@ export function subscribe(
   source.onerror = () => {
     // While the browser reconnects the state is CONNECTING; CLOSED means it gave up (the server refused).
     if (source.readyState === EventSource.CLOSED) {
-      onError('The live event stream was closed by the report server; reload the page to follow the run');
+      onError(STREAM_CLOSED);
       return;
     }
     onError(STREAM_RECONNECTING);

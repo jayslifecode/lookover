@@ -238,7 +238,7 @@ test("a screen's scorecard counts its confirmed findings by severity, its skips 
     rejected: 0,
     reproducedEveryTime: 2,
     skipped: [{ reason: 'text-colour-uncertain:descendant', count: 2 }],
-    reproducing: [],
+    candidates: [],
   });
   expect(scorecard(state, '38a8049145').confirmed).toEqual({ blocker: 0, high: 1, medium: 24, low: 0 });
   expect(scorecard(state, '57682dba9d').skipped).toEqual([]);

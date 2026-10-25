@@ -2,7 +2,7 @@ import { Info } from 'lucide-react';
 import { type ReactNode, useId } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { type Scorecard as ScorecardData, SEVERITY_ORDER } from '@/data/selectors';
-import { Reproducing } from '@/findings/reproducing';
+import { Candidates } from '@/findings/candidates';
 import { cn } from '@/lib/utils';
 import { SEVERITY_DOT, SEVERITY_LABEL } from './severity';
 
@@ -18,6 +18,8 @@ export interface ScorecardProps {
   readonly title?: string;
   /** What the numbers are of: one screen (the default), or the whole run. */
   readonly scope?: 'screen' | 'run';
+  /** The judge was turned off: the candidates are listed as such, not as being reproduced. */
+  readonly isJudgeOff?: boolean;
 }
 
 const SCOPE_PHRASE = { screen: 'on this screen', run: 'in this run' } as const;
@@ -99,7 +101,12 @@ function Skipped({
   );
 }
 
-export function Scorecard({ card, title = 'Scorecard', scope = 'screen' }: ScorecardProps) {
+export function Scorecard({
+  card,
+  title = 'Scorecard',
+  scope = 'screen',
+  isJudgeOff = false,
+}: ScorecardProps) {
   const titleId = useId();
   return (
     <section aria-labelledby={titleId} className="rounded-lg border border-line bg-bg-1 p-4">
@@ -122,7 +129,7 @@ export function Scorecard({ card, title = 'Scorecard', scope = 'screen' }: Score
         <Stat term="Worth a look" value={card.worthALook} />
         <Stat term="Rejected" value={card.rejected} hint={<RejectedHint />} />
       </dl>
-      <Reproducing findings={card.reproducing} level={3} className="mt-3" />
+      <Candidates findings={card.candidates} isJudgeOff={isJudgeOff} level={3} className="mt-3" />
       <Skipped skipped={card.skipped} scope={scope} />
     </section>
   );

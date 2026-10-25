@@ -165,6 +165,49 @@ test('the indicator: mapping, inspecting from the first screen, judging from the
   }
 });
 
+/** The fixture run up to `seq` as a `--no-judge` run: its judge.unavailable says the judge is off. */
+function judgeOffUpTo(seq: number): ReportState {
+  const turnedOff = (event: RunEvent): RunEvent =>
+    event.type === 'judge.unavailable'
+      ? { ...event, reason: 'disabled', message: 'The judge was turned off with --no-judge' }
+      : event;
+  return EVENTS.filter((event) => event.seq <= seq)
+    .map(turnedOff)
+    .reduce(reduce, withManifest(initialState(), RUNNING));
+}
+
+test('with the judge turned off, candidates are listed as such, never reproducing…, and the run is never Judging', () => {
+  const { rerender } = render(<FindingsView report={judgeOffUpTo(21)} findingId={null} />);
+
+  const candidates = screen.getByRole('list', { name: 'Candidates (judge off)' });
+  expect(within(candidates).getAllByRole('listitem')).toHaveLength(3);
+  expect(candidates.textContent).not.toContain('reproducing…');
+  expect(screen.queryByRole('list', { name: 'Being reproduced' })).toBeNull();
+  expect(liveStatusOf(judgeOffUpTo(21))).toBe('inspecting');
+  expect(liveStatusOf(judgeOffUpTo(56))).toBe('inspecting');
+
+  // Nothing will judge them: they stay listed once the run is over.
+  const finished = reduce(
+    judgeOffUpTo(56),
+    eventOf(
+      {
+        type: 'run.finished',
+        screens: 3,
+        durationMs: 1000,
+        confirmed: 0,
+        rejected: 0,
+        intended: 1,
+        worthALook: 0,
+        judge: null,
+      },
+      57,
+    ),
+  );
+  rerender(<FindingsView report={finished} findingId={null} />);
+  expect(screen.getByRole('list', { name: 'Candidates (judge off)' })).toBeDefined();
+  expect(liveStatusOf(finished)).toBe('done');
+});
+
 function send(source: FakeEventSource, events: readonly RunEvent[]): void {
   act(() => {
     for (const event of events) source.send(event);
@@ -207,6 +250,7 @@ describe('the page over the event stream', () => {
 
     act(() => source.drop());
     expect(within(status()).getByText('reconnecting…')).toBeDefined();
+    expect(status().textContent).toBe('Run status: Mapping reconnecting…');
     act(() => source.open());
     expect(within(status()).queryByText('reconnecting…')).toBeNull();
 

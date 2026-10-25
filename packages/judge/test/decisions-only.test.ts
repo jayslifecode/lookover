@@ -135,4 +135,16 @@ describe('createDecisionsOnlyJudge', () => {
     expect(file.worthALook).toEqual([hover]);
     expect(file.intended).toEqual([]);
   });
+
+  test('says once, when attached, that the judge was turned off, as the pipeline says it has no key', async () => {
+    const judge = createDecisionsOnlyJudge({ ctx, decisions: NO_DECISIONS, now: () => NOW });
+
+    judge.attach(UNTOUCHABLE_SESSION);
+    judge.attach(UNTOUCHABLE_SESSION);
+    await judge.drain(candidatesFile(ctx, []));
+
+    expect(await eventsOf(ctx, 'judge.unavailable')).toMatchObject([
+      { reason: 'disabled', message: 'The judge was turned off with --no-judge' },
+    ]);
+  });
 });

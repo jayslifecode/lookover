@@ -1,7 +1,7 @@
 import type { Finding } from '@jayslifecode/lookover-core';
 import { useId, useMemo } from 'react';
 import type { ReportState } from '@/data/reduce';
-import { compareSeverity, type Drift, drift, findingById } from '@/data/selectors';
+import { compareSeverity, type Drift, drift, isWorthALook } from '@/data/selectors';
 import { FindingLine, FindingLink } from '@/findings/finding-group';
 import { cn } from '@/lib/utils';
 import { EMPTY_BOX, FirstRun } from '@/shell/empty-states';
@@ -10,8 +10,10 @@ import { EMPTY_BOX, FirstRun } from '@/shell/empty-states';
  * The Drift view (`#/drift`): this run against the previous one. New (confirmed now, not then), Fixed
  * (confirmed then, neither confirmed nor intended now), Still there (confirmed in both), the findings
  * marked intended since (never counted as fixed), and the routes that came and went. Each finding links
- * to it in the Findings view; a fixed one this run no longer holds is shown as it was. A first run says
- * there is nothing to compare it with, and how to get a comparison. Solid surfaces throughout.
+ * to it in the Findings view; a fixed one this run no longer holds is shown as it was. While the run is
+ * going, New and Still there come from what is judged so far, and Fixed and Removed are held: a finding
+ * or a route the run has not reached yet is not gone. A first run says there is nothing to compare it
+ * with, and how to get a comparison. Solid surfaces throughout.
  */
 
 export interface DriftViewProps {
@@ -20,6 +22,7 @@ export interface DriftViewProps {
 
 const SECTION = 'rounded-lg border border-line bg-bg-1 p-4';
 const LIST = 'm-0 mt-2 grid list-none gap-0.5 p-0';
+const HELD = 'Fixed and removed are known when the run finishes.';
 const ROUTES_EXPLAINED =
   "Compared by the routes the previous run's findings name: the report has no copy of the previous run's screen map, so a route it captured without a finding shows as added.";
 
@@ -27,9 +30,12 @@ function bySeverity(findings: readonly Finding[]): Finding[] {
   return findings.toSorted(compareSeverity);
 }
 
-/** A finding this run holds links to it; one it no longer holds is shown as it was in the previous run. */
+/**
+ * A finding this run judged (or set aside as worth a look) links to it; one it does not hold is shown as
+ * it was in the previous run.
+ */
 function DriftEntry({ report, finding }: { readonly report: ReportState; readonly finding: Finding }) {
-  if (findingById(report, finding.id) !== null) {
+  if (report.judged.has(finding.id) || isWorthALook(report, finding.id)) {
     return (
       <FindingLink finding={finding} selectedId={null}>
         <FindingLine finding={finding} />
@@ -53,7 +59,8 @@ function DriftSection({
 }: {
   readonly report: ReportState;
   readonly title: string;
-  readonly findings: readonly Finding[];
+  /** `null`: held until the run finishes. */
+  readonly findings: readonly Finding[] | null;
   readonly emptyText: string;
   readonly className?: string;
 }) {
@@ -64,10 +71,12 @@ function DriftSection({
         <h2 id={titleId} className="m-0 font-semibold text-[15px]">
           {title}
         </h2>
-        <span className="font-mono text-[13px] text-ink-2">{findings.length}</span>
+        {findings === null ? null : (
+          <span className="font-mono text-[13px] text-ink-2">{findings.length}</span>
+        )}
       </div>
-      {findings.length === 0 ? (
-        <p className="m-0 mt-1 text-[13px] text-ink-2">{emptyText}</p>
+      {findings === null || findings.length === 0 ? (
+        <p className="m-0 mt-1 text-[13px] text-ink-2">{findings === null ? HELD : emptyText}</p>
       ) : (
         <ul className={LIST}>
           {bySeverity(findings).map((finding) => (
@@ -87,7 +96,8 @@ function RouteList({
   emptyText,
 }: {
   title: string;
-  routes: readonly string[];
+  /** `null`: held until the run finishes. */
+  routes: readonly string[] | null;
   emptyText: string;
 }) {
   const titleId = useId();
@@ -96,8 +106,8 @@ function RouteList({
       <h3 id={titleId} className="m-0 font-semibold text-[13.5px]">
         {title}
       </h3>
-      {routes.length === 0 ? (
-        <p className="m-0 mt-0.5 text-[13px] text-ink-2">{emptyText}</p>
+      {routes === null || routes.length === 0 ? (
+        <p className="m-0 mt-0.5 text-[13px] text-ink-2">{routes === null ? HELD : emptyText}</p>
       ) : (
         <ul aria-labelledby={titleId} className={LIST}>
           {routes.map((route) => (
@@ -128,13 +138,14 @@ function RoutesSection({ changes }: { readonly changes: Drift }) {
 }
 
 function Comparison({ report, changes }: { readonly report: ReportState; readonly changes: Drift }) {
+  const isGoing = changes.fixed === null;
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <DriftSection
         report={report}
         title="New"
         findings={changes.added}
-        emptyText="Nothing new since the last run."
+        emptyText={isGoing ? 'Nothing new so far.' : 'Nothing new since the last run.'}
         className="md:col-span-2"
       />
       <DriftSection
@@ -147,7 +158,11 @@ function Comparison({ report, changes }: { readonly report: ReportState; readonl
         report={report}
         title="Still there"
         findings={changes.unchanged}
-        emptyText="Nothing from the last run is still there."
+        emptyText={
+          isGoing
+            ? 'Nothing from the last run confirmed again so far.'
+            : 'Nothing from the last run is still there.'
+        }
       />
       {changes.intended.length === 0 ? null : (
         <DriftSection
@@ -166,6 +181,9 @@ function Comparison({ report, changes }: { readonly report: ReportState; readonl
 function summaryOf(previousRunId: string, changes: Drift | null): string {
   if (changes === null) return `Compared with the run ${previousRunId}.`;
   const { added, fixed, unchanged } = changes;
+  if (fixed === null) {
+    return `Since the run ${previousRunId}, so far: ${added.length} new · ${unchanged.length} still there`;
+  }
   return `Since the run ${previousRunId}: ${added.length} new · ${fixed.length} fixed · ${unchanged.length} still there`;
 }
 

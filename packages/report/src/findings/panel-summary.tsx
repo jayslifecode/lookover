@@ -25,6 +25,7 @@ const UNAVAILABLE_REASON: Readonly<Record<NonNullable<JudgeTotals['unavailable']
   'api-error': 'the API failed',
 };
 const USD_DECIMALS = 4;
+const FAILED_PARTWAY = 'the model failed partway; reproduction alone decided the rest';
 
 function confirmedText(report: ReportState): string {
   const confirmed = confirmedFindings(report);
@@ -37,10 +38,13 @@ function confirmedText(report: ReportState): string {
   return parts.length === 0 ? 'None' : parts.join(' · ');
 }
 
-/** The judge's cost line; `null` while the run has no totals (it is still going, or was not judged). */
+/**
+ * The judge's cost line; `null` while the run has no totals (it is still going, or was not judged). A
+ * model that answered and then failed keeps its cost, said to have failed partway.
+ */
 function costLine(totals: JudgeTotals | null): string | null {
   if (totals === null) return null;
-  if (totals.unavailable !== null) {
+  if (totals.model === null && totals.unavailable !== null) {
     const reason = UNAVAILABLE_REASON[totals.unavailable];
     return `The judge model was not used (${reason}): reproduction alone confirmed the findings.`;
   }
@@ -48,7 +52,8 @@ function costLine(totals: JudgeTotals | null): string | null {
   const calls = `${totals.calls} ${totals.calls === 1 ? 'call' : 'calls'}`;
   const cost =
     totals.estimatedUsd === null ? 'cost unknown' : `$${totals.estimatedUsd.toFixed(USD_DECIMALS)}`;
-  return `Judged by ${model} · ${calls} · ${cost}`;
+  const line = `Judged by ${model} · ${calls} · ${cost}`;
+  return totals.unavailable === 'api-error' ? `${line} · ${FAILED_PARTWAY}` : line;
 }
 
 export function PanelSummary({ report, titleId, missingId }: PanelSummaryProps) {

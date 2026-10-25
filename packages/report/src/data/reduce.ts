@@ -78,6 +78,11 @@ export interface ReportState {
   /** What the lenses skipped across the run, per reason, the most frequent first. */
   readonly skipped: readonly SkipTally[];
   readonly totals: JudgeTotals | null;
+  /**
+   * Why the judge model is not used, as `judge.unavailable` said (`disabled`: the judge was turned off
+   * with `--no-judge`, so nothing is reproduced); `null` until said, or when it is used.
+   */
+  readonly judgeUnavailable: JudgeTotals['unavailable'];
   readonly findingsSource: FindingsSource;
   /** The project's decisions; `null` until loaded. */
   readonly decisions: DecisionsFile | null;
@@ -108,6 +113,7 @@ export function initialState(): ReportState {
     worthALook: [],
     skipped: [],
     totals: null,
+    judgeUnavailable: null,
     findingsSource: 'events',
     decisions: null,
     previous: null,
@@ -191,6 +197,10 @@ function onJudged(state: ReportState, { finding }: EventOf<'finding.judged'>): R
   };
 }
 
+function onJudgeUnavailable(state: ReportState, { reason }: EventOf<'judge.unavailable'>): ReportState {
+  return { ...state, judgeUnavailable: reason };
+}
+
 function onStarted(state: ReportState, event: EventOf<'run.started'>): ReportState {
   return { ...state, run: { ...state.run, baseUrl: event.baseUrl, startedAt: event.at } };
 }
@@ -239,6 +249,8 @@ function apply(state: ReportState, event: RunEvent): ReportState | null {
       return onFinished(state, event);
     case 'run.failed':
       return onFailed(state, event);
+    case 'judge.unavailable':
+      return onJudgeUnavailable(state, event);
     case 'route.discovered':
     case 'auth.completed':
     case 'auth.lost':
@@ -247,7 +259,6 @@ function apply(state: ReportState, event: RunEvent): ReportState | null {
     case 'screen.discovered':
     case 'screen.skipped':
     case 'screen.truncated':
-    case 'judge.unavailable':
       return state;
     default:
       return null;

@@ -1,7 +1,7 @@
 import type { Screen } from '@jayslifecode/lookover-core';
 import { memo, useMemo, useRef, useState } from 'react';
 import type { ReportState } from '@/data/reduce';
-import { findingsOnScreen, firstCapturedScreen, isInspecting, scorecard } from '@/data/selectors';
+import { findingsOnScreen, firstCapturedScreen, isInspecting, isJudgeOff, scorecard } from '@/data/selectors';
 import { FindingPanel } from '@/findings/finding-panel';
 import { PanelGhost } from '@/findings/panel-ghost';
 import { usePanelTransform } from '@/findings/use-panel-transform';
@@ -93,7 +93,7 @@ const ScreenNumbers = memo(function ScreenNumbers({
   const gallery = report.inspections.get(screen.id)?.gallery ?? null;
   return (
     <div className={MAIN}>
-      <Scorecard card={card} />
+      <Scorecard card={card} isJudgeOff={isJudgeOff(report)} />
       <StateGallery gallery={gallery} isInspecting={isInspecting(report, screen)} />
     </div>
   );
