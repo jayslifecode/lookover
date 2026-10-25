@@ -22,7 +22,7 @@ import {
 import { rawGet } from './report-sse.js';
 
 const CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'none'";
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'none'";
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const MAX_BODY_BYTES = 16 * 1024;
 const EVIDENCE_PNG = '102580572b2d2bd5.png';

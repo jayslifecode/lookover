@@ -16,7 +16,9 @@ const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "connect-src 'self'",
-  "font-src 'self'",
+  // The build inlines the smallest font subsets into its CSS as `data:` URIs (Vite's asset inline
+  // limit): still the report's own bytes, loaded from nowhere.
+  "font-src 'self' data:",
   "frame-ancestors 'none'",
   "base-uri 'none'",
 ].join('; ');
