@@ -27,11 +27,16 @@ const SECURITY_HEADERS: Readonly<OutgoingHttpHeaders> = {
   'content-security-policy': CONTENT_SECURITY_POLICY,
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
+  // Other ports of 127.0.0.1 are the same site, so the cookie rides along: no page of theirs may embed
+  // what this server answers (an evidence screenshot in an <img>, say).
+  'cross-origin-resource-policy': 'same-origin',
 };
 
 export const NO_STORE = 'no-store';
-/** Evidence and the hashed assets never change under their name. */
+/** The hashed assets never change under their name. */
 export const IMMUTABLE = 'public, max-age=31536000, immutable';
+/** Evidence never changes under its name either, but it is the run's, behind the token: no shared cache. */
+export const PRIVATE_IMMUTABLE = 'private, max-age=31536000, immutable';
 export const JSON_TYPE = 'application/json; charset=utf-8';
 const TEXT_TYPE = 'text/plain; charset=utf-8';
 /** What a file of no type the server knows is served as: bytes to save, never a page to render. */

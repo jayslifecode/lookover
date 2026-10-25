@@ -57,8 +57,8 @@ export interface ReportServer {
 /** The parts of a request that decide where it goes. */
 interface Gate {
   readonly token: string;
-  /** Where the server listens (`port` 0 and `origin` empty until it does). */
-  readonly address: () => { readonly port: number; readonly origin: string };
+  /** The port the server listens on (0 until it does). */
+  readonly port: () => number;
   readonly api: ApiHandler;
 }
 
@@ -73,14 +73,14 @@ export async function startReportServer(options: ReportServerOptions): Promise<R
     startedAt: new Date().toISOString(),
     replay: options.replay ?? defaultReplay(options),
   });
-  let address = { port: 0, origin: '' };
-  const gate: Gate = { token, address: () => address, api };
+  let listening = 0;
+  const gate: Gate = { token, port: () => listening, api };
   const server = createServer((req, res) => {
     route(req, res, gate).catch((error: unknown) => answerFailure(req, res, error));
   });
   const port = await listen(server, options.port ?? 0, host);
-  address = { port, origin: `http://${host}:${port}` };
-  return { url: `${address.origin}/?${TOKEN_QUERY}=${token}`, port, token, close: closer(server) };
+  listening = port;
+  return { url: `http://${host}:${port}/?${TOKEN_QUERY}=${token}`, port, token, close: closer(server) };
 }
 
 /**
@@ -88,7 +88,7 @@ export async function startReportServer(options: ReportServerOptions): Promise<R
  * method (405), the token for `/api/*` (401), and a same-origin `Origin` for a POST (403).
  */
 async function route(req: IncomingMessage, res: ServerResponse, gate: Gate): Promise<void> {
-  const { port, origin } = gate.address();
+  const port = gate.port();
   if (!isOwnHost(req, port)) throw new HttpError(421, MISDIRECTED);
   const method = req.method ?? '';
   if (!ALLOWED_METHODS.has(method)) throw new HttpError(405, `The report server does not answer ${method}`);
@@ -98,7 +98,7 @@ async function route(req: IncomingMessage, res: ServerResponse, gate: Gate): Pro
     return serveStatic(res, path, query, { token: gate.token, port });
   }
   if (!hasToken(req, gate.token, port)) throw new HttpError(401, NO_TOKEN);
-  if (method === 'POST' && !isSameOrigin(req, origin)) throw new HttpError(403, CROSS_ORIGIN);
+  if (method === 'POST' && !isSameOrigin(req, port)) throw new HttpError(403, CROSS_ORIGIN);
   return gate.api(req, res, path);
 }
 

@@ -1,13 +1,14 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type DecisionsFile, type Finding, readFindingsAt } from '@jayslifecode/lookover-core';
-import { type DecisionResponse, tokenCookieName } from '@jayslifecode/lookover-report/api';
+import { type DecisionResponse, type RunManifest, tokenCookieName } from '@jayslifecode/lookover-report/api';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { ReplayFinding, ReportServer } from '../src/report/server.js';
 import {
   createFixtureProject,
   FIXTURE_RUN_ID,
   type FixtureProject,
+  OLDEST_RUN_ID,
   serveFixtureRun,
   startedEvent,
   UNFINISHED_RUN_ID,
@@ -24,17 +25,18 @@ let live: ReportServer;
 let candidate: Finding;
 let judged: Finding;
 let notLogged: Finding;
+let written: Finding;
 const replay = vi.fn<ReplayFinding>();
 
 beforeAll(async () => {
   project = await createFixtureProject('lookover-report-live-');
-  const [first, second, third] = (
+  const [first, second, third, fourth] = (
     await readFindingsAt(join(project.runsDir, FIXTURE_RUN_ID, 'findings.json'))
   ).findings;
-  if (first === undefined || second === undefined || third === undefined) {
-    throw new Error('The fixture run has fewer than three findings');
+  if (first === undefined || second === undefined || third === undefined || fourth === undefined) {
+    throw new Error('The fixture run has fewer than four findings');
   }
-  [candidate, judged, notLogged] = [first, second, third];
+  [candidate, judged, notLogged, written] = [first, second, third, fourth];
   const events = [
     startedEvent(UNFINISHED_RUN_ID),
     { type: 'finding.candidate', finding: candidate, seq: 2, at: 'now', runId: UNFINISHED_RUN_ID },
@@ -125,6 +127,47 @@ describe('a run that has finished', () => {
       expect(await response.json()).not.toHaveProperty('appliesNextRun');
     } finally {
       await finished.close();
+    }
+  });
+});
+
+describe('a log being written', () => {
+  test('passes over a line that is not an event and a last line not written to its end', async () => {
+    const judgedLine = JSON.stringify({
+      type: 'finding.judged',
+      finding: judged,
+      seq: 3,
+      at: 'now',
+      runId: 'x',
+    });
+    const log = [
+      `${JSON.stringify(startedEvent(OLDEST_RUN_ID))}\n`,
+      '{"type": "finding.candidate", "fin\n',
+      `${JSON.stringify({ type: 'finding.candidate', finding: written, seq: 2, at: 'now', runId: 'x' })}\n`,
+      judgedLine.slice(0, judgedLine.length / 2),
+    ];
+    await writeFile(join(project.runsDir, OLDEST_RUN_ID, 'run.jsonl'), log.join(''));
+    const torn = await serveFixtureRun(project, OLDEST_RUN_ID, replay);
+    try {
+      const manifest = await fetch(`http://127.0.0.1:${torn.port}/api/run`, {
+        headers: { 'x-lookover-token': torn.token },
+      });
+      const decision = await post(torn, '/api/decisions', { findingId: written.id, status: 'intended' });
+      const halfJudged = await post(torn, '/api/decisions', { findingId: judged.id, status: 'intended' });
+      const replayed = await post(torn, '/api/replay', { findingId: written.id });
+
+      expect(manifest.status).toBe(200);
+      expect(await manifest.json()).toMatchObject({
+        status: 'running',
+        baseUrl: 'http://localhost:3123',
+      } satisfies Partial<RunManifest>);
+      expect(decision.status).toBe(200);
+      expect(await decision.json()).toMatchObject({ appliesNextRun: true });
+      // The judged finding is only in the line not written to its end yet: this log does not name it.
+      expect(halfJudged.status).toBe(404);
+      expect(replayed.status).toBe(409);
+    } finally {
+      await torn.close();
     }
   });
 });

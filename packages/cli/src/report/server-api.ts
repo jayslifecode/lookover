@@ -9,7 +9,6 @@ import {
   type FindingsFile,
   isMissingFile,
   type RunEvent,
-  RunLog,
   readFindingsAt,
   writeDecision,
 } from '@jayslifecode/lookover-core';
@@ -23,12 +22,13 @@ import {
   type RunManifest,
   type RunStatus,
 } from '@jayslifecode/lookover-report/api';
+import { readRunEvents } from './run-log-lines.js';
 import { EVIDENCE_DIR, previousFinishedRun, RUN_LOG_FILE, runDirOf } from './runs.js';
 import {
   HttpError,
-  IMMUTABLE,
   JSON_TYPE,
   OCTET_STREAM,
+  PRIVATE_IMMUTABLE,
   readJsonBody,
   safeSegments,
   sendFile,
@@ -132,7 +132,7 @@ function prefixRoute(path: string, runDir: string, context: ApiContext): Route |
 
 /** The run as the report shows it: where its log has got to, and the run before it. */
 async function manifest(context: ApiContext): Promise<RunManifest> {
-  const events = await readLog(join(runDirOf(context.lookoverDir, context.runId), RUN_LOG_FILE));
+  const events = await readRunEvents(join(runDirOf(context.lookoverDir, context.runId), RUN_LOG_FILE));
   const started = events.find((event) => event.type === 'run.started');
   return {
     runId: context.runId,
@@ -148,16 +148,6 @@ async function manifest(context: ApiContext): Promise<RunManifest> {
 function statusOf(events: readonly RunEvent[]): RunStatus {
   const last = events.at(-1);
   return (last === undefined ? undefined : FINISHED_BY[last.type]) ?? 'running';
-}
-
-/** The run's events; none while its log does not exist. */
-async function readLog(file: string): Promise<RunEvent[]> {
-  try {
-    return await RunLog.read(file);
-  } catch (error) {
-    if (isMissingFile(error)) return [];
-    throw error;
-  }
 }
 
 async function sendRunFile(context: ApiContext, runDir: string, name: string, res: ServerResponse) {
@@ -180,7 +170,7 @@ async function sendEvidence(runDir: string, rest: string, res: ServerResponse): 
   const file = resolve(evidenceDir, ...segments);
   if (!file.startsWith(`${evidenceDir}${sep}`)) throw new HttpError(404, NO_EVIDENCE);
   const contentType = EVIDENCE_TYPES[extname(file).toLowerCase()] ?? OCTET_STREAM;
-  return sendFile(res, file, { cacheControl: IMMUTABLE, contentType, missing: NO_EVIDENCE });
+  return sendFile(res, file, { cacheControl: PRIVATE_IMMUTABLE, contentType, missing: NO_EVIDENCE });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -219,7 +209,7 @@ function findingIn(findings: readonly Finding[], findingId: string): Finding {
 
 /** The findings the run's log names so far: each candidate, and each finding as judged. */
 async function loggedFindings(runDir: string): Promise<Finding[]> {
-  const events = await readLog(join(runDir, RUN_LOG_FILE));
+  const events = await readRunEvents(join(runDir, RUN_LOG_FILE));
   return events.flatMap((event) =>
     event.type === 'finding.candidate' || event.type === 'finding.judged' ? [event.finding] : [],
   );
@@ -280,6 +270,6 @@ function replayHandler(context: ApiContext, runDir: string): ApiHandler {
 async function finishedRunFindings(runDir: string): Promise<FindingsFile> {
   const file = await runFindings(runDir);
   if (file !== null) return file;
-  const isGoing = statusOf(await readLog(join(runDir, RUN_LOG_FILE))) === 'running';
+  const isGoing = statusOf(await readRunEvents(join(runDir, RUN_LOG_FILE))) === 'running';
   throw new HttpError(isGoing ? 409 : 404, isGoing ? RUN_GOING : NO_FINDINGS);
 }

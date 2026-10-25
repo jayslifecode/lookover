@@ -24,10 +24,13 @@ export function registerReport(program: Command, lookoverVersion: string): void 
   program
     .command('report')
     .description(
-      'Serve the report of the latest run on this machine and open it in the browser, until Ctrl-C',
+      'Serve the report of the latest finished run (the last one that wrote its findings) on this machine and open it in the browser, until Ctrl-C',
     )
-    .option('--run <run-id>', `serve the report of ${RUNS_PATH}/<run-id> instead`)
-    .option('--port <n>', `listen on this port of ${LOOPBACK_HOST} (default: a free one)`)
+    .option(
+      '--run <run-id>',
+      `serve the report of ${RUNS_PATH}/<run-id> instead, finished or not (a run stopped before its end stays "running")`,
+    )
+    .option('--port <n>', `listen on this port of ${LOOPBACK_HOST} (0 picks a free one, the default)`)
     .option('--no-open', 'serve the report but do not open it in the browser')
     .action((flags: ReportFlags) => runReportCommand(flags, lookoverVersion));
 }
@@ -113,7 +116,7 @@ function parsePort(value: string | undefined): number {
     throw new LookoverError(
       'E_USAGE',
       `--port "${value}" is not a port number`,
-      `Give a whole number from 1 to ${MAX_PORT}, or leave --port out for a free port`,
+      `Give a whole number from 0 to ${MAX_PORT} (0 picks a free port, as leaving --port out does)`,
     );
   }
   return Number(port);

@@ -80,6 +80,14 @@ describe('lookover report', () => {
 
       expect(error.code).toBe('E_USAGE');
       expect(error.message).toContain('--port');
+      expect(error.hint).toContain('from 0 to 65535');
+    });
+
+    test('says in its help that it serves the latest finished run unless --run names one', async () => {
+      const help = (await runCli(dir, ['report', '--help'])).stdout.replace(/\s+/g, ' ');
+
+      expect(help).toContain('the latest finished run');
+      expect(help).toContain('0 picks a free one');
     });
 
     test('exits 1 from the command line when there is no run, and 2 for an unknown --run', async () => {
@@ -130,8 +138,8 @@ describe('lookover report', () => {
       expect(stdout.join('')).toContain('Ctrl-C to close');
     });
 
-    test('serves the run --run names, without opening it with --no-open', async () => {
-      const { manifest } = await serve({ run: PREVIOUS_RUN_ID, open: false });
+    test('serves the run --run names on --port 0 (a free port), without opening it with --no-open', async () => {
+      const { manifest } = await serve({ run: PREVIOUS_RUN_ID, open: false, port: '0' });
 
       expect(manifest.runId).toBe(PREVIOUS_RUN_ID);
       expect(openInBrowser).not.toHaveBeenCalled();

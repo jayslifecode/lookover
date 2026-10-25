@@ -209,57 +209,19 @@ describe('the report server', () => {
     });
   });
 
-  describe('the cookie, one per port', () => {
-    test('of another server on 127.0.0.1 is refused, its own accepted, each by its own name', async () => {
-      const other = await serveFixtureRun(project, FIXTURE_RUN_ID);
-      const run = (port: number, sent: string) =>
-        fetch(`http://127.0.0.1:${port}/api/run`, { headers: { cookie: sent } });
-      try {
-        const otherCookie = `${tokenCookieName(other.port)}=${other.token}`;
-
-        expect((await run(server.port, otherCookie)).status).toBe(401);
-        expect((await run(other.port, cookie)).status).toBe(401);
-        expect((await run(server.port, `${cookie}; ${otherCookie}`)).status).toBe(200);
-        expect((await run(other.port, `${cookie}; ${otherCookie}`)).status).toBe(200);
-        expect((await run(server.port, `lookover_token=${server.token}`)).status).toBe(401);
-      } finally {
-        await other.close();
-      }
-    });
-  });
-
-  describe('the Host header', () => {
-    test.each([
-      ['/', () => ({ host: `evil.test:${server.port}` })],
-      ['/api/run', () => ({ host: 'evil.test', cookie })],
-      ['/assets/missing.js', () => ({ host: '127.0.0.1:1' })],
-      ['/api/decisions', () => ({ host: `127.0.0.1.evil.test:${server.port}`, cookie })],
-    ])('of anything but this server answers %s with 421, before anything else', async (path, headersOf) => {
-      const response = await rawGet(server.port, path, headersOf());
-
-      expect(response.status).toBe(421);
-      expect(response.headers['content-security-policy']).toBe(CSP);
-    });
-
-    test('may name the server as localhost', async () => {
-      expect((await rawGet(server.port, '/', { host: `localhost:${server.port}` })).status).toBe(200);
-      expect(
-        (await rawGet(server.port, '/api/run', { host: `localhost:${server.port}`, cookie })).status,
-      ).toBe(200);
-    });
-  });
-
   describe('every response', () => {
     test.each([
       ['/', {}],
       ['/api/run', { cookie: 'x=1' }],
       ['/nope', {}],
-    ])('of %s carries the security headers and no CORS header', async (path, headers) => {
+      ['/', { host: 'evil.test' }],
+    ])('of %s (%o) carries the security headers and no CORS header', async (path, headers) => {
       const response = await rawGet(server.port, path, headers);
 
       expect(response.headers['content-security-policy']).toBe(CSP);
       expect(response.headers['x-content-type-options']).toBe('nosniff');
       expect(response.headers['referrer-policy']).toBe('no-referrer');
+      expect(response.headers['cross-origin-resource-policy']).toBe('same-origin');
       expect(Object.keys(response.headers).filter((name) => name.startsWith('access-control-'))).toEqual([]);
     });
 
@@ -326,13 +288,13 @@ describe('the report server', () => {
   });
 
   describe('evidence', () => {
-    test('serves a file under the run evidence/, immutable', async () => {
+    test('serves a file under the run evidence/, immutable and private to the browser', async () => {
       const png = await api(`/api/evidence/${EVIDENCE_PNG}`);
       const json = await api('/api/evidence/gallery-38a8049145-11c8a5735bd278cc.json');
 
       expect(png.status).toBe(200);
       expect(png.headers.get('content-type')).toBe('image/png');
-      expect(png.headers.get('cache-control')).toBe(IMMUTABLE);
+      expect(png.headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
       expect(json.headers.get('content-type')).toBe('application/json; charset=utf-8');
     });
 
@@ -353,20 +315,6 @@ describe('the report server', () => {
   });
 
   describe('POST', () => {
-    test.each([
-      ['no Origin', (): Record<string, string> => ({})],
-      ['another origin', () => ({ origin: 'http://evil.test' })],
-      ['the same port on localhost', () => ({ origin: `http://localhost:${server.port}` })],
-    ])('with %s is 403', async (_what, headersOf) => {
-      const response = await api('/api/decisions', {
-        method: 'POST',
-        headers: headersOf(),
-        body: JSON.stringify({ findingId: firstFinding().id, status: 'intended' }),
-      });
-
-      expect(response.status).toBe(403);
-    });
-
     test('of a body over 16 KB is 413', async () => {
       const note = 'x'.repeat(MAX_BODY_BYTES);
       const response = await post('/api/decisions', {

@@ -1,4 +1,4 @@
-import { get, type IncomingHttpHeaders } from 'node:http';
+import { type IncomingHttpHeaders, request } from 'node:http';
 
 /** One message of an event stream: its `id:` and its `data:` parsed as JSON. */
 export interface StreamMessage {
@@ -79,8 +79,21 @@ export function rawGet(
   path: string,
   headers: Record<string, string> = {},
 ): Promise<RawResponse> {
+  return rawRequest(port, { method: 'GET', path, headers });
+}
+
+/** What `rawRequest` sends. */
+export interface RawRequest {
+  readonly method: string;
+  readonly path: string;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly body?: string;
+}
+
+/** Sends the request as written through `node:http`, which, unlike `fetch`, may set `Host` too. */
+export function rawRequest(port: number, { method, path, headers, body }: RawRequest): Promise<RawResponse> {
   return new Promise((resolve, reject) => {
-    const request = get({ host: '127.0.0.1', port, path, headers }, (response) => {
+    const sent = request({ host: '127.0.0.1', port, method, path, headers: { ...headers } }, (response) => {
       const chunks: Buffer[] = [];
       response.on('data', (chunk: Buffer) => chunks.push(chunk));
       response.on('end', () =>
@@ -92,6 +105,7 @@ export function rawGet(
       );
       response.on('error', reject);
     });
-    request.on('error', reject);
+    sent.on('error', reject);
+    sent.end(body);
   });
 }

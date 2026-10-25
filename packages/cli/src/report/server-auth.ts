@@ -5,7 +5,8 @@ import { tokenMatches } from './token.js';
 /*
  * Who may use the report server: a request addressed to it by its own name (not another site's name
  * rebound to 127.0.0.1), from whoever holds the run's token, as the server's own cookie the printed URL
- * sets or as the `X-Lookover-Token` header; and for a write, a page of the server's own origin.
+ * sets or as the `X-Lookover-Token` header; and for a write, a page of one of the server's own origins
+ * (`http://127.0.0.1:<port>`, `http://localhost:<port>`).
  */
 
 const COOKIE_SEPARATOR = ';';
@@ -22,14 +23,14 @@ export function tokenCookie(token: string, port: number): string {
 }
 
 /**
- * Whether the request carries `token`, in the header or in the cookie of the server on `port` (no other
- * cookie is looked at); compared in constant time.
+ * Whether the request carries `token`, in the header or in a cookie named for the server on `port` (no
+ * other cookie is looked at); compared in constant time.
  */
 export function hasToken(req: IncomingMessage, token: string, port: number): boolean {
   const header = req.headers[TOKEN_HEADER];
   if (typeof header === 'string' && tokenMatches(header, token)) return true;
-  const cookie = cookieValue(req.headers.cookie, tokenCookieName(port));
-  return cookie !== null && tokenMatches(cookie, token);
+  // Any of them: a page of another port (the same site) can set a cookie of this name ahead of ours.
+  return cookieValues(req.headers.cookie, tokenCookieName(port)).some((value) => tokenMatches(value, token));
 }
 
 /**
@@ -41,17 +42,19 @@ export function isOwnHost(req: IncomingMessage, port: number): boolean {
   return OWN_HOST_NAMES.some((name) => host === `${name}:${port}`);
 }
 
-/** Whether the request comes from a page of `origin` (a POST must: a cross-site form carries its own). */
-export function isSameOrigin(req: IncomingMessage, origin: string): boolean {
-  return req.headers.origin === origin;
+/**
+ * Whether the request comes from a page of the server on `port`, opened as 127.0.0.1 or as localhost
+ * (a POST must: a page of any other origin, a cross-site form included, carries its own).
+ */
+export function isSameOrigin(req: IncomingMessage, port: number): boolean {
+  return OWN_HOST_NAMES.some((name) => req.headers.origin === `http://${name}:${port}`);
 }
 
-/** The value of the cookie `name` in a `Cookie` header; `null` when it has none. */
-function cookieValue(header: string | undefined, name: string): string | null {
-  if (header === undefined) return null;
-  for (const pair of header.split(COOKIE_SEPARATOR)) {
+/** The values of every cookie `name` in a `Cookie` header, in order; none when it has none. */
+function cookieValues(header: string | undefined, name: string): string[] {
+  if (header === undefined) return [];
+  return header.split(COOKIE_SEPARATOR).flatMap((pair) => {
     const at = pair.indexOf(COOKIE_ASSIGNMENT);
-    if (at !== -1 && pair.slice(0, at).trim() === name) return pair.slice(at + 1).trim();
-  }
-  return null;
+    return at !== -1 && pair.slice(0, at).trim() === name ? [pair.slice(at + 1).trim()] : [];
+  });
 }

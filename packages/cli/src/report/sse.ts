@@ -2,12 +2,14 @@ import { open, stat } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RunEvent } from '@jayslifecode/lookover-core';
 import { LAST_EVENT_ID_HEADER } from '@jayslifecode/lookover-report/api';
+import { parseCompleteLines } from './run-log-lines.js';
 import { streamHeaders } from './server-http.js';
 
 /*
  * The run log as an event stream: every event already in `run.jsonl`, then each one appended to it, as
  * `id: <seq>` / `data: <json>`. The log is append-only and written a whole line at a time, so it is read
- * from where the last read ended, and a line is only read once its newline is there.
+ * from where the last read ended (by byte offset), and its lines are read as `parseCompleteLines` reads
+ * them: once their newline is there, and only when they hold an event.
  */
 
 /** How often the log is looked at for appended lines (its size and modification time). */
@@ -70,7 +72,8 @@ async function readAppended(
   const appended = await readFrom(file, from.offset, stats.size - from.offset);
   const text = Buffer.concat([from.partial, appended]);
   const end = text.lastIndexOf(NEWLINE) + 1;
-  const events = parseLines(text.subarray(0, end).toString('utf8')).filter(
+  // The bytes are cut at the last newline, so a character is never split across two reads.
+  const events = parseCompleteLines(text.subarray(0, end).toString('utf8')).filter(
     (event) => event.seq > from.lastSeq,
   );
   for (const event of events) {
@@ -95,29 +98,6 @@ async function readFrom(file: string, position: number, length: number): Promise
   } finally {
     await handle.close();
   }
-}
-
-function parseLines(text: string): RunEvent[] {
-  return text.split('\n').flatMap((line) => {
-    const event = parseEvent(line);
-    return event === null ? [] : [event];
-  });
-}
-
-function parseEvent(line: string): RunEvent | null {
-  if (line.trim() === '') return null;
-  try {
-    const value: unknown = JSON.parse(line);
-    return isRunEvent(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function isRunEvent(value: unknown): value is RunEvent {
-  if (typeof value !== 'object' || value === null) return false;
-  const { seq, type } = value as Record<string, unknown>;
-  return Number.isInteger(seq) && typeof type === 'string';
 }
 
 /**

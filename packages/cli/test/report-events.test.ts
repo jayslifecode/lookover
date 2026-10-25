@@ -83,7 +83,8 @@ describe('GET /api/events', () => {
       // Half a line first, read by a poll or two: nothing is sent for it until its newline is written.
       await appendFile(log, line.slice(0, 20));
       await delay(POLL_INTERVAL_MS * 2);
-      await appendFile(log, `${line.slice(20)}\n${JSON.stringify(routeEvent(3))}\n`);
+      // Then its end, a line that is not an event (passed over), and one more event.
+      await appendFile(log, `${line.slice(20)}\nnot an event\n${JSON.stringify(routeEvent(3))}\n`);
       const appended = await stream.next(2);
 
       expect(existing?.id).toBe('1');
