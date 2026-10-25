@@ -7,16 +7,21 @@ import { FIXTURE_RUN_ID, PREVIOUS_RUN_ID } from '../report-fixture.js';
 import { readGallery } from './controls.js';
 import { sampleFrames } from './frames.js';
 import {
+  closeReports,
   confirmedFindings,
+  expectedPinNameParts,
   firstPinned,
   firstScreen,
   foreignRequests,
   goTo,
+  NO_PAGE_PROBLEMS,
   type OpenOptions,
   openReport,
   PANEL_SELECTOR,
+  POLL_TIMEOUT_MS,
   panel,
   panelHeading,
+  pinNameParts,
   pinnedFindings,
   pinnedIds,
   pinOf,
@@ -43,8 +48,6 @@ const TRANSFORM_SETTLE_MS = 900;
 /** The transform runs for over thirty frames at 60 Hz; fewer samples than this measured nothing. */
 const MIN_SAMPLED_FRAMES = 20;
 const SUMMARY_HEADING = 'Run summary';
-/** A pin's accessible name: `<n>. <title>`. */
-const PIN_NAME = /^(\d+)\. (.+)$/;
 /** How the gallery names a control that has no name. */
 const NO_NAME = '(no name)';
 const THEME_STORAGE_KEY = 'lookover.theme';
@@ -83,15 +86,10 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  const foreign = opened.flatMap((each) => foreignRequests(each.requests(), served.origin));
-  const errors = opened.flatMap((each) => each.pageErrors());
-  const blocked = opened.flatMap((each) => each.policyViolations());
-  for (const each of opened) await each.context.close();
+  const problems = await closeReports(opened, served.origin);
   opened = [];
   await served.close();
-  expect(foreign, 'requests to another origin').toEqual([]);
-  expect(blocked, 'loads the Content-Security-Policy blocked').toEqual([]);
-  expect(errors, 'uncaught errors in the page').toEqual([]);
+  expect(problems).toEqual(NO_PAGE_PROBLEMS);
 });
 
 async function open(options: OpenOptions = {}): Promise<ReportPage> {
@@ -137,11 +135,12 @@ describe('the served report, at 1440×900', () => {
     );
     const rows = page.getByRole('list', { name: 'Controls in each state' }).locator(':scope > li');
     const entries = gallery?.entries ?? [];
-    await expect.poll(() => rows.count()).toBe(Math.min(entries.length, GALLERY_PREVIEW_ROWS));
+    await expect
+      .poll(() => rows.count(), { timeout: POLL_TIMEOUT_MS })
+      .toBe(Math.min(entries.length, GALLERY_PREVIEW_ROWS));
     await page.getByRole('button', { name: `Show all ${entries.length} controls` }).click();
-    await expect.poll(() => rows.count()).toBe(entries.length);
+    await expect.poll(() => rows.count(), { timeout: POLL_TIMEOUT_MS }).toBe(entries.length);
     const rowTexts = await rows.allTextContents();
-    const numbered = names.map((name) => PIN_NAME.exec(name));
     const unlisted = entries.filter(
       (entry, index) => !(rowTexts[index] ?? '').includes(entry.name === '' ? NO_NAME : entry.name),
     );
@@ -149,12 +148,7 @@ describe('the served report, at 1440×900', () => {
     expect(expected.length).toBeGreaterThan(0);
     // One pin per finding (none clustered here), each named `<n>. <title>`, numbered from 1.
     expect(await pinnedIds(page)).toEqual(expected.map(({ id }) => id).toSorted());
-    expect(numbered.map((match) => match?.[2]).toSorted()).toEqual(
-      expected.map(({ title }) => title).toSorted(),
-    );
-    expect(numbered.map((match) => Number(match?.[1])).toSorted((a, b) => a - b)).toEqual(
-      expected.map((_, index) => index + 1),
-    );
+    expect(pinNameParts(names)).toEqual(expectedPinNameParts(expected));
     expect(entries.length).toBeGreaterThan(GALLERY_PREVIEW_ROWS);
     expect(unlisted.map(({ selector }) => selector)).toEqual([]);
   });
@@ -204,7 +198,9 @@ describe('the served report, at 1440×900', () => {
     await panel(page).getByRole('button', { name: 'Mark intended' }).click();
     await panel(page).getByText('Marked intended', { exact: true }).waitFor();
     await expect
-      .poll(async () => (await readDecisions(served.project.lookoverDir)).decisions[finding.id]?.status)
+      .poll(async () => (await readDecisions(served.project.lookoverDir)).decisions[finding.id]?.status, {
+        timeout: POLL_TIMEOUT_MS,
+      })
       .toBe('intended');
     await page.reload();
     await waitForRun(page, served);
@@ -226,7 +222,7 @@ describe('the served report, at 1440×900', () => {
     await page.getByRole('tab', { name: 'Findings' }).click();
     await page.getByRole('heading', { level: 1, name: 'Findings' }).waitFor();
     const groups = page.getByRole('list', { name: 'Fix first' }).locator(':scope > li');
-    await expect.poll(() => groups.count()).toBe(expected.size);
+    await expect.poll(() => groups.count(), { timeout: POLL_TIMEOUT_MS }).toBe(expected.size);
     const headers = await groups.locator(':scope > button').allTextContents();
     const group = groups.filter({ has: page.getByRole('button', { name: `${largest?.[0]} · ` }) });
     await group.getByRole('button').first().click();
@@ -284,7 +280,7 @@ describe('the served report, at 1440×900', () => {
     const next = before === 'dark' ? 'light' : 'dark';
 
     await page.getByRole('button', { name: `Switch to ${next} theme` }).click();
-    await expect.poll(themeOf).toBe(next);
+    await expect.poll(themeOf, { timeout: POLL_TIMEOUT_MS }).toBe(next);
     const stored = await page.evaluate((key) => window.localStorage.getItem(key), THEME_STORAGE_KEY);
     await page.reload();
     await waitForRun(page, served);
@@ -299,7 +295,7 @@ describe('the served report, at 1440×900', () => {
     const finding = firstPinned(served);
     await showFinding(page, finding);
     await panel(page).getByRole('button', { name: 'Replay' }).click();
-    await expect.poll(() => replays.length).toBe(1);
+    await expect.poll(() => replays.length, { timeout: POLL_TIMEOUT_MS }).toBe(1);
     const second = await context.newPage();
     await second.goto(`${served.origin}/${screenRoute(firstScreen(served.map).id, finding.id)}`);
     await waitForRun(second, served);

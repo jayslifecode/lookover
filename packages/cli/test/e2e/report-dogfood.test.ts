@@ -6,7 +6,14 @@ import { tokenCookieName } from '@jayslifecode/lookover-report/api';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { type CliResult, runCli } from '../run-cli.js';
 import { keepOutput, readAppMap, readFindings } from './project.js';
-import { firstPinned, type ServedFixture, serveFixture } from './report-page.js';
+import {
+  expectedPinNameParts,
+  firstScreen,
+  pinNameParts,
+  pinnedFindings,
+  type ServedFixture,
+  serveFixture,
+} from './report-page.js';
 
 /*
  * Lookover reviews its own report (spec §11: the report must pass Lookover's own interaction lens with
@@ -72,7 +79,7 @@ beforeAll(async () => {
     ['run', '--no-judge', '--no-report', '--yes', '--max-screens', String(MAX_SCREENS)],
     { withoutEnv: [API_KEY_ENV], timeoutMs: PROCESS_TIMEOUT_MS },
   );
-  await keepOutput(project, run, 'lookover-dogfood');
+  await keepOutput(project, run, { log: 'lookover-dogfood', label: 'lookover run (dogfood)' });
 });
 
 afterAll(async () => {
@@ -84,13 +91,17 @@ describe('Lookover reviewing its own report', () => {
   test('exits 0, having captured the report with the run it serves', async () => {
     const map = await readAppMap(project);
     const captured = map.screens.filter((screen) => !isFailedScreen(screen));
-    const names = captured.flatMap((screen) => screen.elements.map((element) => element.name));
+    // The report opens on the run's first screen.
+    const [shown] = captured;
+    const buttons = (shown?.elements ?? []).filter(({ role }) => role === 'button').map(({ name }) => name);
+    const pinned = pinnedFindings(served, firstScreen(served.map).id);
 
     expect(run.code, run.stderr).toBe(0);
     expect(captured.length).toBeGreaterThanOrEqual(1);
     expect(captured.map((screen) => screen.title)).toContain(REPORT_TITLE);
-    // A pin is drawn only once the report has read the run: the token cookie let it in.
-    expect(names).toContain(`1. ${firstPinned(served).title}`);
+    // Pins are drawn only once the report has read the run: the token cookie let it in.
+    expect(pinned.length).toBeGreaterThan(0);
+    expect(pinNameParts(buttons)).toEqual(expectedPinNameParts(pinned));
   });
 
   test('finds nothing to report: no candidate among the findings', async () => {

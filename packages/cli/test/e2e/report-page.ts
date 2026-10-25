@@ -36,6 +36,10 @@ const LOCAL_PROTOCOLS: ReadonlySet<string> = new Set(['data:', 'blob:']);
 const POLICY_VIOLATION = /Content Security Policy/;
 const PIN_SELECTOR = '[data-pin-findings]';
 export const PANEL_SELECTOR = 'aside[data-finding-panel]';
+/** How long a poll waits for the report to catch up: a slow CI runner takes longer than Vitest's 1 s. */
+export const POLL_TIMEOUT_MS = 10_000;
+/** A pin's accessible name: `<n>. <title>`, numbered in fix-first order across the screen. */
+const PIN_NAME = /^(\d+)\. (.+)$/;
 
 /** A fixture project and the report server over its finished run. */
 export interface ServedFixture {
@@ -122,6 +126,29 @@ export async function openReport(
   };
 }
 
+/** What the pages of the opened reports did that they must not. */
+export interface PageProblems {
+  readonly foreignRequests: readonly string[];
+  readonly policyViolations: readonly string[];
+  readonly pageErrors: readonly string[];
+}
+
+export const NO_PAGE_PROBLEMS: PageProblems = { foreignRequests: [], policyViolations: [], pageErrors: [] };
+
+/**
+ * Closes the contexts of `opened` and returns what their pages did that they must not: a request to an
+ * origin other than `origin`, a load the Content-Security-Policy blocked, an uncaught error.
+ */
+export async function closeReports(opened: readonly ReportPage[], origin: string): Promise<PageProblems> {
+  const problems: PageProblems = {
+    foreignRequests: opened.flatMap((each) => foreignRequests(each.requests(), origin)),
+    policyViolations: opened.flatMap((each) => each.policyViolations()),
+    pageErrors: opened.flatMap((each) => each.pageErrors()),
+  };
+  for (const each of opened) await each.context.close();
+  return problems;
+}
+
 /** The report has loaded the run: the top bar names it. */
 export async function waitForRun(page: Page, served: ServedFixture): Promise<void> {
   await page.getByRole('banner').getByText(served.findings.runId, { exact: true }).waitFor();
@@ -198,6 +225,29 @@ export function firstPinned(served: ServedFixture): Finding {
   const [finding] = pinnedFindings(served, firstScreen(served.map).id);
   if (finding === undefined) throw new Error('The first screen of the fixture run pins no finding');
   return finding;
+}
+
+/**
+ * Pins' accessible names as their findings make them: the titles, and the numbers (fix-first order runs
+ * across titles, so the two are compared apart), each sorted. Names that are not a pin's are left out.
+ */
+export function pinNameParts(names: readonly string[]): { titles: string[]; numbers: number[] } {
+  const parts = names.flatMap((name) => {
+    const match = PIN_NAME.exec(name);
+    return match === null ? [] : [{ number: Number(match[1]), title: match[2] ?? '' }];
+  });
+  return {
+    titles: parts.map(({ title }) => title).toSorted(),
+    numbers: parts.map(({ number }) => number).toSorted((a, b) => a - b),
+  };
+}
+
+/** What `pinNameParts` makes of the pins of `findings`: their titles, numbered from 1. */
+export function expectedPinNameParts(findings: readonly Finding[]): { titles: string[]; numbers: number[] } {
+  return {
+    titles: findings.map(({ title }) => title).toSorted(),
+    numbers: findings.map((_, index) => index + 1),
+  };
 }
 
 /** The pin (or cluster pin) that holds `finding`. */

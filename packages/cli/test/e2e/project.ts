@@ -61,11 +61,20 @@ export async function isMissing(path: string): Promise<boolean> {
   );
 }
 
-/**
- * Keeps what the run printed (as `<name>.log`), logged and found next to the bench server's log, for a
- * failed CI run.
- */
-export async function keepOutput(project: string, run: CliResult, name = 'lookover-run'): Promise<void> {
+/** Where `keepOutput` keeps a run's transcript (`<log>.log`), and what it prints when it has. */
+export interface KeptOutput {
+  readonly log: string;
+  readonly label: string;
+}
+
+const BENCH_RUN_OUTPUT: KeptOutput = { log: 'lookover-run', label: 'lookover run' };
+
+/** Keeps what the run printed, logged and found next to the bench server's log, for a failed CI run. */
+export async function keepOutput(
+  project: string,
+  run: CliResult,
+  { log, label }: KeptOutput = BENCH_RUN_OUTPUT,
+): Promise<void> {
   const seconds = (run.durationMs / 1_000).toFixed(1);
   const transcript = [
     `exit ${run.code} after ${seconds} s`,
@@ -74,7 +83,7 @@ export async function keepOutput(project: string, run: CliResult, name = 'lookov
     '--- stderr ---',
     run.stderr,
   ].join('\n');
-  await writeFile(join(E2E_OUTPUT_DIR, `${name}.log`), transcript, 'utf8');
+  await writeFile(join(E2E_OUTPUT_DIR, `${log}.log`), transcript, 'utf8');
   const runs = await readdir(join(project, '.lookover', 'runs')).catch(() => []);
   for (const runId of runs) {
     for (const file of ['run.jsonl', 'findings.json']) {
@@ -84,5 +93,5 @@ export async function keepOutput(project: string, run: CliResult, name = 'lookov
       ).catch(() => undefined);
     }
   }
-  process.stdout.write(`${name}: exit ${run.code} in ${seconds} s\n`);
+  process.stdout.write(`${label}: exit ${run.code} in ${seconds} s\n`);
 }

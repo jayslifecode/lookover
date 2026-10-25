@@ -15,10 +15,13 @@ import {
   roundedMs,
   sampleFrames,
 } from './frames.js';
+import { differingPixels } from './pixels.js';
 import {
+  closeReports,
   firstPinned,
   firstScreen,
   goTo,
+  NO_PAGE_PROBLEMS,
   type OpenOptions,
   openReport,
   panel,
@@ -35,9 +38,10 @@ import {
 /*
  * How the report moves (spec §11, "Smoothness rules"): its frame budget at 1440×900 with the three glass
  * layers on screen (the top bar, the finding panel and a toast), during three travels of the view
- * switcher's pill across all its tabs and one pin → panel container transform; and that reduced motion
- * and reduced transparency leave no glass blurred and, under reduced motion, nothing animating. The
- * measured frames are written to `.e2e/frames.json`, which CI keeps.
+ * switcher's pill across all its tabs and one pin → panel container transform; that the panel's top band
+ * refracts the page behind it; and that reduced motion and reduced transparency leave no glass blurred
+ * and, under reduced motion, nothing animating. The measured frames are written to `.e2e/frames.json`,
+ * which CI keeps.
  */
 
 /** The spec's baseline, from the v10 motion study at 1440×900 (Playwright, rAF frame times). */
@@ -56,15 +60,29 @@ const MIN_SAMPLED_FRAMES = 20;
 const GLASS_SELECTOR = '[data-glass]';
 const MAX_GLASS_LAYERS = 3;
 const REDUCED_TRANSPARENCY = '(prefers-reduced-transparency: reduce)';
-/** The panel's edge band refracts through the report's `#lens` SVG filter. */
-const LENS_FILTER = /url\(.*#lens.*\)/;
+/** The report's `LENS_FILTER_ID`: the SVG filter the panel's top band refracts through. */
+const LENS_FILTER_ID = 'lens';
+const LENS_FILTER = new RegExp(`url\\(.*#${LENS_FILTER_ID}.*\\)`);
+/** Black and white stripes 64 px wide behind everything: what a refraction would bend. */
+const STRIPES =
+  'body { background: repeating-linear-gradient(90deg, #000 0 64px, #fff 64px 128px) !important; }';
+/** The band's tint and the sheen over it soften what it shows: the probe looks at its backdrop alone. */
+const BARE_BAND =
+  '.glass-lens-band { background: none !important; } .glass::before { display: none !important; }';
+/** The band's height inside the panel's 1 px border, less a pixel of its rounded corners' edge. */
+const BAND_HEIGHT_PX = 38;
+/** A pixel a bent stripe edge moved across flips between black and white: far more than this. */
+const FLIP_TOLERANCE = 128;
+/** The band covers six stripe edges on 38 rows, each bent by about a pixel: hundreds of flips, not tens. */
+const MIN_FLIPPED_PIXELS = 50;
 
-/** A glass surface as the browser computed it: its own backdrop filter, and its refracting edge's. */
+/**
+ * A glass surface as the browser computed it: the backdrop filters it draws, on itself or on a layer of
+ * its own (the lens look's frosted body, `::after`, and its band, `[data-glass-band]`), each shown.
+ */
 interface GlassStyle {
   readonly look: string;
-  readonly backdropFilter: string;
-  /** `none` when the surface draws no edge band (`::after`) or the band filters nothing. */
-  readonly edgeFilter: string;
+  readonly filters: readonly string[];
 }
 
 /** One measured interaction, as frames.json records it. */
@@ -91,9 +109,10 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  for (const each of opened) await each.context.close();
+  const problems = await closeReports(opened, served.origin);
   opened = [];
   await served.close();
+  expect(problems).toEqual(NO_PAGE_PROBLEMS);
 });
 
 async function open(options: OpenOptions = {}): Promise<ReportPage> {
@@ -105,15 +124,42 @@ async function open(options: OpenOptions = {}): Promise<ReportPage> {
 function glassStyles(page: Page): Promise<GlassStyle[]> {
   return page.locator(GLASS_SELECTOR).evaluateAll((elements) =>
     elements.map((element) => {
-      const edge = getComputedStyle(element, '::after');
-      const isDrawn = edge.content !== 'none' && edge.display !== 'none';
+      const shown = (style: CSSStyleDeclaration) =>
+        style.display === 'none' || style.backdropFilter === 'none' ? [] : [style.backdropFilter];
+      const body = getComputedStyle(element, '::after');
+      const band = element.querySelector(':scope > [data-glass-band]');
       return {
         look: element.getAttribute('data-glass') ?? '',
-        backdropFilter: getComputedStyle(element).backdropFilter,
-        edgeFilter: isDrawn ? edge.backdropFilter : 'none',
+        filters: [
+          ...shown(getComputedStyle(element)),
+          ...(body.content === 'none' ? [] : shown(body)),
+          ...(band === null ? [] : shown(getComputedStyle(band))),
+        ],
       };
     }),
   );
+}
+
+/** Two frames: a style just added has been applied and painted. */
+function nextPaint(page: Page): Promise<void> {
+  return page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+}
+
+/** A screenshot of `clip` with the panel's band filtering through `filter` instead of its own. */
+async function bandShot(
+  page: Page,
+  filter: string,
+  clip: { x: number; y: number; width: number; height: number },
+) {
+  const override = await page.addStyleTag({
+    content: `.glass-lens-band { -webkit-backdrop-filter: ${filter} !important; backdrop-filter: ${filter} !important; }`,
+  });
+  await nextPaint(page);
+  const shot = await page.screenshot({ clip });
+  await override.evaluate((element) => element.parentNode?.removeChild(element));
+  return shot;
 }
 
 /**
@@ -182,11 +228,10 @@ describe('the report in motion, at 1440×900', () => {
 
     expect(await panelHeading(page).textContent()).toBe(finding.title);
     expect(pinToPanel.glassLayers).toBe(MAX_GLASS_LAYERS);
-    // Measured with the glass as it looks: frosted, and the panel refracting along its edge.
-    expect(glass.filter(({ backdropFilter }) => backdropFilter === 'none')).toEqual([]);
-    expect(
-      glass.filter(({ look, edgeFilter }) => look === 'lens' && LENS_FILTER.test(edgeFilter)),
-    ).toHaveLength(1);
+    // Measured with the glass as it looks: every surface filters the page behind it, and one (the panel)
+    // through #lens as well, along its top edge (the next test shows that band bending the page).
+    expect(glass.filter(({ filters }) => filters.length === 0)).toEqual([]);
+    expect(glass.filter(({ filters }) => filters.some((filter) => LENS_FILTER.test(filter)))).toHaveLength(1);
     for (const [name, stats] of Object.entries(interactions)) {
       expect(stats.frames, name).toBeGreaterThan(MIN_SAMPLED_FRAMES);
       expect(stats.overBudget, `${name}: frames over ${FRAME_BUDGET_MS} ms`).toBeLessThanOrEqual(
@@ -194,6 +239,31 @@ describe('the report in motion, at 1440×900', () => {
       );
       expect(stats.overHardLimit, `${name}: frames over ${FRAME_HARD_LIMIT_MS} ms`).toBe(0);
     }
+  });
+
+  test("the panel's top band bends the page behind it, not the frosted layer's own picture", async () => {
+    const { context, page } = await open();
+    await waitForPins(page);
+    await page.addStyleTag({ content: `${STRIPES} ${BARE_BAND}` });
+    await page.mouse.move(0, 0);
+    const box = await panel(page).boundingBox();
+    if (box === null) throw new Error('The finding panel is not laid out');
+    const band = { x: box.x + 1, y: box.y + 1, width: box.width - 2, height: BAND_HEIGHT_PX };
+
+    const bent = await bandShot(page, `url(#${LENS_FILTER_ID})`, band);
+    const straight = await bandShot(page, 'none', band);
+    const straightAgain = await bandShot(page, 'none', band);
+    const comparer = await context.newPage();
+    const flipped = await differingPixels(comparer, bent, straight, FLIP_TOLERANCE);
+    const noise = await differingPixels(comparer, straight, straightAgain, 0);
+    process.stdout.write(`lens band: ${flipped} of ${band.width * band.height} pixels flipped by #lens\n`);
+
+    // Through #lens alone the band shows the sharp stripes bent, so pixels by their edges flip between black
+    // and white: the band filters the page itself. Were it inside the frosted layer's backdrop root, it
+    // would see only that layer's blurred picture, and nothing would flip. (The band's own filter blurs
+    // and saturates before it displaces, as the whole panel's did, so on screen the bend is soft.)
+    expect(flipped).toBeGreaterThan(MIN_FLIPPED_PIXELS);
+    expect(noise).toBe(0);
   });
 
   test('under reduced motion no glass is blurred and nothing animates, a choice of pin included', async () => {
@@ -213,9 +283,7 @@ describe('the report in motion, at 1440×900', () => {
     );
 
     expect(glass.length).toBeGreaterThan(0);
-    expect(
-      glass.filter(({ backdropFilter, edgeFilter }) => backdropFilter !== 'none' || edgeFilter !== 'none'),
-    ).toEqual([]);
+    expect(glass.filter(({ filters }) => filters.length > 0)).toEqual([]);
     expect(animations.length).toBeGreaterThan(MIN_SAMPLED_FRAMES);
     expect(animations.filter((count) => count > 0)).toEqual([]);
   });
@@ -238,11 +306,6 @@ describe('the report in motion, at 1440×900', () => {
 
     expect(await page.evaluate((query) => window.matchMedia(query).matches, REDUCED_TRANSPARENCY)).toBe(true);
     expect(glass).toHaveLength(MAX_GLASS_LAYERS);
-    expect(
-      glass.filter(
-        ({ look, backdropFilter, edgeFilter }) =>
-          look !== 'solid' || backdropFilter !== 'none' || edgeFilter !== 'none',
-      ),
-    ).toEqual([]);
+    expect(glass.filter(({ look, filters }) => look !== 'solid' || filters.length > 0)).toEqual([]);
   });
 });
