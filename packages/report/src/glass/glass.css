@@ -3,9 +3,9 @@
  * top bar, the pins and the finding panel are glass; everything read in bulk is solid. A blurred layer
  * never changes size, position or filter while visible: only the spot moves, with `transform`.
  *
- * `glass.tsx` picks one look per surface (`data-glass`): `frosted`, `lens` (frosted plus the `#lens`
- * displacement, where the browser supports it) or `solid`. The media and `@supports` rules below make a
- * surface solid even before script decides.
+ * `glass.tsx` picks one look per surface (`data-glass`): `frosted`, `lens` (frosted, with the `#lens`
+ * displacement along its top edge, where the browser supports it) or `solid`. The media and `@supports`
+ * rules below make a surface solid even before script decides.
  */
 
 @layer components {
@@ -53,10 +53,23 @@
     opacity: 1;
   }
 
-  /* Refraction, Chromium only: a static SVG displacement through backdrop-filter (the #lens filter). */
-  .glass-lens {
-    -webkit-backdrop-filter: blur(18px) saturate(170%) url(#lens);
-    backdrop-filter: blur(18px) saturate(170%) url(#lens);
+  /*
+   * Refraction, Chromium only: a static SVG displacement through backdrop-filter (the #lens filter), on
+   * the surface's top edge only (spec §11: the panel's edge, small surfaces). Displacing the whole panel
+   * re-filtered 380 × 800 px whenever anything moved near it: without a GPU (CI's headless Chromium) every
+   * other frame of the pin → panel transform was dropped. The band is fixed, like the glass under it.
+   */
+  .glass-lens::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 40px;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    pointer-events: none;
+    -webkit-backdrop-filter: url(#lens);
+    backdrop-filter: url(#lens);
   }
 
   .glass-solid {
@@ -69,6 +82,10 @@
     .glass {
       background: var(--bg-2);
     }
+
+    .glass-lens::after {
+      display: none;
+    }
   }
 
   @media (prefers-reduced-transparency: reduce), (prefers-reduced-motion: reduce) {
@@ -78,7 +95,8 @@
       backdrop-filter: none;
     }
 
-    .glass-spot {
+    .glass-spot,
+    .glass-lens::after {
       display: none;
     }
   }

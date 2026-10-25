@@ -5,9 +5,9 @@ import { followPointer } from './sheen';
 
 /*
  * A glass surface (spec §11), for the three places a layer floats over content: the top bar, the pins
- * and the finding panel. It is frosted where the browser has `backdrop-filter`, refracts through the
- * `#lens` filter when `lens` is asked for and the browser can apply it (Chromium), and is a solid
- * `--bg-2` surface under reduced transparency or reduced motion, or without `backdrop-filter`.
+ * and the finding panel. It is frosted where the browser has `backdrop-filter`, refracts its top edge
+ * through the `#lens` filter when `lens` is asked for and the browser can apply it (Chromium), and is a
+ * solid `--bg-2` surface under reduced transparency or reduced motion, or without `backdrop-filter`.
  * The styles are in glass.css.
  */
 
@@ -17,7 +17,7 @@ export type GlassLook = 'frosted' | 'lens' | 'solid';
 export interface GlassProps extends HTMLAttributes<HTMLElement> {
   /** The element to render. Default `div`. */
   readonly as?: GlassElement;
-  /** Refract the backdrop through the `#lens` filter (small surfaces only: it is CPU-heavy). */
+  /** Refract the backdrop along the top edge through the `#lens` filter (CPU-heavy: an edge band only). */
   readonly lens?: boolean;
   readonly children?: ReactNode;
 }
