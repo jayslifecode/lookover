@@ -34,10 +34,12 @@ jobs:
       - name: Install Chromium for Playwright
         run: pnpm --filter @jayslifecode/lookover-core exec playwright install --with-deps chromium
 
+      # Builds every package, the report included, before its tests.
       - name: Lint, typecheck and unit tests
         run: pnpm check
 
-      - name: End-to-end test against the bench app
+      # The bench suite, then the report's: its views, its frame budget, and Lookover reviewing it.
+      - name: End-to-end tests against the bench app and the report
         run: pnpm test:e2e
 
       - name: Upload end-to-end logs
@@ -49,4 +51,15 @@ jobs:
           # The directory is a dot-directory, which upload-artifact skips by default.
           include-hidden-files: true
           if-no-files-found: ignore
+          retention-days: 7
+
+      # The report's measured frames, kept on every run, passing or not, to follow the budget over time.
+      - name: Upload the report's frame times
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-frames
+          path: packages/cli/.e2e/frames.json
+          include-hidden-files: true
+          if-no-files-found: warn
           retention-days: 7
