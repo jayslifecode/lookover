@@ -5,7 +5,7 @@ import type { GalleryState, StateGallery } from '@jayslifecode/lookover-lenses';
 import type { Seed } from './seeds.js';
 
 /** The lens's state gallery of a screen (`gallery-<screenId>-<hash>.json`); `null` when it wrote none. */
-async function readGallery(runDir: string, screenId: string): Promise<StateGallery | null> {
+export async function readGallery(runDir: string, screenId: string): Promise<StateGallery | null> {
   const evidenceDir = join(runDir, 'evidence');
   const name = (await readdir(evidenceDir)).find((file) => file.startsWith(`gallery-${screenId}-`));
   if (name === undefined) return null;

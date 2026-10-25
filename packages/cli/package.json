@@ -27,5 +27,8 @@
     "@jayslifecode/lookover-report": "workspace:*",
     "@jayslifecode/lookover-rules": "workspace:*",
     "commander": "^15"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
   }
 }

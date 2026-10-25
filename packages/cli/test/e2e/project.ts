@@ -61,8 +61,11 @@ export async function isMissing(path: string): Promise<boolean> {
   );
 }
 
-/** Keeps what the run printed, logged and found next to the bench server's log, for a failed CI run. */
-export async function keepOutput(project: string, run: CliResult): Promise<void> {
+/**
+ * Keeps what the run printed (as `<name>.log`), logged and found next to the bench server's log, for a
+ * failed CI run.
+ */
+export async function keepOutput(project: string, run: CliResult, name = 'lookover-run'): Promise<void> {
   const seconds = (run.durationMs / 1_000).toFixed(1);
   const transcript = [
     `exit ${run.code} after ${seconds} s`,
@@ -71,7 +74,7 @@ export async function keepOutput(project: string, run: CliResult): Promise<void>
     '--- stderr ---',
     run.stderr,
   ].join('\n');
-  await writeFile(join(E2E_OUTPUT_DIR, 'lookover-run.log'), transcript, 'utf8');
+  await writeFile(join(E2E_OUTPUT_DIR, `${name}.log`), transcript, 'utf8');
   const runs = await readdir(join(project, '.lookover', 'runs')).catch(() => []);
   for (const runId of runs) {
     for (const file of ['run.jsonl', 'findings.json']) {
@@ -81,5 +84,5 @@ export async function keepOutput(project: string, run: CliResult): Promise<void>
       ).catch(() => undefined);
     }
   }
-  process.stdout.write(`lookover run: exit ${run.code} in ${seconds} s\n`);
+  process.stdout.write(`${name}: exit ${run.code} in ${seconds} s\n`);
 }
