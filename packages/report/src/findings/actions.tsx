@@ -77,8 +77,10 @@ function useReplay(findingId: string) {
       const { reproduced, of } = await postReplay({ findingId });
       setState({ isRunning: false, message: `Reproduced ${reproduced} of ${of}` });
     } catch (error) {
-      const isBusy = error instanceof ApiError && error.status === CONFLICT;
-      const message = isBusy ? 'A replay is already running' : `The replay failed: ${messageOf(error)}`;
+      // A 409 is not a failure: the server says why it cannot replay now (another replay runs, or the
+      // run is still going), in its own words.
+      const isRefusedForNow = error instanceof ApiError && error.status === CONFLICT;
+      const message = isRefusedForNow ? error.message : `The replay failed: ${messageOf(error)}`;
       setState({ isRunning: false, message });
     }
   };

@@ -228,7 +228,7 @@ test('a decision the server refuses is taken back, and a toast says why', async 
   expect(within(panel).getByRole('button', { name: 'Mark intended' })).toBeDefined();
 });
 
-test('Replay posts, shows Replaying… while it runs, then the result; a busy server and a failure are named', async () => {
+test("Replay posts, shows Replaying… while it runs, then the result; a busy server's word and a failure are shown", async () => {
   renderPanel(KEYBOARD);
   const panel = panelFor(KEYBOARD_TITLE);
   const replay = () => within(panel).getByRole('button', { name: /^Replay/ }) as HTMLButtonElement;
@@ -244,9 +244,12 @@ test('Replay posts, shows Replaying… while it runs, then the result; a busy se
   expect(replay().textContent).toBe('Replay');
   expect(replay().disabled).toBe(false);
 
+  // A 409 says why in the server's own words: another replay runs, or the run has not finished.
   fireEvent.click(replay());
-  await act(async () => server.posts(API_PATHS.replay)[1]?.answer(409, { error: 'Busy' }));
-  expect(await within(panel).findByText('A replay is already running')).toBeDefined();
+  await act(async () =>
+    server.posts(API_PATHS.replay)[1]?.answer(409, { error: 'Replay is available when the run finishes' }),
+  );
+  expect(await within(panel).findByText('Replay is available when the run finishes')).toBeDefined();
 
   fireEvent.click(replay());
   await act(async () =>
