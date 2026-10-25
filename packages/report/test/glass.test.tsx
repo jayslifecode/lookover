@@ -31,6 +31,8 @@ test('Glass renders solid under reduced transparency', () => {
   const panel = screen.getByTestId('panel');
   expect(panel.dataset.glass).toBe('lens');
   expect(panel.querySelector('[data-glass-spot]')).not.toBeNull();
+  // The refracting band along the top edge: a layer of its own, hidden from assistive technology.
+  expect(panel.querySelector('[data-glass-band]')?.getAttribute('aria-hidden')).toBe('true');
 
   act(() => media.set(REDUCED_TRANSPARENCY, true));
 
@@ -38,6 +40,7 @@ test('Glass renders solid under reduced transparency', () => {
   expect(panel.className).toContain('glass-solid');
   expect(panel.className).not.toContain('glass-lens');
   expect(panel.querySelector('[data-glass-spot]')).toBeNull();
+  expect(panel.querySelector('[data-glass-band]')).toBeNull();
   expect(panel.textContent).toBe('Finding');
 });
 
@@ -69,6 +72,7 @@ test('the lens is used only when asked for and the browser can apply it', () => 
   );
   expect(screen.getByTestId('asked').dataset.glass).toBe('frosted');
   expect(screen.getByTestId('plain').dataset.glass).toBe('frosted');
+  expect(document.querySelectorAll('[data-glass-band]')).toHaveLength(0);
   expect(screen.getByTestId('plain').tagName).toBe('HEADER');
 });
 

@@ -5,8 +5,9 @@ import { followPointer } from './sheen';
 
 /*
  * A glass surface (spec §11), for the three places a layer floats over content: the top bar, the pins
- * and the finding panel. It is frosted where the browser has `backdrop-filter`, refracts its top edge
- * through the `#lens` filter when `lens` is asked for and the browser can apply it (Chromium), and is a
+ * and the finding panel. It is frosted where the browser has `backdrop-filter`; with `lens`, where the
+ * browser can apply the `#lens` filter (Chromium), a fixed band along its top edge refracts the page
+ * behind it as well (the band and the frosted body are layers of their own: see glass.css). It is a
  * solid `--bg-2` surface under reduced transparency or reduced motion, or without `backdrop-filter`.
  * The styles are in glass.css.
  */
@@ -17,7 +18,7 @@ export type GlassLook = 'frosted' | 'lens' | 'solid';
 export interface GlassProps extends HTMLAttributes<HTMLElement> {
   /** The element to render. Default `div`. */
   readonly as?: GlassElement;
-  /** Refract the backdrop along the top edge through the `#lens` filter (CPU-heavy: an edge band only). */
+  /** Refract the page behind the top edge through the `#lens` filter (CPU-heavy: a 40 px band only). */
   readonly lens?: boolean;
   readonly children?: ReactNode;
 }
@@ -56,6 +57,7 @@ export function Glass({ as: Element = 'div', lens = false, className, children, 
       data-glass={look}
       className={cn('glass', look === 'lens' && 'glass-lens', isSolid && 'glass-solid', className)}
     >
+      {look === 'lens' ? <span className="glass-lens-band" data-glass-band="" aria-hidden="true" /> : null}
       {isSolid ? null : <span ref={setSpot} className="glass-spot" data-glass-spot="" aria-hidden="true" />}
       {children}
     </Element>
