@@ -4,7 +4,7 @@ import { type Finding, type Lens, type LookoverConfig, LookoverError } from '@ja
 import { DEFAULT_REPLAY_TIMES, runReplay } from '@jayslifecode/lookover-judge';
 import { TOKEN_QUERY } from '@jayslifecode/lookover-report/api';
 import { type ApiHandler, createApi, type ReplayFinding } from './server-api.js';
-import { hasToken, isSameOrigin } from './server-auth.js';
+import { hasToken, isOwnHost, isSameOrigin } from './server-auth.js';
 import { firstLineOf, HttpError, sendError, sendText } from './server-http.js';
 import { serveStatic } from './server-static.js';
 import { newToken } from './token.js';
@@ -22,6 +22,7 @@ export type { ReplayFinding } from './server-api.js';
 export const LOOPBACK_HOST = '127.0.0.1';
 const API_PREFIX = '/api/';
 const ALLOWED_METHODS: ReadonlySet<string> = new Set(['GET', 'POST']);
+const MISDIRECTED = 'This is the Lookover report server: address it as 127.0.0.1 or localhost';
 const NO_TOKEN = "This needs the report's token: open the URL lookover printed";
 const CROSS_ORIGIN = 'A write must come from the report itself';
 
@@ -56,8 +57,8 @@ export interface ReportServer {
 /** The parts of a request that decide where it goes. */
 interface Gate {
   readonly token: string;
-  /** `http://127.0.0.1:<port>`, once the server listens. */
-  readonly origin: () => string;
+  /** Where the server listens (`port` 0 and `origin` empty until it does). */
+  readonly address: () => { readonly port: number; readonly origin: string };
   readonly api: ApiHandler;
 }
 
@@ -72,26 +73,32 @@ export async function startReportServer(options: ReportServerOptions): Promise<R
     startedAt: new Date().toISOString(),
     replay: options.replay ?? defaultReplay(options),
   });
-  let origin = '';
-  const gate: Gate = { token, origin: () => origin, api };
+  let address = { port: 0, origin: '' };
+  const gate: Gate = { token, address: () => address, api };
   const server = createServer((req, res) => {
     route(req, res, gate).catch((error: unknown) => answerFailure(req, res, error));
   });
   const port = await listen(server, options.port ?? 0, host);
-  origin = `http://${host}:${port}`;
-  return { url: `${origin}/?${TOKEN_QUERY}=${token}`, port, token, close: closer(server) };
+  address = { port, origin: `http://${host}:${port}` };
+  return { url: `${address.origin}/?${TOKEN_QUERY}=${token}`, port, token, close: closer(server) };
 }
 
+/**
+ * A request addressed by another name is a 421 before anything else, static files included; then the
+ * method (405), the token for `/api/*` (401), and a same-origin `Origin` for a POST (403).
+ */
 async function route(req: IncomingMessage, res: ServerResponse, gate: Gate): Promise<void> {
+  const { port, origin } = gate.address();
+  if (!isOwnHost(req, port)) throw new HttpError(421, MISDIRECTED);
   const method = req.method ?? '';
   if (!ALLOWED_METHODS.has(method)) throw new HttpError(405, `The report server does not answer ${method}`);
   const { path, query } = splitTarget(req.url ?? '/');
   if (!path.startsWith(API_PREFIX)) {
     if (method !== 'GET') throw new HttpError(405, 'The report itself answers GET only');
-    return serveStatic(res, path, query, gate.token);
+    return serveStatic(res, path, query, { token: gate.token, port });
   }
-  if (!hasToken(req, gate.token)) throw new HttpError(401, NO_TOKEN);
-  if (method === 'POST' && !isSameOrigin(req, gate.origin())) throw new HttpError(403, CROSS_ORIGIN);
+  if (!hasToken(req, gate.token, port)) throw new HttpError(401, NO_TOKEN);
+  if (method === 'POST' && !isSameOrigin(req, origin)) throw new HttpError(403, CROSS_ORIGIN);
   return gate.api(req, res, path);
 }
 

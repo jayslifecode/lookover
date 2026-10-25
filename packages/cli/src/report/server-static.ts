@@ -19,17 +19,23 @@ const ASSETS_PREFIX = '/assets/';
 const FOUND = 302;
 const NOT_FOUND = 'The report has no such file';
 
+/** The server's token, and the port its cookie is named after. */
+export interface StaticAccess {
+  readonly token: string;
+  readonly port: number;
+}
+
 /** Answers a GET of `path` (raw, as requested) with the query `query` (without its `?`). */
 export async function serveStatic(
   res: ServerResponse,
   path: string,
   query: string,
-  token: string,
+  { token, port }: StaticAccess,
 ): Promise<void> {
   if (path === ROOT) {
     const given = new URLSearchParams(query).get(TOKEN_QUERY);
     if (given !== null && tokenMatches(given, token)) {
-      send(res, FOUND, { location: ROOT, 'set-cookie': tokenCookie(token) });
+      send(res, FOUND, { location: ROOT, 'set-cookie': tokenCookie(token, port) });
       return;
     }
     return sendFile(res, REPORT_INDEX_FILE);

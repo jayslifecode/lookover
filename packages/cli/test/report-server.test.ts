@@ -7,7 +7,7 @@ import {
   type FindingsFile,
   readFindingsAt,
 } from '@jayslifecode/lookover-core';
-import type { ReplayResult, RunManifest } from '@jayslifecode/lookover-report/api';
+import { type ReplayResult, type RunManifest, tokenCookieName } from '@jayslifecode/lookover-report/api';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { ReportServer } from '../src/report/server.js';
 import {
@@ -59,7 +59,7 @@ beforeAll(async () => {
       }),
   );
   origin = `http://127.0.0.1:${server.port}`;
-  cookie = `lookover_token=${server.token}`;
+  cookie = `${tokenCookieName(server.port)}=${server.token}`;
 });
 
 afterAll(async () => {
@@ -115,7 +115,7 @@ describe('the report server', () => {
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe('/');
       expect(response.headers.get('set-cookie')).toBe(
-        `lookover_token=${server.token}; Path=/; HttpOnly; SameSite=Strict`,
+        `lookover_token_${server.port}=${server.token}; Path=/; HttpOnly; SameSite=Strict`,
       );
     });
 
@@ -199,11 +199,53 @@ describe('the report server', () => {
       ['an empty one', () => ''],
     ])('refuses %s', async (_what, tokenOf) => {
       const token = tokenOf();
-      const byCookie = await fetch(`${origin}/api/run`, { headers: { cookie: `lookover_token=${token}` } });
+      const byCookie = await api('/api/run', {
+        headers: { cookie: `${tokenCookieName(server.port)}=${token}` },
+      });
       const byHeader = await fetch(`${origin}/api/run`, { headers: { 'x-lookover-token': token } });
 
       expect(byCookie.status).toBe(401);
       expect(byHeader.status).toBe(401);
+    });
+  });
+
+  describe('the cookie, one per port', () => {
+    test('of another server on 127.0.0.1 is refused, its own accepted, each by its own name', async () => {
+      const other = await serveFixtureRun(project, FIXTURE_RUN_ID);
+      const run = (port: number, sent: string) =>
+        fetch(`http://127.0.0.1:${port}/api/run`, { headers: { cookie: sent } });
+      try {
+        const otherCookie = `${tokenCookieName(other.port)}=${other.token}`;
+
+        expect((await run(server.port, otherCookie)).status).toBe(401);
+        expect((await run(other.port, cookie)).status).toBe(401);
+        expect((await run(server.port, `${cookie}; ${otherCookie}`)).status).toBe(200);
+        expect((await run(other.port, `${cookie}; ${otherCookie}`)).status).toBe(200);
+        expect((await run(server.port, `lookover_token=${server.token}`)).status).toBe(401);
+      } finally {
+        await other.close();
+      }
+    });
+  });
+
+  describe('the Host header', () => {
+    test.each([
+      ['/', () => ({ host: `evil.test:${server.port}` })],
+      ['/api/run', () => ({ host: 'evil.test', cookie })],
+      ['/assets/missing.js', () => ({ host: '127.0.0.1:1' })],
+      ['/api/decisions', () => ({ host: `127.0.0.1.evil.test:${server.port}`, cookie })],
+    ])('of anything but this server answers %s with 421, before anything else', async (path, headersOf) => {
+      const response = await rawGet(server.port, path, headersOf());
+
+      expect(response.status).toBe(421);
+      expect(response.headers['content-security-policy']).toBe(CSP);
+    });
+
+    test('may name the server as localhost', async () => {
+      expect((await rawGet(server.port, '/', { host: `localhost:${server.port}` })).status).toBe(200);
+      expect(
+        (await rawGet(server.port, '/api/run', { host: `localhost:${server.port}`, cookie })).status,
+      ).toBe(200);
     });
   });
 

@@ -14,11 +14,15 @@ import type { AppMap, Attempt, DecisionsFile, FindingsFile, RunEvent } from '@ja
  *   GET  /api/previous/findings.json  the previous run's findings (404 for the first run)
  *   GET  /api/evidence/<path>       a file under the run's evidence/ (`Cache-Control: immutable`); else 404
  *   POST /api/decisions             DecisionRequest → DecisionResponse, after writing .lookover/decisions.json
- *   POST /api/replay                ReplayRequest → ReplayResult; 409 while a replay is running
+ *                                   (while the run is going, for a finding its log names, for the next run)
+ *   POST /api/replay                ReplayRequest → ReplayResult; 409 while a replay is running, and while
+ *                                   the run is going (its browser session is busy)
  *
- * Every `/api/*` request needs the run's token: the `lookover_token` cookie (`SameSite=Strict; HttpOnly`)
- * or the `X-Lookover-Token` header. A POST also needs an `Origin` equal to the server's own. Responses
- * carry `Cache-Control: no-store`, except evidence. A refused or failed request answers `ApiErrorBody`.
+ * Every request needs a `Host` naming the server (`127.0.0.1:<port>` or `localhost:<port>`), else 421.
+ * Every `/api/*` request needs the run's token: the server's own cookie, `tokenCookieName(port)`
+ * (`SameSite=Strict; HttpOnly`), or the `X-Lookover-Token` header. A POST also needs an `Origin` equal to
+ * the server's own. Responses carry `Cache-Control: no-store`, except evidence. A refused or failed
+ * request answers `ApiErrorBody`.
  */
 
 export const API_PATHS = {
@@ -36,7 +40,17 @@ export const API_PATHS = {
 /** Where every `EvidenceRef.path` starts; the evidence URL is `API_PATHS.evidence` + the rest. */
 export const EVIDENCE_PATH_PREFIX = 'evidence/';
 
-export const TOKEN_COOKIE = 'lookover_token';
+/**
+ * The token cookie's name is this, then the server's port: a cookie is the host's whatever its port, so
+ * two servers on 127.0.0.1 would otherwise overwrite each other's.
+ */
+export const TOKEN_COOKIE_PREFIX = 'lookover_token_';
+
+/** The name of the token cookie of the server on `port`: `lookover_token_<port>`. */
+export function tokenCookieName(port: number): string {
+  return `${TOKEN_COOKIE_PREFIX}${port}`;
+}
+
 /** Header names are case-insensitive; Node gives them lower-cased. */
 export const TOKEN_HEADER = 'x-lookover-token';
 /** `GET /?token=<t>`: the query parameter the CLI's printed URL carries. */
@@ -80,6 +94,11 @@ export interface DecisionRequest {
 /** The project's decisions after the write. */
 export interface DecisionResponse {
   decisions: DecisionsFile['decisions'];
+  /**
+   * `true` when the run was still going: the decision is recorded and the next run applies it, while
+   * this run's findings stay as its judge leaves them. Absent once the run has written its findings.
+   */
+  appliesNextRun?: true;
 }
 
 /** `POST /api/replay`: reproduce one finding again, in a fresh browser context. */

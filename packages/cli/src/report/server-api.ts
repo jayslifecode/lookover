@@ -67,9 +67,11 @@ interface Route {
 }
 
 const BUSY = 'A replay is already running';
+/** While the run goes on, its browser session is busy: a replay would need a second one. */
+const RUN_GOING = 'Replay is available when the run finishes';
+const NO_FINDINGS = 'The run stopped before it wrote its findings';
 const DECISION_SHAPE = 'Expected { findingId, status: "intended" | null, note? }';
 const REPLAY_SHAPE = 'Expected { findingId }';
-const NO_FINDINGS = 'The run has not written its findings yet';
 const NO_EVIDENCE = 'No such evidence in this run';
 /** Evidence is screenshots and measurements; anything else is served as bytes, never as a page. */
 const EVIDENCE_TYPES: Readonly<Record<string, string>> = { '.png': 'image/png', '.json': JSON_TYPE };
@@ -132,15 +134,20 @@ function prefixRoute(path: string, runDir: string, context: ApiContext): Route |
 async function manifest(context: ApiContext): Promise<RunManifest> {
   const events = await readLog(join(runDirOf(context.lookoverDir, context.runId), RUN_LOG_FILE));
   const started = events.find((event) => event.type === 'run.started');
-  const last = events.at(-1);
   return {
     runId: context.runId,
     baseUrl: started?.baseUrl ?? context.baseUrl,
     startedAt: started?.at ?? context.startedAt,
-    status: (last === undefined ? undefined : FINISHED_BY[last.type]) ?? 'running',
+    status: statusOf(events),
     previousRunId: await previousFinishedRun(context.lookoverDir, context.runId),
     lookoverVersion: context.lookoverVersion,
   };
+}
+
+/** Where the run is, by its log's last event: it is going until `run.finished` or `run.failed`. */
+function statusOf(events: readonly RunEvent[]): RunStatus {
+  const last = events.at(-1);
+  return (last === undefined ? undefined : FINISHED_BY[last.type]) ?? 'running';
 }
 
 /** The run's events; none while its log does not exist. */
@@ -190,8 +197,8 @@ function isReplayRequest(value: unknown): value is ReplayRequest {
   return isRecord(value) && typeof value.findingId === 'string' && value.findingId !== '';
 }
 
-/** The finding of the run with this id, in any of its lists; a 404 `HttpError` when it has none. */
-async function runFinding(runDir: string, findingId: string): Promise<Finding> {
+/** The run's findings file; `null` while the run has not written it (it is going, or it stopped). */
+async function runFindings(runDir: string): Promise<FindingsFile | null> {
   const path = join(runDir, FINDINGS_FILE);
   const isWritten = await stat(path).then(
     (stats) => stats.isFile(),
@@ -200,10 +207,22 @@ async function runFinding(runDir: string, findingId: string): Promise<Finding> {
       throw error;
     },
   );
-  if (!isWritten) throw new HttpError(404, NO_FINDINGS);
-  const finding = everyFinding(await readFindingsAt(path)).find(({ id }) => id === findingId);
+  return isWritten ? readFindingsAt(path) : null;
+}
+
+/** The finding of `findings` with this id; a 404 `HttpError` when there is none. */
+function findingIn(findings: readonly Finding[], findingId: string): Finding {
+  const finding = findings.find(({ id }) => id === findingId);
   if (finding === undefined) throw new HttpError(404, `No finding ${findingId} in this run`);
   return finding;
+}
+
+/** The findings the run's log names so far: each candidate, and each finding as judged. */
+async function loggedFindings(runDir: string): Promise<Finding[]> {
+  const events = await readLog(join(runDir, RUN_LOG_FILE));
+  return events.flatMap((event) =>
+    event.type === 'finding.candidate' || event.type === 'finding.judged' ? [event.finding] : [],
+  );
 }
 
 function everyFinding(file: FindingsFile): Finding[] {
@@ -218,18 +237,27 @@ async function postDecision(
 ): Promise<void> {
   const body = await readJsonBody(req);
   if (!isDecisionRequest(body)) throw new HttpError(400, DECISION_SHAPE);
-  await runFinding(runDir, body.findingId);
+  // A run that has not written its findings is checked against its log: the decision is for the next run.
+  const file = await runFindings(runDir);
+  findingIn(file === null ? await loggedFindings(runDir) : everyFinding(file), body.findingId);
   const decision: Decision | null =
     body.status === null
       ? null
       : { status: 'intended', at: new Date().toISOString(), note: body.note ?? null };
-  const file = await serialisedFor(context.lookoverDir, () =>
+  const written = await serialisedFor(context.lookoverDir, () =>
     writeDecision(context.lookoverDir, body.findingId, decision),
   );
-  sendJson(res, 200, { decisions: file.decisions } satisfies DecisionResponse);
+  const answer: DecisionResponse = {
+    decisions: written.decisions,
+    ...(file === null ? { appliesNextRun: true } : {}),
+  };
+  sendJson(res, 200, answer);
 }
 
-/** Answers `POST /api/replay`, one replay at a time: another one meanwhile is a 409. */
+/**
+ * Answers `POST /api/replay`, one replay at a time: another one meanwhile is a 409, and so is one while
+ * the run goes on.
+ */
 function replayHandler(context: ApiContext, runDir: string): ApiHandler {
   let isReplaying = false;
   return async (req, res) => {
@@ -238,7 +266,7 @@ function replayHandler(context: ApiContext, runDir: string): ApiHandler {
     if (isReplaying) throw new HttpError(409, BUSY);
     isReplaying = true;
     try {
-      const finding = await runFinding(runDir, body.findingId);
+      const finding = findingIn(everyFinding(await finishedRunFindings(runDir)), body.findingId);
       // A replay that fails is a 500 with the first line of its message, redacted (see the server).
       const { attempts, reproduced, of } = await context.replay(finding);
       sendJson(res, 200, { attempts, reproduced, of } satisfies ReplayResult);
@@ -246,4 +274,12 @@ function replayHandler(context: ApiContext, runDir: string): ApiHandler {
       isReplaying = false;
     }
   };
+}
+
+/** The findings of a run that is over: a 409 while it is going, a 404 when it stopped before writing them. */
+async function finishedRunFindings(runDir: string): Promise<FindingsFile> {
+  const file = await runFindings(runDir);
+  if (file !== null) return file;
+  const isGoing = statusOf(await readLog(join(runDir, RUN_LOG_FILE))) === 'running';
+  throw new HttpError(isGoing ? 409 : 404, isGoing ? RUN_GOING : NO_FINDINGS);
 }
