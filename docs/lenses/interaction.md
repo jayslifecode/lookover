@@ -5,10 +5,10 @@ over them, focus them and press Tab, whether their text can be read, whether the
 tap, and whether the page fits a phone. The observers run beside it on every screen and watch the
 browser console, the network and the text the page shows.
 
-Everything here is a measurement. No model is involved, and each result is a **candidate**: the judge
-that confirms or rejects candidates arrives in a later release. When a measurement cannot be trusted,
-the lens skips it and records why, rather than guess. Every rule, with its severity and the standard
-behind it, is in [the rules catalogue](../rules.md).
+Everything here is a measurement. No model is involved, and each result is a **candidate** until the
+judge has measured it again three times ([reproducing a finding](#reproducing-a-finding), below). When a
+measurement cannot be trusted, the lens skips it and records why, rather than guess. Every rule, with
+its severity and the standard behind it, is in [the rules catalogue](../rules.md).
 
 The source is `packages/lenses/src/interaction/` (the lens) and `packages/core/src/observers/` (the
 observers). Each section below names the seeded issue in `bench/` that exercises the rule, or the lens
@@ -509,3 +509,29 @@ opacity). Each text node is trimmed and tested whole:
 | `observers-002` | `observers.raw-i18n-key` | `/settings` shows `settings.timezone.hint` as the time zone hint |
 | `observers-003` | `observers.raw-value` | `/organisations/[id]` shows `Last edited by undefined` |
 | `observers-004` | `observers.request-server-error` | `/` asks `/api/stats` for live stats and gets a 500 |
+
+## Reproducing a finding
+
+The judge ([how a run works](../how-it-works.md#stage-5-the-judge)) and `lookover replay` measure a
+finding again on a freshly loaded page: a new browser context, the screen's URL loaded and its
+interactive elements read again. A lens finding is measured by the lens's `reproduce`
+(`packages/lenses/src/interaction/reproduce.ts`), which re-runs the one step that reports the finding's
+rule, restricted to the finding as far as that step allows:
+
+| Rule | What runs again |
+| --- | --- |
+| `focus-visible-missing`, `focus-indicator-contrast`, `hover-state-missing` | The forced states, for the finding's one element. |
+| `text-contrast-fail`, `text-contrast-low`, `target-size`, `keyboard-unreachable` | The static measures, judging the finding's one element (every other element is still there as its neighbour, for target size). |
+| `positive-tabindex` | The static step's page-wide measure, with no element to judge. |
+| `focus-hidden`, `focus-trap` | The whole Tab walk. |
+| `horizontal-overflow`, `text-clipped` | The viewport sweep, at the finding's viewport only. |
+
+It reproduced when the step reports a finding with the same `id` again (a missing hover state comes out
+as worth a look, and counts). When nothing on the fresh page has the finding's selector, the attempt is
+not reproduced and its skip reason is `gone`; when a step that ran for the element alone skipped it (its
+background could not be read, say), the attempt gives that reason.
+
+An observer finding is reproduced by the observers themselves: fresh ones are attached to the new page
+before it loads, and the finding reproduced when one of them reports the same `id` with an occurrence on
+that screen again. On one attempt's page the observer findings are measured first, before any lens step
+reloads or resizes it.
