@@ -9,6 +9,7 @@ import {
   isFailedScreen,
   type Judge,
   type Lens,
+  type LookoverConfig,
   loadConfig,
   type ReviewResult,
   type RunContext,
@@ -17,7 +18,9 @@ import {
   type Screen,
 } from '@jayslifecode/lookover-core';
 import type { Command } from 'commander';
+import { LOOPBACK_HOST, type ReportServer, startReportServer } from '../report/server.js';
 import * as ui from '../ui.js';
+import { announceReport, untilInterrupted } from './report.js';
 import { findingLines } from './run-findings.js';
 import { type HostKinds, hostLabel, labelUnconfirmedHosts, withObservedHost } from './run-hosts.js';
 import { createJudge } from './run-judge.js';
@@ -49,6 +52,16 @@ interface Inspectors {
    * written as measured, less the intended ones); `undefined` with `--map-only`, which has no candidates.
    */
   readonly judge: Judge | undefined;
+}
+
+/** What a run is set up with, before the engine is started. */
+interface RunPlan {
+  readonly ctx: RunContext;
+  readonly cwd: string;
+  /** The config as loaded, without this run's overrides (`ctx.config` has them). */
+  readonly config: LookoverConfig;
+  readonly options: RunOptions;
+  readonly inspectors: Inspectors;
 }
 
 /**
@@ -98,11 +111,12 @@ export function registerRun(program: Command, lookoverVersion: string): void {
 
 /**
  * `lookover run`: loads the config (the acknowledgement gate refuses an unacknowledged `full` run),
- * maps the app and inspects each screen with this run's flags applied (`--map-only` skips the
- * inspection), judges the candidates while the crawl goes on (`--no-judge` leaves them as measured),
- * prints the summary with the confirmed findings (or the candidates) and saves the confirmed backend
- * hosts to the config. `--no-report` and `--no-open` are accepted and change nothing until the report
- * exists. Errors propagate to `ui.fail`, which picks the exit code.
+ * serves the live report of the run and opens it (unless `--no-report`, or `--no-open`), maps the app
+ * and inspects each screen with this run's flags applied (`--map-only` skips the inspection), judges the
+ * candidates while the crawl goes on (`--no-judge` leaves them as measured), prints the summary with the
+ * confirmed findings (or the candidates) and saves the confirmed backend hosts to the config. On a
+ * terminal the report is then served until Ctrl-C; otherwise it closes with the run. Errors propagate to
+ * `ui.fail`, which picks the exit code.
  */
 export async function runRun(flags: RunFlags, lookoverVersion: string): Promise<void> {
   const cwd = process.cwd();
@@ -110,6 +124,25 @@ export async function runRun(flags: RunFlags, lookoverVersion: string): Promise<
   const { config } = await loadConfig(cwd);
   const ctx = await createRun({ cwd, config: configForRun(config, options), onSubscriberError });
   const inspectors = await createInspectors(ctx, options, lookoverVersion);
+  const report = options.shouldReport
+    ? await serveReport(ctx, cwd, inspectors.lenses, lookoverVersion, options.shouldOpen)
+    : null;
+  try {
+    await review({ ctx, cwd, config, options, inspectors }, report?.url);
+  } catch (error) {
+    await report?.close();
+    throw error;
+  }
+  if (report !== null) {
+    await closeReport(report);
+  }
+}
+
+/** Maps, inspects and judges the app, then prints the summary; the served report's URL is in it. */
+async function review(
+  { ctx, cwd, config, options, inspectors }: RunPlan,
+  reportUrl: string | undefined,
+): Promise<void> {
   ui.info(`Mapping ${config.baseUrl} (run ${ctx.runId})`);
   const progress = createProgress(!options.isMapOnly);
   const startedAt = performance.now();
@@ -135,12 +168,48 @@ export async function runRun(flags: RunFlags, lookoverVersion: string): Promise<
       appMapPath: join(ctx.lookoverDir, APP_MAP_FILE),
       durationMs,
       ...(options.isMapOnly ? {} : { inspection }),
+      ...(reportUrl === undefined ? {} : { reportUrl }),
     }),
   );
   if (!options.isMapOnly) {
     reportFindings(result.findings);
   }
   reportHosts(savedHosts, result.blockedUnconfirmedHosts, progress.labelHost);
+}
+
+/**
+ * Serves the run's live report before the browser session starts, prints its URL and opens it unless
+ * `shouldOpen` is false. A replay from the report measures the finding with the run's own lenses.
+ */
+async function serveReport(
+  ctx: RunContext,
+  cwd: string,
+  lenses: readonly Lens[],
+  lookoverVersion: string,
+  shouldOpen: boolean,
+): Promise<ReportServer> {
+  const server = await startReportServer({
+    lookoverDir: ctx.lookoverDir,
+    runId: ctx.runId,
+    cwd,
+    config: ctx.config,
+    lenses,
+    lookoverVersion,
+    host: LOOPBACK_HOST,
+  });
+  await announceReport(server, shouldOpen);
+  return server;
+}
+
+/** On a terminal, keeps the report up until Ctrl-C (then exits 0); otherwise closes it with the run. */
+async function closeReport(report: ReportServer): Promise<void> {
+  if (process.stdout.isTTY === true) {
+    ui.info('');
+    ui.info(`Report open at ${report.url}; press Ctrl-C to close`);
+    await untilInterrupted();
+    process.exitCode = ui.EXIT_OK;
+  }
+  await report.close();
 }
 
 /**

@@ -30,6 +30,8 @@ import {
 } from './run-fixtures.js';
 
 const VERSION = '9.9.9';
+/** The flags of every run here: no prompt, and no report server (`run-report.test.ts` covers it). */
+const WITHOUT_REPORT: RunFlags = { yes: true, report: false };
 
 // The one mock of this suite is the engine: it opens a real browser, which `run.test.ts` and the
 // end-to-end suite cover. Everything else here is the CLI's own code on a real project directory.
@@ -123,7 +125,7 @@ describe('lookover run with the engine stubbed', () => {
       };
       return result;
     });
-    await runRun({ yes: true, ...flags }, VERSION);
+    await runRun({ ...WITHOUT_REPORT, ...flags }, VERSION);
     const [call] = vi.mocked(runReview).mock.calls;
     if (call === undefined) {
       throw new Error('runReview was not called');
@@ -167,7 +169,7 @@ describe('lookover run with the engine stubbed', () => {
       expect(options.judge).toBeUndefined();
     });
 
-    test('--no-report and --no-open change nothing the engine is asked yet', async () => {
+    test('--no-report and --no-open change nothing the engine is asked', async () => {
       const { options } = await run({ report: false, open: false }, { events: [] });
 
       expect(options.judge).toBeInstanceOf(JudgePipeline);
@@ -217,7 +219,7 @@ describe('lookover run with the engine stubbed', () => {
         };
       });
 
-      await runRun({ yes: true }, VERSION);
+      await runRun(WITHOUT_REPORT, VERSION);
 
       expect(printedWhenCaptured).not.toContain('/settings');
       expect(stdout.join('')).toContain('✓ /settings  1 element · 1 form · 0 candidates');
@@ -236,7 +238,7 @@ describe('lookover run with the engine stubbed', () => {
         return Promise.reject(new Error('the browser closed'));
       });
 
-      await expect(runRun({ yes: true }, VERSION)).rejects.toThrow('the browser closed');
+      await expect(runRun(WITHOUT_REPORT, VERSION)).rejects.toThrow('the browser closed');
 
       const lines = stdout.join('').split('\n');
       expect(lines.filter((line) => line.startsWith('✓ /'))).toEqual([
@@ -442,7 +444,7 @@ describe('lookover run with the engine stubbed', () => {
         return { map: appMap([]), confirmedBackendHosts: [], blockedUnconfirmedHosts: [], findings: drained };
       });
 
-      await runRun({ yes: true, judge: false }, VERSION);
+      await runRun({ ...WITHOUT_REPORT, judge: false }, VERSION);
 
       const lines = stdout.join('').split('\n');
       expect(lines).toContainEqual(expect.stringMatching(/^ {2}Candidates +2$/));

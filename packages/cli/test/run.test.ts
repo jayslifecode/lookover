@@ -473,8 +473,9 @@ describe('lookover run in a browser', () => {
         JSON.stringify({ baseUrl, interaction: 'safe', framework: 'unknown' }),
       );
 
-      // A real run: without the key, it can never reach the judge model, whatever it gets to.
-      const result = await runCli(dir, ['run', '--yes'], {
+      // A real run: without the key, it can never reach the judge model, whatever it gets to. Without
+      // the report either, which would open in the browser of the machine the test runs on.
+      const result = await runCli(dir, ['run', '--yes', '--no-report'], {
         timeoutMs: BROWSER_RUN_TIMEOUT_MS,
         withoutEnv: ['ANTHROPIC_API_KEY'],
       });

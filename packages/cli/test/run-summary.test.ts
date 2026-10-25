@@ -264,6 +264,24 @@ describe('summaryRows', () => {
       expect(summaryRows(clean).slice(8)).toContainEqual(['Candidates', '0']);
       expect(summaryRows(clean).slice(8)).toContainEqual(['Worth a look', '0']);
     });
+
+    test('ends with the Report row, after the Findings row, while the report is served', () => {
+      const url = 'http://127.0.0.1:4321/?token=0123456789abcdef0123456789abcdef';
+
+      const rows = summaryRows({ ...inspected, reportUrl: url });
+
+      expect(rows.slice(-2)).toEqual([
+        ['Findings', '.lookover/findings.json'],
+        ['Report', url],
+      ]);
+    });
+  });
+
+  test('has no Report row when no report is served, and one at the end of a --map-only run', () => {
+    const url = 'http://127.0.0.1:4321/?token=0123456789abcdef0123456789abcdef';
+
+    expect(summaryRows(summary).map(([label]) => label)).not.toContain('Report');
+    expect(summaryRows({ ...summary, reportUrl: url }).at(-1)).toEqual(['Report', url]);
   });
 });
 

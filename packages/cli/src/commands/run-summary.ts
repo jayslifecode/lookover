@@ -30,6 +30,8 @@ export interface RunSummary {
   readonly durationMs: number;
   /** Absent for a `--map-only` run: it has no findings to report. */
   readonly inspection?: InspectionSummary;
+  /** The served report's URL; absent when no report is served (`--no-report`). */
+  readonly reportUrl?: string;
 }
 
 /** Printed after the candidates of a `--no-judge` run: they are measurements, nothing judged or reproduced them. */
@@ -105,7 +107,13 @@ export function summaryRows(summary: RunSummary): [string, string][] {
     ['App map', displayPath(summary.cwd, summary.appMapPath)],
     ['Duration', formatDuration(summary.durationMs)],
     ...inspectionRows(summary),
+    ...reportRows(summary),
   ];
+}
+
+/** The URL of the report the run serves, last: the table ends where the user goes next. */
+function reportRows({ reportUrl }: RunSummary): [string, string][] {
+  return reportUrl === undefined ? [] : [['Report', reportUrl]];
 }
 
 /**
