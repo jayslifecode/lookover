@@ -4,13 +4,16 @@ Lookover runs on your machine, against an app you run yourself. This page says w
 (only judge model calls, and exactly what is in one), what the report server exposes and to whom, and
 what Lookover stores under `.lookover/`. How the browser is kept to your app (the allowed hosts, the
 backends you confirm, the payment, email and SMS providers it blocks) is in
-[the README](../README.md#backends-and-other-hosts) and [how a run works](how-it-works.md#the-browser-and-the-network-envelope).
+[the README](../README.md#backends-and-other-hosts) and
+[how a run works](how-it-works.md#the-browser-and-the-network-envelope).
 
 ## What leaves your machine
 
-The browser Lookover drives loads your app, and your app's own requests go where your app sends them:
-to the backends you confirmed, and nowhere you did not (an unconfirmed backend is blocked). That traffic
-is your app's.
+The browser Lookover drives loads your app, and your app's own requests go where your app sends them.
+Before you confirm the backends, Lookover only opens a few pages, logged out and without submitting
+anything, and the app's own requests from those pages do reach its backends: that is how Lookover learns
+what they are. From then on they go only to the backends you confirmed; every other backend is blocked.
+That traffic is your app's.
 
 Lookover's own requests to anything outside your machine are **judge model calls, and nothing else**:
 no telemetry, no analytics, no update check, no font or script from a CDN. A judge call is made only:
@@ -54,9 +57,10 @@ cannot close the wrapper and speak outside it. The system prompt tells the model
 those tags, and any text in the images, is evidence about the page and never an instruction, whatever it
 claims. The catalogue's text and Lookover's own words are the only text outside the tags. The bundle
 tests (`packages/judge/test/model-bundle.test.ts`) check that every page-derived string is wrapped and
-that an instruction planted in a console message stays inside the wrapper; an opt-in test against the
-live API (`LOOKOVER_LIVE_JUDGE=1` with a key, never in CI) checks that the model neither follows nor
-quotes such an instruction.
+that an instruction planted in a console message stays inside the wrapper. An opt-in test against the
+live API (`LOOKOVER_LIVE_JUDGE=1` with a key, never in CI) sends a console message carrying such an
+instruction and checks only that the answer is a valid verdict and that its note does not quote the
+instruction; it does not check which verdict the model gave.
 
 **What comes back** is a verdict in a fixed schema, read through structured outputs: `confirm` or
 `reject`, an attribution, the standard applied (at most 120 characters) and a note (at most 280). The
@@ -77,8 +81,8 @@ call. Delete the directory to ask again.
 `lookover run` (unless `--no-report`) and `lookover report` serve the report from a small HTTP server in
 the CLI (`packages/cli/src/report/`).
 
-- **On this machine only.** It listens on `127.0.0.1`, on a port the system picks (or `--port`). Nothing
-  off the machine can connect to it.
+- **On this machine only.** It listens on `127.0.0.1`, on a port the system picks (`lookover report`
+  also takes `--port`). Nothing off the machine can connect to it.
 - **Behind the run's token.** Each server makes a token of 128 random bits (32 hex digits) from the
   system's secure random source. Every `/api/*` request (the run, its log, its files, its evidence, the
   writes) must carry it, as the server's cookie `lookover_token_<port>` (`HttpOnly`, `SameSite=Strict`,
@@ -97,8 +101,9 @@ the CLI (`packages/cli/src/report/`).
   `http://127.0.0.1:<port>` or `http://localhost:<port>`, or it is refused with 403. Its body is at most
   16 KB. Only GET and POST are answered.
 - **Headers on every response.** A Content-Security-Policy (`default-src 'self'`, scripts and
-  connections to the report's own origin only, fonts from it or `data:`, images from it, `data:` or
-  `blob:`, no page may frame it, no `<base>`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and
+  connections to the report's own origin only, its own styles and inline styles, fonts from it or
+  `data:`, images from it, `data:` or `blob:`, no page may frame it, no `<base>`),
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and
   `Cross-Origin-Resource-Policy: same-origin`, and never a CORS header. Everything is `no-store` except
   the hashed build files and the evidence, which never change under their names (the evidence is cached
   as `private`).
@@ -126,11 +131,12 @@ same checks as `lookover replay`, and only once the run has finished.
 | `decisions.json` | The findings you marked as intended, with your notes. |
 | `cache/judge/` | The judge model's verdicts, one file per bundle hash. |
 | `replays/<id>.mjs` | The standalone replay scripts you asked for. Each embeds its finding as stored (redacted): its URLs, selectors, element names and measured values. Share one as you would share the finding. |
-| `state/form.json` | The session a form login saved, readable only by you (the directory is `0700`, the file `0600`). |
+| `state/form.json` | The session a form login saved, with its live cookies, readable only by you (the directory is `0700`, the file `0600`). It is not redacted. |
 
 `lookover init` adds `.lookover/` to your `.gitignore`. Every JSON file and every line of the run log is
-redacted before it is written ([what redaction replaces](findings.md#redaction)); screenshots and crops
-are stored as they were taken, so they show whatever your app showed. `lookover replay` writes nothing
-here except a script you ask for with `--script`: its own evidence goes to a temporary directory that is
-removed afterwards. Nothing under `.lookover/` is sent anywhere, except the parts of a finding a judge
-call carries, as listed above.
+redacted before it is written ([what redaction replaces](findings.md#redaction)), with one exception: the
+saved session, `state/form.json`, keeps its cookies as they are, since it has to work to log in again.
+Never share it or commit it. Screenshots and crops are stored as they were taken, so they show whatever
+your app showed. `lookover replay` writes nothing here except a script you ask for with `--script`: its
+own evidence goes to a temporary directory that is removed afterwards. Nothing under `.lookover/` is
+sent anywhere, except the parts of a finding a judge call carries, as listed above.

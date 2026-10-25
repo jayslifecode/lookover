@@ -37,9 +37,8 @@ flowchart TD
 
 ## Before the browser starts
 
-The config is loaded and checked: a config that allows `full` interaction must carry the
-disposable-data acknowledgement (`E_ACK_REQUIRED` otherwise), at least one viewport must be configured,
-and the base URL must be on a host the browser may open.
+The config is loaded and checked against its schema, and a config that allows `full` interaction must
+carry the disposable-data acknowledgement (`E_ACK_REQUIRED` otherwise).
 
 The run gets its directory, `.lookover/runs/<run id>/` (the id is the local date and time and four
 random characters, `20261022-034634-lkv1`), with its log, `run.jsonl`, and its evidence folder.
@@ -50,8 +49,11 @@ judge model is chosen, `--judge-model` or else `model.judge` in the config (`cla
 default), if `ANTHROPIC_API_KEY` holds a key. With `--no-judge` the judge only applies the decisions.
 
 Then, unless `--no-report`, the report server starts (Stage 6, below) and its URL is the first line
-`lookover run` prints. The run itself begins after it: `run.started` is logged and, for a Next.js app,
-the routes are read from the `app/` directory, each logged as `route.discovered`.
+`lookover run` prints. The run itself begins after it: `run.started` is logged; the acknowledgement is
+checked again, at least one viewport must be configured (`E_CONFIG_INVALID` otherwise; with the judge
+on, a config with no viewport has already failed while the judge was set up) and the base URL must be on
+a host the browser may open (`E_NAVIGATION_BLOCKED` otherwise); then, for a Next.js app, the routes are
+read from the `app/` directory, each logged as `route.discovered`.
 
 ## The browser and the network envelope
 
@@ -118,8 +120,9 @@ or the lens stops only that screen's inspection: what it yielded so far is kept,
 message is the event's `error`, the CLI prints it as a warning, and the crawl goes on.
 
 When the crawl is done and the judge has decided, the findings are written, redacted, to
-`.lookover/findings.json` and to the run directory (see [the finding contract](findings.md)). What each
-check measures, and every exemption, is in [the interaction lens and the observers](lenses/interaction.md).
+`.lookover/findings.json` and to the run directory (see [the finding contract](findings.md)). What
+each check measures, and every exemption, is in
+[the interaction lens and the observers](lenses/interaction.md).
 
 ## Stage 5: the judge
 
@@ -144,8 +147,8 @@ attached, the screen's URL loaded and settled as the crawl settles it, and its i
 again. Every target of the batch is then measured on that one load, observer findings first (the
 observers hold what the load produced, and a lens may reload the page), then each lens's in the order of
 its rules. A lens finding is measured by the lens that reported it, re-running the step that reports
-its rule for that target ([how the interaction lens reproduces a finding](lenses/interaction.md#reproducing-a-finding));
-an observer finding has reproduced when a fresh observer reports the same finding id on the screen. Each
+its rule for that target; an observer finding has reproduced when a fresh observer reports the same
+finding id on the screen ([how each is reproduced](lenses/interaction.md#reproducing-a-finding)). Each
 target gets 10 seconds of its own (`PER_SCREEN_BUDGET_MS`), counted from when its measurement starts.
 Each attempt of each target is stored as `reproduction-<finding id>` JSON evidence (the attempt, the URL,
 what was measured and the environment), and the context is closed whatever happened. An error in one
@@ -202,11 +205,11 @@ in US dollars from the price table in `packages/judge/src/model/pricing.ts` (Son
 million input tokens and $10 per million output; cache reads at 0.1 times the input price, cache writes
 at 1.25 times, for every model in the table, so an Opus 5.5 estimate overstates its cache reads, which
 cost it 0.05 times). A model the table does not know gets no estimate. The run's totals are `judge` in
-`findings.json`, the `Judge` row of the summary (shaped
-`claude-sonnet-5-5 · <calls> calls (<hits> cached) · <tokens> tokens · ≈ $<cost>`, or
-`harness only (no ANTHROPIC_API_KEY)` when no model was used) and the cost readout in the report's top
-bar. The design's ceiling is $0.25 of model use for the bench run and $1 for a 20-screen app at the
-defaults ([spec §3](superpowers/specs/2026-10-20-lookover-design.md#3-constraints)).
+`findings.json`, the cost readout in the report's top bar, and the `Judge` row of the summary, which
+reads `claude-sonnet-5-5 · <calls> calls (<hits> cached) · <tokens> tokens · ≈ $<cost>`, or
+`harness only (no ANTHROPIC_API_KEY)` when no model was used. The design's ceiling is $0.25 of model use
+for the bench run and $1 for a 20-screen app at the defaults
+([spec §3](superpowers/specs/2026-10-20-lookover-design.md#3-constraints)).
 
 **The end of the run.** Once the crawl is done (and the run log is known to hold every event so far), the
 engine waits for every batch, decides the occurrence findings, and writes the judged file: the confirmed
@@ -272,9 +275,10 @@ The finding panel shows the chosen finding: its severity and lens, title, why it
 its standard, the element, the measured facts, how it was reproduced and judged (how many times of how
 many, in which browser and viewport, who decided, the attribution and the judge's note), its crops and
 screenshots, observed against expected, and three actions: Copy fix prompt, Replay, and Mark intended
-with an optional note. With nothing chosen it shows the run's summary. The top bar names the run, holds the view switcher, says where the run is (mapping, inspecting,
-judging, done or failed) and shows what the judge model cost once the run is over. How it looks and
-moves is in [the report's design](report-design.md).
+with an optional note. With nothing chosen it shows the run's summary. The top bar names the run, holds
+the view switcher, says where the run is (mapping, inspecting, judging, done or failed) and shows what
+the judge model cost once the run is over. How it looks and moves is in
+[the report's design](report-design.md).
 
 On a terminal, `lookover run` keeps serving the report after its summary until Ctrl-C; otherwise (in
 CI, or piped) the server closes with the run. `--no-report` serves nothing.

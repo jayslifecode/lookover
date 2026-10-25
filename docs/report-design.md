@@ -107,9 +107,9 @@ and applied with `feDisplacementMap` at a scale of 7). It is applied with `backd
 which only Chromium supports, so the report checks `CSS.supports` and shows the frosted look elsewhere.
 
 The refraction covers a 40 px band along the panel's top edge, not the whole panel. Displacing the whole
-380 × 800 px panel averaged 26.7 to 27.9 ms per frame during the pin-to-panel transform in CI's
-software-rendered Chromium, which drops every other frame; the spec asks for refraction on the edge and
-on small surfaces only.
+380 × 800 px panel averaged 26.7 to 27.9 ms per frame during the pin-to-panel transform, measured locally
+in headless, software-rendered Chromium (the setup CI runs the suite in), which drops every other frame;
+the spec asks for refraction on the edge and on small surfaces only.
 
 The band is built outside the frosted layer. An element with a backdrop filter is the backdrop root of
 everything inside it, so a refracting band inside the frosted panel would bend only the panel's own
@@ -117,9 +117,9 @@ blurred picture, which shows nothing. Instead the panel itself filters nothing: 
 content each filter the page behind them, side by side, the 40 px band (blur, saturate and `#lens`) and
 the frosted body below it. An end-to-end test proves the band bends the page: it puts black and white
 stripes behind the report, screenshots the band with and without `#lens`, and counts the pixels that
-flipped (156 of the band's 14,364 in the last measurement; the test asks for more than 50, and two
-screenshots without the filter must not differ at all). With the band, the transform averages 17.6 ms
-per frame, so the refraction stays.
+flipped (156 of the band's 14,364 in the local measurement; the test asks for more than 50, and two
+screenshots without the filter must not differ at all). With the band, the transform averaged 17.6 ms
+per frame in the same local measurement (below), so the refraction stays.
 
 ### How glass degrades
 
@@ -192,9 +192,9 @@ the panel is never empty on the way:
 1. A copy of the panel, already rendered with the new finding (the ghost, a solid tint with no blur), is
    placed over the panel.
 2. The ghost animates `transform` and `clip-path` over 560 ms through three keyframes: from the pin's box
-   with `inset(0 round 999px)` (easing `cubic-bezier(.2,.8,.2,1)`); at half time 86 % of the way there,
-   at 88 % of the width and 84 % of the height, `round 34px` (easing `cubic-bezier(.22,1.2,.36,1)`); and
-   onto the panel, `round 18px`.
+   with `inset(0 round 999px)` (easing `cubic-bezier(.2,.8,.2,1)`); at half time, moved 86 % of the way
+   to the panel and grown 88 % of the way from the pin's width to the panel's and 84 % of the way from
+   its height, `round 34px` (easing `cubic-bezier(.22,1.2,.36,1)`); and onto the panel, `round 18px`.
 3. Its content fades in from 28 % to 70 % of the way, while the panel's old content fades out and rises
    4 px in 130 ms.
 4. When the ghost lands, the new finding is swapped into the real panel, the old content's fade is undone
@@ -202,8 +202,8 @@ the panel is never empty on the way:
 
 The panel's glass never moves, resizes or changes its filter during all this: from 1280 px wide it is a
 fixed box, 380 px wide and the window's height less 100 px, stuck 84 px from the top, under the top bar,
-its body scrolling inside. One transform runs at a time; a new one lands the running one at once. It also runs
-from the run summary and from a finding that has no pin, and only where the panel floats.
+its body scrolling inside. One transform runs at a time; a new one lands the running one at once. It
+also runs from the run summary and from a finding that has no pin, and only where the panel floats.
 
 ### The theme reveal
 
@@ -218,14 +218,15 @@ the page, while the circle's radius is still zero.
 From spec §11, as the report follows them:
 
 1. A blurred glass layer never changes size, position, blur or filter while it is visible.
-2. Everything that moves is a separate element animated with `transform` and `opacity` only: the
-   pointer's highlight, the pill, the ghost, the pin's dot. Rings and glows are pseudo-elements faded with
-   `opacity`, never animated `box-shadow`.
+2. Everything that moves is a separate element animated with `transform`, `opacity` and `clip-path`;
+   never layout, blur or `box-shadow`: the pointer's highlight, the pill (its edges are a `clip-path`),
+   the ghost (`transform` and `clip-path`), the pin's dot, the theme reveal (a `clip-path` circle). Rings
+   and glows are pseudo-elements faded with `opacity`.
 3. Each glass surface is its own layer (`isolation: isolate; contain: paint`); `will-change` only on what
    animates; pointer handlers update once per frame.
 4. The refraction filter is static. Animating `feDisplacementMap` re-filters the backdrop every frame.
 5. Blur at most 18 px, at most three glass layers, and the toast the only glass that enters or leaves.
-6. The frame budget is measured in CI (below).
+6. The frame budget is measured and asserted by an end-to-end test that CI runs (below).
 
 ### The frame budget, measured
 
@@ -235,24 +236,30 @@ and a toast), and records the time between `requestAnimationFrame` callbacks, as
 measured its baseline, during two interactions: three travels of the pill from one end of the switcher
 to the other, and one pin-to-panel transform.
 
+The numbers below are from one local run of that test, on an Apple M1 laptop, in headless Chromium with
+software rendering (SwiftShader, no GPU), against the motion study's baseline, which was measured with a
+GPU. They are not CI's: CI runs the same test on every push to `main` and every pull request, and keeps
+what it measured as the `report-frames` artifact (`frames.json`); that artifact, not this table, holds
+CI's own numbers.
+
 | | Average frame | Worst frame | Frames over 34 ms | Frames over 60 ms |
 | --- | --- | --- | --- | --- |
 | Motion study baseline (GPU) | 16.67 ms | 18.7 ms | 0 | 0 |
-| Pill travel (headless, software-rendered Chromium) | 16.67 ms | 16.8 ms | 0 | 0 |
-| Pin-to-panel transform (the same) | 17.61 ms | 33.3 ms | 0 | 0 |
+| Pill travel (local, M1, headless software-rendered Chromium) | 16.67 ms | 16.8 ms | 0 | 0 |
+| Pin-to-panel transform (the same run) | 17.61 ms | 33.3 ms | 0 | 0 |
 
-CI fails an interaction with more than one frame over 34 ms (two frames at 60 Hz, a dropped frame you can
-see) or any frame over 60 ms, and keeps the measured frames as the `report-frames` artifact
-(`frames.json`) on every run, passing or not. The same suite checks that under reduced motion nothing
+The test fails an interaction with more than one frame over 34 ms (two frames at 60 Hz, a dropped frame
+you can see) or any frame over 60 ms, wherever it runs. CI writes `frames.json` before it asserts, so the
+artifact is kept on every run, passing or not. The same suite checks that under reduced motion nothing
 animates while a pin is chosen, frame by frame.
 
 ## Type
 
-Manrope for the interface, JetBrains Mono for selectors,
-measurements, ids and code. Both are self-hosted from `@fontsource-variable` packages, bundled into the
-report's build: the report must make no request to any other origin, so it cannot use a font CDN. Two
-small subsets are inlined into the stylesheet as `data:` URIs by Vite, which the report server's
-Content-Security-Policy allows (`font-src 'self' data:`).
+Manrope for the interface, JetBrains Mono for selectors, measurements, ids and code. Both are
+self-hosted from `@fontsource-variable` packages, bundled into the report's build: the report must make
+no request to any other origin, so it cannot use a font CDN. Two small subsets are inlined into the
+stylesheet as `data:` URIs by Vite, which the report server's Content-Security-Policy allows
+(`font-src 'self' data:`).
 
 ## Lookover reviewing its own report
 

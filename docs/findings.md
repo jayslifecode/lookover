@@ -72,7 +72,7 @@ interface JudgeTotals {
   calls: number;          // successful model calls (a cached verdict is not one)
   cacheHits: number;      // verdicts served from .lookover/cache/judge/
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number };  // tokens
-  estimatedUsd: number | null;  // null for a model the price table does not know
+  estimatedUsd: number | null;  // null when there was no model to ask, or for one the price table does not know
   unavailable: 'no-api-key' | 'disabled' | 'api-error' | null;  // why the model was not used, when it was not
 }
 ```
@@ -187,9 +187,9 @@ finding's key is its rule's own grouping:
 ## The id
 
 `id` is the first 12 hexadecimal characters of the SHA-256 of `<rule id>|<key>`. The same rule and key
-give the same id on every run, which is what lets a decision ("mark as intended") hold on later runs,
-lets the report compare a run with the one before it, and lets the judge's verdict cache recognise a
-finding it has seen.
+give the same id on every run, which is what lets a decision ("mark as intended") hold on later runs and
+lets the report compare a run with the one before it. (The judge's verdict cache does not go by the id:
+it recognises the same measured bundle, whatever the finding's id.)
 
 Within a run, findings with the same id are merged, in the order each id was first seen. An occurrence
 finding gains the occurrences and evidence of the later ones (an occurrence is told apart by its
@@ -201,7 +201,7 @@ one's. Any other repeat is dropped in favour of the first.
 
 | Status | Who sets it | When | Where it is written |
 | --- | --- | --- | --- |
-| `candidate` | The lens or observer that measured it | As it is measured; it stays one only in a run with `--no-judge`, and for worth-a-look entries | `findings` (`--no-judge`), `worthALook` |
+| `candidate` | The lens or observer that measured it | As it is measured; it stays one in a run with `--no-judge`, as a worth-a-look entry, and in a judged run if it was never handed to the judge | `findings`, `worthALook` |
 | `confirmed` | The judge: the harness, or the judge model | It reproduced on all three attempts (a step finding), or at least one of its occurrences did, and the model, when asked, did not reject it | `findings` |
 | `rejected` | The judge: the harness (`timing`) or the judge model (`explorer-error`, `exemption`) | It reproduced on fewer than three attempts, or the model explained it away | `rejected` |
 | `intended` | You, with `lookover mark` or the report's Mark intended | Its id is in `.lookover/decisions.json` when a run inspects it | `intended` |
@@ -464,10 +464,11 @@ standalone replay script embeds. Every string is checked for secrets: `Bearer` t
 access keys, Stripe-style and Supabase keys and e-mail addresses are replaced by a placeholder
 (`Bearer [token]`, `[jwt]`, `[aws-key]`, `[api-key]`, `[email]`), and so is the value in a
 `key: value` or `key=value` pair whose key contains `api_key` (or `api-key`, `apikey`), `secret`,
-`token` or `password`. A string
-under a sensitive key (`password`, `token`, `authorization`, `cookie`, `set-cookie`, `secret`, keys
-ending in `password`, `secret`, `token` or `apikey`, and the like) is replaced outright with
-`[redacted]`. Console messages, request URLs and page text are redacted before they are cut to their
-length limits, so a secret that straddles the cut cannot survive it. Selectors are chosen so that
-redaction leaves them unchanged, so a stored selector always finds its element again. Screenshots and
-crops are stored as they were taken.
+`token` or `password`. A string under a sensitive key (`password`, `token`, `authorization`, `cookie`,
+`set-cookie`, `secret`, keys ending in `password`, `secret`, `token` or `apikey`, and the like) is
+replaced outright with `[redacted]`. Console messages, request URLs and page text are redacted before
+they are cut to their length limits, so a secret that straddles the cut cannot survive it. Selectors
+are chosen so that redaction leaves them unchanged, so a stored selector always finds its element again.
+Screenshots and crops are stored as they were taken. One JSON file is not redacted: the session a form
+login saves, `.lookover/state/form.json`, keeps its cookies as they are so that it can log in again; it
+is readable only by you and must never be shared or committed.
