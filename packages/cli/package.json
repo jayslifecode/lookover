@@ -24,6 +24,7 @@
     "@jayslifecode/lookover-core": "workspace:*",
     "@jayslifecode/lookover-judge": "workspace:*",
     "@jayslifecode/lookover-lenses": "workspace:*",
+    "@jayslifecode/lookover-report": "workspace:*",
     "@jayslifecode/lookover-rules": "workspace:*",
     "commander": "^15"
   }

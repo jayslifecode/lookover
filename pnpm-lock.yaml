@@ -66,6 +66,9 @@ importers:
       '@jayslifecode/lookover-lenses':
         specifier: workspace:*
         version: link:../lenses
+      '@jayslifecode/lookover-report':
+        specifier: workspace:*
+        version: link:../report
       '@jayslifecode/lookover-rules':
         specifier: workspace:*
         version: link:../rules
