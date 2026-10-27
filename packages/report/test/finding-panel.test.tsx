@@ -323,7 +323,7 @@ test("with nothing selected the panel shows the run's summary, never nothing", (
   };
   rerender(<FindingPanel report={{ ...STATE, totals }} findingId="no-such-finding" />);
   const withCost = screen.getByRole('complementary', { name: 'Run summary' });
-  expect(within(withCost).getByText('Judged by claude-sonnet-5-5 · 12 calls · $0.0421')).toBeDefined();
+  expect(within(withCost).getByText('Judged by claude-sonnet-5-5 · 12 calls · $0.04')).toBeDefined();
   expect(within(withCost).getByText('This run has no finding no-such-finding.')).toBeDefined();
 
   // A model that failed partway keeps what it cost.
@@ -332,7 +332,7 @@ test("with nothing selected the panel shows the run's summary, never nothing", (
   );
   expect(
     screen.getByText(
-      'Judged by claude-sonnet-5-5 · 12 calls · $0.0421 · the model failed partway; reproduction alone decided the rest',
+      'Judged by claude-sonnet-5-5 · 12 calls · $0.04 · the model failed partway; reproduction alone decided the rest',
     ),
   ).toBeDefined();
 });

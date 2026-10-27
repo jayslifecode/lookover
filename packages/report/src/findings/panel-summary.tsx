@@ -1,6 +1,7 @@
 import type { JudgeTotals } from '@jayslifecode/lookover-core';
 import type { ReportState } from '@/data/reduce';
 import { confirmedFindings, intendedFindings, rejectedFindings, SEVERITY_ORDER } from '@/data/selectors';
+import { formatUsd } from '@/lib/usd';
 import { SEVERITY_LABEL } from '@/screens/severity';
 import { Fact } from './finding-facts';
 import { PANEL_SECTION } from './panel-styles';
@@ -24,7 +25,6 @@ const UNAVAILABLE_REASON: Readonly<Record<NonNullable<JudgeTotals['unavailable']
   disabled: 'turned off',
   'api-error': 'the API failed',
 };
-const USD_DECIMALS = 4;
 const FAILED_PARTWAY = 'the model failed partway; reproduction alone decided the rest';
 
 function confirmedText(report: ReportState): string {
@@ -50,8 +50,7 @@ function costLine(totals: JudgeTotals | null): string | null {
   }
   const model = totals.model ?? 'the judge model';
   const calls = `${totals.calls} ${totals.calls === 1 ? 'call' : 'calls'}`;
-  const cost =
-    totals.estimatedUsd === null ? 'cost unknown' : `$${totals.estimatedUsd.toFixed(USD_DECIMALS)}`;
+  const cost = totals.estimatedUsd === null ? 'cost unknown' : formatUsd(totals.estimatedUsd);
   const line = `Judged by ${model} · ${calls} · ${cost}`;
   return totals.unavailable === 'api-error' ? `${line} · ${FAILED_PARTWAY}` : line;
 }

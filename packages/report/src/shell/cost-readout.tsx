@@ -1,6 +1,7 @@
 import type { JudgeTotals } from '@jayslifecode/lookover-core';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ON_GLASS_FOCUS } from '@/findings/panel-styles';
+import { formatUsd } from '@/lib/usd';
 
 /*
  * What the judge model cost the run, in the top bar: `34 calls · 61k tokens · ≈ $0.19`, with a tooltip
@@ -22,7 +23,6 @@ export interface CostReadoutProps {
 }
 
 const TOKENS_PER_K = 1_000;
-const USD_DECIMALS = 2;
 const NUMBER_LOCALE = 'en-US';
 const OFF = 'judge model off';
 const FAILED_PARTWAY = 'judge model failed partway';
@@ -60,8 +60,7 @@ function isAsked(totals: JudgeTotals): boolean {
 export function costText(totals: JudgeTotals | null): string {
   if (totals === null) return OFF;
   if (!isAsked(totals) && totals.unavailable !== null) return UNAVAILABLE_TEXT[totals.unavailable];
-  const cost =
-    totals.estimatedUsd === null ? 'cost unknown' : `≈ $${totals.estimatedUsd.toFixed(USD_DECIMALS)}`;
+  const cost = totals.estimatedUsd === null ? 'cost unknown' : `≈ ${formatUsd(totals.estimatedUsd)}`;
   const parts = [
     plural(totals.calls, 'call', 'calls'),
     `${formatTokens(totalTokens(totals))} tokens`,
