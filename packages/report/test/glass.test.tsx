@@ -135,6 +135,7 @@ test('more than three glass layers throws in development', async () => {
     expect(captured.errors).toHaveLength(1);
     expect(captured.errors[0]).toBeInstanceOf(GlassBudgetError);
     expect(String(captured.errors[0])).toMatch(/4 glass surfaces/);
+    expect(String(captured.errors[0])).toContain('(the top bar, the finding panel and the toast)');
   } finally {
     stopWatching();
     captured.stop();

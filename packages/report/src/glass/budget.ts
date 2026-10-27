@@ -1,5 +1,5 @@
 /*
- * Spec §11: never more than three glass layers on screen (the top bar, the pins, the finding panel);
+ * Spec §11: never more than three glass layers on screen (the top bar, the finding panel, the toast);
  * stacked `backdrop-filter`s are what makes glass interfaces stutter. In development a watcher counts the
  * mounted `Glass` surfaces (each sets `data-glass` on its root) and throws as soon as there are more.
  */
@@ -13,7 +13,7 @@ export class GlassBudgetError extends Error {
   constructor(count: number) {
     super(
       `${count} glass surfaces are mounted; the report allows at most ${MAX_GLASS_LAYERS} ` +
-        '(the top bar, the pins and the finding panel). Make the new surface solid.',
+        '(the top bar, the finding panel and the toast). Make the new surface solid.',
     );
     this.name = 'GlassBudgetError';
     this.count = count;

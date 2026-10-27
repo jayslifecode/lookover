@@ -4,8 +4,8 @@ import { useReducedMotion, useReducedTransparency } from '@/motion/reduced';
 import { followPointer } from './sheen';
 
 /*
- * A glass surface (spec §11), for the three places a layer floats over content: the top bar, the pins
- * and the finding panel. It is frosted where the browser has `backdrop-filter`; with `lens`, where the
+ * A glass surface (spec §11), for the three places a layer floats over content: the top bar, the
+ * finding panel and the toast. It is frosted where the browser has `backdrop-filter`; with `lens`, where the
  * browser can apply the `#lens` filter (Chromium), a fixed band along its top edge refracts the page
  * behind it as well (the band and the frosted body are layers of their own: see glass.css). It is a
  * solid `--bg-2` surface under reduced transparency or reduced motion, or without `backdrop-filter`.

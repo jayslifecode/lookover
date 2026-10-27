@@ -1,6 +1,6 @@
 /*
  * The glass surface of spec §11, ported from the motion study's `.glass`, `.spot` and `.lens`. Only the
- * top bar, the pins and the finding panel are glass; everything read in bulk is solid. A blurred layer
+ * top bar, the finding panel and the toast are glass; everything read in bulk is solid. A blurred layer
  * never changes size, position or filter while visible: only the spot moves, with `transform`.
  *
  * `glass.tsx` picks one look per surface (`data-glass`): `frosted`, `lens` (frosted, with a band along
