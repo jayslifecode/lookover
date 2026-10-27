@@ -51,9 +51,10 @@ default), if `ANTHROPIC_API_KEY` holds a key. With `--no-judge` the judge only a
 Then, unless `--no-report`, the report server starts (Stage 6, below) and its URL is the first line
 `lookover run` prints. The run itself begins after it: `run.started` is logged; the acknowledgement is
 checked again, at least one viewport must be configured (`E_CONFIG_INVALID` otherwise; with the judge
-on, a config with no viewport has already failed while the judge was set up) and the base URL must be on
-a host the browser may open (`E_NAVIGATION_BLOCKED` otherwise); then, for a Next.js app, the routes are
-read from the `app/` directory, each logged as `route.discovered`.
+on, a config with no viewport has already stopped with that same error, and the same message, while the
+judge was set up) and the base URL must be on a host the browser may open (`E_NAVIGATION_BLOCKED`
+otherwise); then, for a Next.js app, the routes are read from the `app/` directory, each logged as
+`route.discovered`.
 
 ## The browser and the network envelope
 

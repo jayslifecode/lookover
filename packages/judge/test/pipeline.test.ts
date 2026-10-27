@@ -88,6 +88,22 @@ async function judgeRun(pipeline: JudgePipeline, screens: readonly [Screen, Find
 }
 
 describe('JudgePipeline', () => {
+  test('a config with no viewports is refused as the engine refuses it, as an invalid config', () => {
+    let failure: unknown = null;
+    try {
+      pipelineWith({ viewports: [] });
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(LookoverError);
+    expect(failure).toMatchObject({
+      code: 'E_CONFIG_INVALID',
+      message: 'lookover.config.json lists no viewports, so there is nothing to capture screens at',
+      hint: 'Add a viewport to "viewports", such as { "name": "desktop", "width": 1440, "height": 900 }',
+    });
+  });
+
   test('a 3/3 step finding is confirmed by the harness without a model', async () => {
     const finding = focusOn(SETTINGS);
     const harness = stubHarness((batch) => attemptsFor(batch, () => 3));

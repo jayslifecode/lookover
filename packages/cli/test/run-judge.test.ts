@@ -8,6 +8,7 @@ import {
   createRun,
   DECISIONS_FILE,
   type LookoverConfig,
+  LookoverError,
   RequestObserver,
   type RunContext,
   TextObserver,
@@ -16,6 +17,7 @@ import { JudgePipeline } from '@jayslifecode/lookover-judge';
 import { InteractionLens } from '@jayslifecode/lookover-lenses';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { type CreateJudgeOptions, createJudge, pipelineOptions } from '../src/commands/run-judge.js';
+import { EXIT_INVALID, exitCodeFor } from '../src/ui.js';
 import { findingsFile, screen, stepCandidate } from './run-fixtures.js';
 
 const VERSION = '1.2.3';
@@ -205,6 +207,22 @@ describe('createJudge', () => {
       await decisionsAre('{ not json');
 
       await expect(createJudge(options())).rejects.toMatchObject({ code: 'E_RUN_FAILED' });
+    });
+
+    test('a config with no viewports fails as an invalid config, which exits 2', async () => {
+      const config = { ...CONFIG, viewports: [] };
+
+      const failure = await createJudge(options({ config, env: {} })).then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      expect(failure).toBeInstanceOf(LookoverError);
+      expect(failure).toMatchObject({
+        code: 'E_CONFIG_INVALID',
+        message: 'lookover.config.json lists no viewports, so there is nothing to capture screens at',
+      });
+      expect(exitCodeFor(failure)).toBe(EXIT_INVALID);
     });
   });
 });

@@ -116,7 +116,7 @@ export type { Observer, ObserverResult } from './observers/types.js';
 export type { ConfirmHosts } from './run/backend-probe.js';
 export { confirmHostCommand } from './run/backend-probe.js';
 export type { ReviewHooks, ReviewOptions, ReviewResult } from './run/engine.js';
-export { assertBaseUrlAllowed, runReview } from './run/engine.js';
+export { assertBaseUrlAllowed, firstViewport, runReview } from './run/engine.js';
 export type { RunEvent, RunEventBody } from './run/events.js';
 export type { InspectionOptions } from './run/inspection.js';
 export { Inspection, PER_SCREEN_BUDGET_MS } from './run/inspection.js';

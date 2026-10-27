@@ -173,7 +173,7 @@ async function review(
     viewports: config.viewports,
   });
   assertAcknowledged(config);
-  const viewport = firstViewport(config);
+  const viewport = firstViewport(config.viewports);
   assertBaseUrlAllowed(config);
   const routes = await discoverRoutes(ctx, opts.cwd);
   const inspection = new Inspection(ctx, {
@@ -354,8 +354,12 @@ function savedSessionExpired(): Promise<void> {
   );
 }
 
-function firstViewport(config: LookoverConfig): Viewport {
-  const [viewport] = config.viewports;
+/**
+ * The viewport screens are captured at: the first of `config.viewports`. None is a config error
+ * (`E_CONFIG_INVALID`), raised the same way by `runReview` and by anything that needs a viewport before it.
+ */
+export function firstViewport(viewports: readonly Viewport[]): Viewport {
+  const [viewport] = viewports;
   if (viewport === undefined) {
     throw new LookoverError(
       'E_CONFIG_INVALID',

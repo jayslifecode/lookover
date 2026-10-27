@@ -9,6 +9,7 @@ import {
   type EvidenceRef,
   type Finding,
   type FindingsFile,
+  firstViewport,
   type Judge,
   type JudgeOutcome,
   type JudgeTotals,
@@ -121,9 +122,7 @@ export class JudgePipeline implements Judge {
   private writeFailure: { error: unknown } | null = null;
 
   constructor(private readonly options: PipelineOptions) {
-    const [first] = options.viewports;
-    if (first === undefined) throw new Error('The judge needs the configured viewports, and none were given');
-    this.captureViewport = first;
+    this.captureViewport = firstViewport(options.viewports);
     this.queue = new BoundedQueue(options.concurrency ?? JUDGE_CONCURRENCY);
     this.now = options.now ?? (() => new Date().toISOString());
     const { model } = options;
