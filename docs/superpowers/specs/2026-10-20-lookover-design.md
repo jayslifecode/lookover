@@ -9,7 +9,7 @@ Lookover is an open-source design-and-QA reviewer that drives a web app in a rea
 ### The problem
 Code generation got cheap; verification did not. People building with Claude Code, Cursor, Codex and Lovable ship sites that work on the happy path and fail everywhere else: inputs that accept anything, buttons with no hover or focus state, four date formats on one site, contrast that fails accessibility, error messages that show raw translation keys, forms with no empty or loading state, and validation that exists in the form but not in the API. They do not know what a senior reviewer would check, so they cannot ask their coding agent to check it.
 
-Research done for this project (see `reports/Testing pain points and vibe coding.md` in the author's Documents folder) found:
+Research done for this project found:
 - Developers' main pain in 2026 is trusting code they did not write; 48% trust AI only when they can check its answer themselves (Stack Overflow 2026).
 - The documented failures of vibe-coded apps (Lovable CVE-2025-48757, Moltbook, Base44) were found by browsing the app and replaying requests, not by reading code.
 - The AI testing market is crowded with "AI writes your Playwright tests" products; the best-known (Octomind) shut down in 2026 for lack of market validation. Reproduction-gated reporting is already common (Momentic, QA Wolf).
