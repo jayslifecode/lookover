@@ -211,9 +211,11 @@ at 1.25 times, for every model in the table, so an Opus 5.5 estimate overstates 
 cost it 0.05 times). A model the table does not know gets no estimate. The run's totals are `judge` in
 `findings.json`, the cost readout in the report's top bar, and the `Judge` row of the summary, which
 reads `claude-sonnet-5-5 · <calls> calls (<hits> cached) · <tokens> tokens · ≈ $<cost>`, or
-`harness only (no ANTHROPIC_API_KEY)` when no model was used. The design's ceiling is $0.25 of model use
-for the bench run and $1 for a 20-screen app at the defaults
-([spec §3](superpowers/specs/2026-10-20-lookover-design.md#3-constraints)).
+`harness only (no ANTHROPIC_API_KEY)` when no model was used. The design's ceiling is a target, not a
+measurement: under $0.25 of model use for the bench run and under $1 for a 20-screen app at the defaults
+([spec §3](superpowers/specs/2026-10-20-lookover-design.md#3-constraints)). No run with a key has been
+measured yet; `LOOKOVER_E2E_MODEL=1 pnpm test:e2e`, with `ANTHROPIC_API_KEY` set, keeps the key for the
+bench run, whose `Judge` row (in `packages/cli/.e2e/lookover-run.log`) gives the cost.
 
 **The end of the run.** Once the crawl is done (and the run log is known to hold every event so far), the
 engine waits for every batch, decides the occurrence findings, and writes the judged file: the confirmed
