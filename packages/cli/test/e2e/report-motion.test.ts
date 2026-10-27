@@ -6,12 +6,13 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { E2E_OUTPUT_DIR } from './bench-env.js';
 import {
   describeStats,
-  FRAME_BUDGET_MS,
   FRAME_HARD_LIMIT_MS,
   FRAMES_OVER_BUDGET_ALLOWED,
   type FrameSample,
   type FrameStats,
+  frameBudget,
   frameStats,
+  recordOnlyLine,
   roundedMs,
   sampleFrames,
 } from './frames.js';
@@ -41,12 +42,14 @@ import {
  * switcher's pill across all its tabs and one pin → panel container transform; that the panel's top band
  * refracts the page behind it; and that reduced motion and reduced transparency leave no glass blurred
  * and, under reduced motion, nothing animating. The measured frames are written to `.e2e/frames.json`,
- * which CI keeps.
+ * which CI keeps. The hard limit is always asserted; the budget only when `LOOKOVER_FRAME_BUDGET_MS` sets
+ * it (see `frameBudget`).
  */
 
 /** The spec's baseline, from the v10 motion study at 1440×900 (Playwright, rAF frame times). */
 const BASELINE = { averageMs: 16.67, maxMs: 18.7 } as const;
 const FRAMES_FILE = join(E2E_OUTPUT_DIR, 'frames.json');
+const BUDGET = frameBudget();
 /** Screens → Drift → Screens → Drift: three travels from one end of the switcher to the other. */
 const PILL_TRAVELS: readonly string[] = ['Drift', 'Screens', 'Drift'];
 /** The spec's pill settles within ~650 ms (its trail edge); this leaves it room. */
@@ -178,7 +181,7 @@ async function showToast(page: Page, finding: Finding): Promise<void> {
 async function measured(page: Page, interaction: () => Promise<void>): Promise<MeasuredInteraction> {
   const glassLayers = await page.locator(GLASS_SELECTOR).count();
   const { deltasMs }: FrameSample = await sampleFrames(page, interaction);
-  return { ...frameStats(deltasMs), glassLayers, deltasMs: deltasMs.map(roundedMs) };
+  return { ...frameStats(deltasMs, BUDGET.ms), glassLayers, deltasMs: deltasMs.map(roundedMs) };
 }
 
 async function writeFrames(interactions: Readonly<Record<string, MeasuredInteraction>>): Promise<void> {
@@ -186,7 +189,8 @@ async function writeFrames(interactions: Readonly<Record<string, MeasuredInterac
     measuredAt: new Date().toISOString(),
     browser: `chromium ${browser.version()}`,
     viewport: REPORT_VIEWPORT,
-    budgetMs: FRAME_BUDGET_MS,
+    budgetMs: BUDGET.ms,
+    isBudgetAsserted: BUDGET.isAsserted,
     hardLimitMs: FRAME_HARD_LIMIT_MS,
     framesOverBudgetAllowed: FRAMES_OVER_BUDGET_ALLOWED,
     baseline: BASELINE,
@@ -222,8 +226,10 @@ describe('the report in motion, at 1440×900', () => {
     // Written before anything is asserted, so a run over budget still leaves its numbers for CI.
     await writeFrames(interactions);
     for (const [name, stats] of Object.entries(interactions)) {
-      process.stdout.write(`${describeStats(name, stats)} (${stats.glassLayers} glass layers)\n`);
+      process.stdout.write(`${describeStats(name, stats, BUDGET.ms)} (${stats.glassLayers} glass layers)\n`);
     }
+    const recordOnly = recordOnlyLine(BUDGET);
+    if (recordOnly !== null) process.stdout.write(`${recordOnly}\n`);
     const glass = await glassStyles(page);
 
     expect(await panelHeading(page).textContent()).toBe(finding.title);
@@ -234,10 +240,13 @@ describe('the report in motion, at 1440×900', () => {
     expect(glass.filter(({ filters }) => filters.some((filter) => LENS_FILTER.test(filter)))).toHaveLength(1);
     for (const [name, stats] of Object.entries(interactions)) {
       expect(stats.frames, name).toBeGreaterThan(MIN_SAMPLED_FRAMES);
-      expect(stats.overBudget, `${name}: frames over ${FRAME_BUDGET_MS} ms`).toBeLessThanOrEqual(
-        FRAMES_OVER_BUDGET_ALLOWED,
-      );
       expect(stats.overHardLimit, `${name}: frames over ${FRAME_HARD_LIMIT_MS} ms`).toBe(0);
+      // The budget only once a runner's numbers have set it; otherwise frames.json and the output record it.
+      if (BUDGET.isAsserted) {
+        expect(stats.overBudget, `${name}: frames over ${BUDGET.ms} ms`).toBeLessThanOrEqual(
+          FRAMES_OVER_BUDGET_ALLOWED,
+        );
+      }
     }
   });
 

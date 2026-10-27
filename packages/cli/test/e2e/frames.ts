@@ -12,8 +12,14 @@ import type { Page } from 'playwright';
 export const FRAME_BUDGET_MS = 34;
 /** A frame this long is a stall, never allowed. */
 export const FRAME_HARD_LIMIT_MS = 60;
-/** How many frames over the budget one interaction may have. */
+/** How many frames over the budget one interaction may have, when the budget is asserted. */
 export const FRAMES_OVER_BUDGET_ALLOWED = 1;
+/**
+ * Set to a number of milliseconds, the frame budget is that and is asserted. Unset, the budget is
+ * `FRAME_BUDGET_MS` and only recorded: no CI runner's numbers have been seen yet, and the local margin
+ * under it is under a millisecond. The hard limit is asserted either way.
+ */
+export const FRAME_BUDGET_ENV = 'LOOKOVER_FRAME_BUDGET_MS';
 /** Ten seconds at 60 Hz: more than any one interaction is sampled for. */
 const MAX_SAMPLED_FRAMES = 600;
 const SAMPLER_KEY = '__lookoverFrameSampler';
@@ -33,6 +39,12 @@ export interface FrameSample {
   readonly texts: readonly (string | null)[];
   /** The running animations; empty without `countAnimations`. */
   readonly animations: readonly number[];
+}
+
+/** The budget the frames are counted against, and whether going over it fails the test. */
+export interface FrameBudget {
+  readonly ms: number;
+  readonly isAsserted: boolean;
 }
 
 export interface FrameStats {
@@ -126,21 +138,44 @@ export function roundedMs(ms: number): number {
   return Math.round(ms * HUNDREDTHS) / HUNDREDTHS;
 }
 
-export function frameStats(deltasMs: readonly number[]): FrameStats {
+/**
+ * The budget `LOOKOVER_FRAME_BUDGET_MS` names, asserted; without it, `FRAME_BUDGET_MS`, recorded only.
+ * A value that is not a number of milliseconds above 0 is refused.
+ */
+export function frameBudget(env: NodeJS.ProcessEnv = process.env): FrameBudget {
+  const value = env[FRAME_BUDGET_ENV]?.trim() ?? '';
+  if (value === '') return { ms: FRAME_BUDGET_MS, isAsserted: false };
+  const ms = Number(value);
+  if (!Number.isFinite(ms) || ms <= 0) {
+    throw new Error(`${FRAME_BUDGET_ENV} must be a number of milliseconds above 0, not "${value}"`);
+  }
+  return { ms, isAsserted: true };
+}
+
+/** What the test prints when the budget is recorded only, so the output says nothing was asserted on it. */
+export function recordOnlyLine(budget: FrameBudget): string | null {
+  if (budget.isAsserted) return null;
+  return (
+    `frame budget: ${budget.ms} ms is recorded, not asserted, until a CI runner's numbers have been seen; ` +
+    `set ${FRAME_BUDGET_ENV} to assert it`
+  );
+}
+
+export function frameStats(deltasMs: readonly number[], budgetMs: number): FrameStats {
   const total = deltasMs.reduce((sum, delta) => sum + delta, 0);
   return {
     frames: deltasMs.length,
     averageMs: deltasMs.length === 0 ? 0 : roundedMs(total / deltasMs.length),
     maxMs: roundedMs(Math.max(0, ...deltasMs)),
-    overBudget: deltasMs.filter((delta) => delta > FRAME_BUDGET_MS).length,
+    overBudget: deltasMs.filter((delta) => delta > budgetMs).length,
     overHardLimit: deltasMs.filter((delta) => delta > FRAME_HARD_LIMIT_MS).length,
   };
 }
 
 /** One line for the test's output: `<name>: <frames> frames, average <a> ms, worst <m> ms, …`. */
-export function describeStats(name: string, stats: FrameStats): string {
+export function describeStats(name: string, stats: FrameStats, budgetMs: number): string {
   return (
     `${name}: ${stats.frames} frames, average ${stats.averageMs} ms, worst ${stats.maxMs} ms, ` +
-    `${stats.overBudget} over ${FRAME_BUDGET_MS} ms, ${stats.overHardLimit} over ${FRAME_HARD_LIMIT_MS} ms`
+    `${stats.overBudget} over ${budgetMs} ms, ${stats.overHardLimit} over ${FRAME_HARD_LIMIT_MS} ms`
   );
 }
