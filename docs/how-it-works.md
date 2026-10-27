@@ -14,7 +14,7 @@ flowchart TD
   config["lookover.config.json<br/>acknowledgement, viewport, base URL"] --> report["Stage 6: the report server on 127.0.0.1<br/>its URL printed first, then opened"]
   report --> routes["Routes from the filesystem<br/>(Next.js)"]
   routes --> session["Chromium session<br/>inside the network envelope"]
-  session --> probe["Probe: a few pages, logged out,<br/>nothing submitted"]
+  session --> probe["Probe: a few pages, before logging in,<br/>nothing submitted"]
   probe --> confirm{"Every backend<br/>confirmed?"}
   confirm -- no --> refuse["Stop: E_HOSTS_UNCONFIRMED"]
   confirm -- yes --> login["Log in"]

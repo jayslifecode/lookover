@@ -10,9 +10,10 @@ backends you confirm, the payment, email and SMS providers it blocks) is in
 ## What leaves your machine
 
 The browser Lookover drives loads your app, and your app's own requests go where your app sends them.
-Before you confirm the backends, Lookover only opens a few pages, logged out and without submitting
-anything, and the app's own requests from those pages do reach its backends: that is how Lookover learns
-what they are. From then on they go only to the backends you confirmed; every other backend is blocked.
+Before you confirm the backends, Lookover only opens a few pages, before logging in and without
+submitting anything; with a saved session, that session's cookies are sent with the probe's requests.
+The app's own requests from those pages do reach its backends: that is how Lookover learns what they
+are. From then on they go only to the backends you confirmed; every other backend is blocked.
 That traffic is your app's.
 
 Lookover's own requests to anything outside your machine are **judge model calls, and nothing else**:
