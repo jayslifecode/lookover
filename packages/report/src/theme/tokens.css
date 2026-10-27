@@ -7,12 +7,15 @@
  * The report's two palettes (spec §11), as in the motion study (docs/superpowers/specs/
  * 2026-10-20-report-motion-study.html), under `[data-theme]` on <html>. `use-theme.ts` sets the
  * attribute. Tailwind and shadcn read them through `@theme inline`, so a utility such as `bg-bg-1` or
- * shadcn's `bg-primary` follows the theme without a `dark:` variant.
+ * shadcn's `bg-primary` follows the theme without a `dark:` variant. Until the attribute is set (the
+ * first paint, before any script has run), <html> has the palette the system prefers: dark, unless it
+ * prefers light (the light palette is repeated for that below, and a test keeps the two copies equal).
  */
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-[data-theme="dark"] {
+[data-theme="dark"],
+:root:not([data-theme]) {
   color-scheme: dark;
   --bg-0: #060a13;
   --bg-1: #0b1222;
@@ -80,6 +83,40 @@
   --pill-edge: color-mix(in oklab, var(--accent) 45%, transparent);
   --pill-a: color-mix(in oklab, var(--accent) 22%, white);
   --pill-b: color-mix(in oklab, var(--accent) 14%, white);
+}
+
+/* The first paint on a system that prefers light: the light palette above, repeated. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --bg-0: #eef1f7;
+    --bg-1: #f6f8fc;
+    --bg-2: #ffffff;
+    --line: rgba(15, 23, 42, 0.1);
+    --line-strong: rgba(15, 23, 42, 0.18);
+    --ink: #0f172a;
+    --ink-2: #475569;
+    --ink-3: #7a879c;
+    --accent: #2f6be0;
+    --accent-ink: #ffffff;
+    --high: #c8323f;
+    --medium: #b4730b;
+    --low: #1e8a5a;
+    --pass: #1a8a56;
+    --on-high: #ffffff;
+    --on-medium: #060a13;
+    --on-low: #000000;
+    --glass-tint: rgba(255, 255, 255, 0.58);
+    --glass-edge: rgba(255, 255, 255, 0.9);
+    --glass-sheen: rgba(255, 255, 255, 0.55);
+    --glass-spot: rgba(255, 255, 255, 0.8);
+    --glass-shadow: 0 24px 60px rgba(15, 23, 42, 0.16), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+    --glow-a: rgba(47, 107, 224, 0.16);
+    --glow-b: rgba(129, 96, 255, 0.12);
+    --pill-edge: color-mix(in oklab, var(--accent) 45%, transparent);
+    --pill-a: color-mix(in oklab, var(--accent) 22%, white);
+    --pill-b: color-mix(in oklab, var(--accent) 14%, white);
+  }
 }
 
 @theme inline {

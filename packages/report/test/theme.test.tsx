@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { COLOR_SCHEME_DARK, REDUCED_MOTION, stubMatchMedia } from './media';
@@ -63,6 +66,19 @@ test('the dark palette is the default when the system prefers dark, and a user c
   expect(rootTheme()).toBe('light');
   expect(shown()).toBe('light/user');
   expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toBeDefined();
+});
+
+test('the page has no theme until the theme module sets the one the system prefers', async () => {
+  // jsdom's own URL is the global one here: the path is built from Node's.
+  const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'index.html'), 'utf8');
+  stubMatchMedia({ [COLOR_SCHEME_DARK]: false });
+
+  // Without the attribute, tokens.css paints the system's palette until this module runs.
+  expect(html).toContain('<html lang="en">');
+  expect(html).not.toContain('data-theme');
+  expect(rootTheme()).toBeUndefined();
+  await loadTheme();
+  expect(rootTheme()).toBe('light');
 });
 
 test('follows the system while the user has not chosen', async () => {

@@ -9,11 +9,55 @@ const TOKENS_CSS = readFileSync(new URL('../src/theme/tokens.css', import.meta.u
 
 type Theme = 'dark' | 'light';
 
+interface CssRule {
+  /** The selector list or at-rule before the block, its whitespace collapsed. */
+  readonly prelude: string;
+  /** The prelude of the rule this one is nested in (an `@media` query), or `null` at the top level. */
+  readonly parent: string | null;
+  readonly body: string;
+  /** Where the block opens in the stylesheet: a later rule of the same specificity wins. */
+  readonly start: number;
+}
+
+/** Every rule of the stylesheet with a block, nested ones included. */
+function rulesOf(css: string): CssRule[] {
+  let rules: CssRule[] = [];
+  let open: { prelude: string; start: number }[] = [];
+  let preludeStart = 0;
+  Array.from(css).forEach((char, index) => {
+    if (char === '{') {
+      open = [
+        ...open,
+        { prelude: css.slice(preludeStart, index).replace(/\s+/g, ' ').trim(), start: index + 1 },
+      ];
+    } else if (char === '}') {
+      const rule = open.at(-1);
+      open = open.slice(0, -1);
+      if (rule !== undefined) {
+        const parent = open.at(-1)?.prelude ?? null;
+        rules = [
+          ...rules,
+          { prelude: rule.prelude, parent, body: css.slice(rule.start, index), start: rule.start },
+        ];
+      }
+    }
+    if (char === '{' || char === '}' || char === ';') preludeStart = index + 1;
+  });
+  return rules;
+}
+
+const RULES = rulesOf(TOKENS_CSS);
+
+/** The rule nested in `parent` (`null`: at the top level) whose selector list includes `selector`. */
+function ruleFor(selector: string, parent: string | null = null): CssRule | undefined {
+  return RULES.find(
+    (rule) => rule.parent === parent && rule.prelude.split(',').some((listed) => listed.trim() === selector),
+  );
+}
+
 /** The custom properties declared in one rule's block, by name. */
-function declarationsIn(selector: string): Record<string, string> {
-  const start = TOKENS_CSS.indexOf(`${selector} {`);
-  if (start === -1) return {};
-  const body = TOKENS_CSS.slice(TOKENS_CSS.indexOf('{', start) + 1, TOKENS_CSS.indexOf('}', start));
+function declarationsIn(selector: string, parent: string | null = null): Record<string, string> {
+  const body = ruleFor(selector, parent)?.body ?? '';
   const entries = body
     .split(';')
     .map((declaration) => declaration.trim())
@@ -27,6 +71,9 @@ function declarationsIn(selector: string): Record<string, string> {
 
 const tokensFor = (theme: Theme) => declarationsIn(`[data-theme="${theme}"]`);
 const themeInline = () => declarationsIn('@theme inline');
+/** <html> before use-theme.ts has set its `data-theme`: the first paint. */
+const NO_THEME_YET = ':root:not([data-theme])';
+const SYSTEM_PREFERS_LIGHT = '@media (prefers-color-scheme: light)';
 
 /** Spec §11's colours, and the mockup's surface tokens, that both palettes define. */
 const PALETTE_TOKENS = [
@@ -83,4 +130,16 @@ test('tokens: mapped into Tailwind with @theme inline, with the report fonts and
   expect(theme['--font-sans']).toMatch(/^"Manrope Variable"/);
   expect(theme['--font-mono']).toMatch(/^"JetBrains Mono Variable"/);
   expect(theme['--radius-lg']).toBe('18px');
+});
+
+test('tokens: before the theme is set, the first paint has the palette the system prefers', () => {
+  const dark = ruleFor(NO_THEME_YET);
+  const light = ruleFor(NO_THEME_YET, SYSTEM_PREFERS_LIGHT);
+
+  // Dark, the fallback, unless the system prefers light: what use-theme.ts picks once it runs.
+  expect(dark).toBe(ruleFor('[data-theme="dark"]'));
+  expect(Object.keys(tokensFor('dark'))).toEqual(expect.arrayContaining(PALETTE_TOKENS));
+  expect(declarationsIn(NO_THEME_YET, SYSTEM_PREFERS_LIGHT)).toEqual(tokensFor('light'));
+  expect(light?.body).toMatch(/color-scheme:\s*light;/);
+  expect(light?.start).toBeGreaterThan(dark?.start ?? Number.POSITIVE_INFINITY);
 });
