@@ -87,7 +87,8 @@ interface Rank {
  * A thrown `LookoverError` is the run's failure and propagates. Any other error fails what it stopped:
  * while one target is measured, that target's attempt; while the context is opened, the page loaded, its
  * elements extracted or the context closed, every target's attempt; either way as not reproduced, with
- * `skipped: 'error:<first line of the message>'`, and the other attempts still run.
+ * `skipped: 'error:<first line of the message>'`, and the other attempts still run. A context that fails
+ * to close after an error is ignored: the error that was already thrown is the one that counts.
  */
 export class Harness {
   private readonly attempts: number;
@@ -148,14 +149,24 @@ export class Harness {
     startedAt: number,
   ): Promise<Outcome[]> {
     const ipage = await this.options.session.newIsolatedPage(screen.viewport);
+    let outcomes: Outcome[];
     try {
       const observers = this.options.observers();
       for (const observer of observers) observer.attach(ipage);
       const loaded = await this.load(ipage, screen, url);
-      return await this.measureEach(targets, loaded, collectedOnce(observers), performance.now() - startedAt);
-    } finally {
-      await ipage.close();
+      outcomes = await this.measureEach(
+        targets,
+        loaded,
+        collectedOnce(observers),
+        performance.now() - startedAt,
+      );
+    } catch (error) {
+      // The error already on its way out is the one that says what went wrong; a failed close would hide it.
+      await ipage.close().catch(() => undefined);
+      throw error;
     }
+    await ipage.close();
+    return outcomes;
   }
 
   /** The page at `url` with its elements extracted again, as a lens is handed a captured screen. */

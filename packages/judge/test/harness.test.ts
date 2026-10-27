@@ -281,6 +281,49 @@ describe('Harness', { timeout: BROWSER_TIMEOUT_MS }, () => {
     expect(openContexts()).toBe(1);
   });
 
+  /** Every attempt's page closes its context, then rejects as a browser that went away would. */
+  function pagesFailingToClose(): void {
+    const open = bed.session.newIsolatedPage.bind(bed.session);
+    vi.spyOn(bed.session, 'newIsolatedPage').mockImplementation(async (viewport) => {
+      const ipage = await open(viewport);
+      return {
+        ...ipage,
+        close: async () => {
+          await ipage.close();
+          throw new Error('Target page, context or browser has been closed');
+        },
+      };
+    });
+  }
+
+  test('a LookoverError from a measurement wins over the page then failing to close', async () => {
+    const finding = stepFindingOf(controls, FOCUS_VISIBLE);
+    const blocked = new LookoverError('E_NAVIGATION_BLOCKED', 'The lens left the allowed hosts');
+    const blocking: Lens = {
+      name: lens.name,
+      rules: lens.rules,
+      inspect: (context) => lens.inspect(context),
+      reproduce: () => Promise.reject(blocked),
+    };
+    pagesFailingToClose();
+
+    const reproducing = harnessWith({ lenses: [blocking] }).reproduce(batchesFor(controls.screen, [finding]));
+
+    await expect(reproducing).rejects.toBe(blocked);
+    expect(openContexts()).toBe(1);
+  });
+
+  test('a page that fails to close fails its attempt when nothing else went wrong', async () => {
+    const finding = stepFindingOf(controls, FOCUS_VISIBLE);
+    pagesFailingToClose();
+
+    const result = await harnessWith({ attempts: 1 }).reproduce(batchesFor(controls.screen, [finding]));
+
+    expect(attemptsOf(result, { finding }).map((a) => [a.reproduced, a.skipped])).toEqual([
+      [false, 'error:Target page, context or browser has been closed'],
+    ]);
+  });
+
   test('each target is handed a deadline of its own, from when its measurement starts', async () => {
     const ring = stepFindingOf(controls, FOCUS_VISIBLE);
     const tabindex = occurrenceFindingOf(controls, POSITIVE_TABINDEX);
