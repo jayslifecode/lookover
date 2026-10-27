@@ -252,8 +252,8 @@ async function explore(
 
 /**
  * The run's findings: the candidates, or with a judge the file it drains to. The judge is drained only
- * once the run log is known to hold every event so far, so a run that has already lost one spends
- * nothing on judging.
+ * once the run log is known to hold every event so far: a run that has already lost one fails before the
+ * drain, though the batches (and their model calls) that ran beside the crawl have already been made.
  */
 async function judgedFindings(plan: CrawlPlan, recorder: SessionRecorder): Promise<FindingsFile> {
   const candidates = plan.inspection.file();

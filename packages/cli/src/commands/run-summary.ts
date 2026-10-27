@@ -43,7 +43,11 @@ export const HARNESS_ONLY_NOTE = `Findings were reproduced ${REPRODUCTION_ATTEMP
 
 /** The Judge row of a run that was not judged. */
 const JUDGE_OFF = 'off (--no-judge)';
-/** The Judge row of a run judged without the model, by why the model was not used. */
+/**
+ * The Judge row of a run judged without the model, by why the model was not used. A `--no-judge` run's
+ * file has `judge: null` (`JUDGE_OFF`), so `disabled` is never looked up here; it is kept so every reason
+ * the totals can carry has its row.
+ */
 const HARNESS_ONLY: Readonly<Record<NonNullable<JudgeTotals['unavailable']> | 'unknown', string>> = {
   'no-api-key': 'harness only (no ANTHROPIC_API_KEY)',
   disabled: 'harness only (the judge model is turned off)',

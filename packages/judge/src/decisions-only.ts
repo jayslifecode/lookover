@@ -16,6 +16,9 @@ export interface DecisionsOnlyOptions {
   now?: () => string;
 }
 
+/** What a `--no-judge` run logs when the judge is attached. */
+const JUDGE_OFF_MESSAGE = 'The judge was turned off with --no-judge';
+
 /**
  * The judge of a `--no-judge` run: it reproduces and asks nothing, and only applies the user's decisions,
  * so a finding marked intended does not come back as a candidate. Each inspected screen's candidates are
@@ -27,9 +30,6 @@ export interface DecisionsOnlyOptions {
  * the session; it logs, once, that the judge was turned off (`judge.unavailable`, reason `disabled`), as
  * the pipeline logs that it has no key, so the report can say the candidates will not be reproduced.
  */
-/** What a `--no-judge` run logs when the judge is attached. */
-const JUDGE_OFF_MESSAGE = 'The judge was turned off with --no-judge';
-
 export function createDecisionsOnlyJudge(options: DecisionsOnlyOptions): Judge {
   const { ctx, decisions } = options;
   const now = options.now ?? (() => new Date().toISOString());
