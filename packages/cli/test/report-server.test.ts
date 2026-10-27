@@ -360,6 +360,15 @@ describe('the report server', () => {
       expect((await onDisk()).decisions).toEqual(decisions);
     });
 
+    test.each(['', '  \n\t'])('records an empty or blank note (%j) as no note', async (note) => {
+      const { id } = firstFinding();
+
+      const response = await post('/api/decisions', { findingId: id, status: 'intended', note });
+
+      expect(response.status).toBe(200);
+      expect((await onDisk()).decisions[id]).toMatchObject({ status: 'intended', note: null });
+    });
+
     test('forgets a decision with status null', async () => {
       const { id } = firstFinding();
       await post('/api/decisions', { findingId: id, status: 'intended' });

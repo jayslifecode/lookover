@@ -183,6 +183,11 @@ function isDecisionRequest(value: unknown): value is DecisionRequest {
   return (value.status === 'intended' || value.status === null) && hasValidNote;
 }
 
+/** The note a decision keeps: none for a note that is missing, empty or only whitespace. */
+function noteOf(note: string | undefined): string | null {
+  return note === undefined || note.trim() === '' ? null : note;
+}
+
 function isReplayRequest(value: unknown): value is ReplayRequest {
   return isRecord(value) && typeof value.findingId === 'string' && value.findingId !== '';
 }
@@ -233,7 +238,7 @@ async function postDecision(
   const decision: Decision | null =
     body.status === null
       ? null
-      : { status: 'intended', at: new Date().toISOString(), note: body.note ?? null };
+      : { status: 'intended', at: new Date().toISOString(), note: noteOf(body.note) };
   const written = await serialisedFor(context.lookoverDir, () =>
     writeDecision(context.lookoverDir, body.findingId, decision),
   );
