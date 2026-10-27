@@ -192,13 +192,16 @@ reason `no-api-key`, and the summary says the judge model was not used. If the m
 error after the retries, a refusal, an answer that is not a verdict), the first failure is logged as
 `judge.unavailable` with the reason `api-error`; that finding and every later one is confirmed by the
 harness, its note saying the model was unavailable and why. A model failure never loses a reproduced
-finding.
+finding. Nor does evidence that cannot be read: a finding whose crops or measurements cannot be read for
+its bundle is not sent, the harness confirms it with the note `judge skipped: evidence unreadable
+(<reason>)`, and the model is still asked about the others.
 
 **The verdict cache.** Before a call, the judge looks in `.lookover/cache/judge/<hash>.json`, where the
 hash is the SHA-256 of the prompt's version, the model id, the bundle's text and the crops' ids. Nothing
 in the bundle depends on when it was built (no time, no duration), so the same finding measured the same
 way on a later run is answered from the cache: `cached: true`, no tokens, no cost. Every verdict the
-model gives is cached, redacted. Delete the directory to ask again.
+model gives is cached, redacted. Delete the directory to ask again. An entry that cannot be read counts
+as a miss, and a verdict that cannot be written to the cache is still used, its call still counted.
 
 **Cost.** Every call records its token use (`input`, `output`, `cacheRead`, `cacheWrite`) and an estimate
 in US dollars from the price table in `packages/judge/src/model/pricing.ts` (Sonnet 5.5 at $2 per
@@ -214,8 +217,8 @@ for the bench run and $1 for a 20-screen app at the defaults
 **The end of the run.** Once the crawl is done (and the run log is known to hold every event so far), the
 engine waits for every batch, decides the occurrence findings, and writes the judged file: the confirmed
 findings in `findings`, the rest in `rejected` and `intended`, with the judge's totals and environment.
-A batch that fails on anything but a model error (a `LookoverError`, evidence that cannot be read) fails
-the run.
+A batch that fails for any other reason (a `LookoverError`, a run log or reproduction record that cannot
+be written) fails the run.
 
 With `--no-judge`, nothing is reproduced and no model is asked: the candidates are written as measured,
 except the intended ones, which the decisions still move to `intended`; `judge.unavailable` is logged

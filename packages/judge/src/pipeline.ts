@@ -29,6 +29,7 @@ import { JUDGE_CONCURRENCY, REPRODUCTION_ATTEMPTS } from './constants.js';
 import {
   decideOccurrence,
   decideStep,
+  evidenceUnreadableNote,
   type ModelVerdict,
   modelUnavailableNote,
   splitOccurrences,
@@ -36,7 +37,7 @@ import {
 } from './decide.js';
 import { Harness, type HarnessOptions, isReproduced, targetKey } from './harness.js';
 import type { JudgeModel } from './model/anthropic.js';
-import { bundleFor } from './model/bundle.js';
+import { type BundleInput, bundleFor, type JudgeBundle } from './model/bundle.js';
 import { readCachedVerdict, writeCachedVerdict } from './model/cache.js';
 import { estimateUsd } from './model/pricing.js';
 import { BoundedQueue } from './queue.js';
@@ -71,6 +72,9 @@ interface ModelAnswer {
   note: string | null;
 }
 
+/** A finding's bundle, or the note of a harness decision made because its evidence could not be read. */
+type BuiltBundle = { bundle: JudgeBundle } | { note: string };
+
 const NO_ANSWER: ModelAnswer = { verdict: null, note: null };
 const NO_USAGE: TokenUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 const UNAVAILABLE_MESSAGES: Readonly<Record<NonNullable<JudgeTotals['unavailable']>, string>> = {
@@ -91,9 +95,11 @@ const UNAVAILABLE_MESSAGES: Readonly<Record<NonNullable<JudgeTotals['unavailable
  * The model is asked only about what reproduced on every attempt (a step finding, or an occurrence finding's
  * kept occurrences): the project's verdict cache first, then the model, whose verdict is cached. The first
  * error the model throws (anything but a `LookoverError`) is logged once as `judge.unavailable`; that
- * finding and every later one is decided by the harness, its note saying why. Any other error (a
- * `LookoverError` from the harness or the model, a failure to read evidence or the cache) fails its batch
- * and `drain`, and no batch starts after it.
+ * finding and every later one is decided by the harness, its note saying why. A finding whose evidence
+ * cannot be read for its bundle is decided by the harness alone, its note saying so, and the model is
+ * still asked about the next one; a verdict cache that cannot be read is a miss, and a verdict that
+ * cannot be cached is kept, its call counted. Any other error, and a `LookoverError` from any of these,
+ * fails its batch and `drain`, and no batch starts after it.
  */
 export class JudgePipeline implements Judge {
   private readonly queue: BoundedQueue;
@@ -251,7 +257,11 @@ export class JudgePipeline implements Judge {
     });
   }
 
-  /** The cached verdict, or the model's (then cached); none without a model or after it failed. */
+  /**
+   * The cached verdict, or the model's (then cached); none without a model or after it failed, nor when
+   * the finding's evidence cannot be read (the note says so). A cache that cannot be read is a miss, and
+   * a verdict that cannot be cached is kept all the same.
+   */
   private async askModel(
     finding: Finding,
     attempts: readonly Attempt[],
@@ -260,15 +270,13 @@ export class JudgePipeline implements Judge {
     const { model, ctx } = this.options;
     if (model === null) return NO_ANSWER;
     if (this.modelFailure !== null) return { verdict: null, note: modelUnavailableNote(this.modelFailure) };
-    const bundle = await bundleFor({
-      finding,
-      rule: ruleById(finding.rule.id),
-      attempts,
-      environment,
-      model: model.model,
-      readEvidence: (ref: EvidenceRef) => readFile(ctx.evidence.resolve(ref)),
-    });
-    const hit = await readCachedVerdict(ctx.lookoverDir, bundle.hash);
+    const built = await this.bundleOf(finding, attempts, environment, model.model);
+    if ('note' in built) return { verdict: null, note: built.note };
+    const { bundle } = built;
+    const hit = await unlessFailed(
+      () => readCachedVerdict(ctx.lookoverDir, bundle.hash),
+      () => null,
+    );
     if (hit !== null) {
       this.totals = { ...this.totals, cacheHits: this.totals.cacheHits + 1 };
       const verdict = { verdict: hit.verdict, model: hit.model, usage: null, estimatedUsd: 0, cached: true };
@@ -281,8 +289,12 @@ export class JudgePipeline implements Judge {
       if (error instanceof LookoverError) throw error;
       return { verdict: null, note: await this.modelFailed(error) };
     }
-    await writeCachedVerdict(ctx.lookoverDir, bundle.hash, answer.verdict, model.model);
     this.addCall(model.model, answer.usage);
+    // Not cached, the verdict still stands: only the next run's cache hit is lost.
+    await unlessFailed(
+      () => writeCachedVerdict(ctx.lookoverDir, bundle.hash, answer.verdict, model.model),
+      () => undefined,
+    );
     const estimatedUsd = estimateUsd(model.model, answer.usage);
     const verdict = {
       verdict: answer.verdict,
@@ -292,6 +304,28 @@ export class JudgePipeline implements Judge {
       cached: false,
     };
     return { verdict, note: null };
+  }
+
+  /** The finding's bundle for `model`, or the note of a harness decision when its evidence cannot be read. */
+  private bundleOf(
+    finding: Finding,
+    attempts: readonly Attempt[],
+    environment: Environment,
+    model: string,
+  ): Promise<BuiltBundle> {
+    const { evidence } = this.options.ctx;
+    const input: BundleInput = {
+      finding,
+      rule: ruleById(finding.rule.id),
+      attempts,
+      environment,
+      model,
+      readEvidence: (ref: EvidenceRef) => readFile(evidence.resolve(ref)),
+    };
+    return unlessFailed<BuiltBundle>(
+      async () => ({ bundle: await bundleFor(input) }),
+      (error) => ({ note: evidenceUnreadableNote(describeError(error)) }),
+    );
   }
 
   /** Marks the model unavailable and logs it, the first time only; returns the failed finding's note. */
@@ -334,5 +368,15 @@ export class JudgePipeline implements Judge {
   private async writesSettled(): Promise<void> {
     await this.lastWrite;
     if (this.writeFailure !== null) throw this.writeFailure.error;
+  }
+}
+
+/** What `operation` resolves to, or what `fallback` makes of its error; a `LookoverError` is rethrown. */
+async function unlessFailed<T>(operation: () => Promise<T>, fallback: (error: unknown) => T): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof LookoverError) throw error;
+    return fallback(error);
   }
 }

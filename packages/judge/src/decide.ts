@@ -31,7 +31,8 @@ export interface DecideOptions {
   of?: number;
   /**
    * The note of a harness confirmation: why the model gave no verdict on a reproduced finding when there
-   * is a reason worth reading (it was unavailable). Default `null`.
+   * is a reason worth reading (it was unavailable, or the finding's evidence could not be read). Default
+   * `null`.
    */
   harnessNote?: string | null;
 }
@@ -165,6 +166,11 @@ export function modelUnavailableNote(reason: string): string {
     `The judge model was unavailable (${reason}), so this finding is confirmed by reproduction alone.`,
     MAX_NOTE_CHARS,
   );
+}
+
+/** The note of a harness confirmation made because the finding's evidence could not be read for the model. */
+export function evidenceUnreadableNote(reason: string): string {
+  return clip(`judge skipped: evidence unreadable (${reason})`, MAX_NOTE_CHARS);
 }
 
 function rulingOf(verdict: ModelVerdict | null, harnessNote: string | null): Ruling {
