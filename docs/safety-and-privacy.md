@@ -91,8 +91,8 @@ the CLI (`packages/cli/src/report/`).
   without it the answer is 401. The cookie is set for the host `127.0.0.1`, and since cookies are not
   scoped by port, the browser also sends it to any other server you open as `127.0.0.1:<port>` in it
   (often the app under review); it is `HttpOnly` and named per port, and no `__Host-` prefix is possible
-  over http. Tokens are compared in constant time. The report's own files (its HTML,
-  scripts, styles and fonts) are served without the token; they hold nothing of yours.
+  over http. Tokens are compared in constant time. The report's own files (its HTML, scripts, styles
+  and fonts) are served without the token; they hold nothing of yours.
 - **The URL is the key.** The URL Lookover prints, `http://127.0.0.1:<port>/?token=<token>`, is what lets
   a browser in: opening it sets the cookie and redirects to `/`, so the token leaves the address bar.
   Treat it as you would a password while the server runs: anyone on this machine who has it can read the

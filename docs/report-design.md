@@ -257,8 +257,8 @@ over it fails the interaction too. Without it the budget is recorded, in `frames
 `isBudgetAsserted: false`) and in the test's output, with a line saying it is record-only until a
 runner's numbers have been seen: the local margin under it is 0.7 ms (33.3 ms against 34), too thin to
 fail CI on before a runner has been measured. CI writes `frames.json` before it asserts, so the artifact
-is kept on every run, passing or not. The same suite checks that under reduced motion nothing
-animates while a pin is chosen, frame by frame.
+is kept on every run, passing or not. The same suite checks that under reduced motion nothing animates
+while a pin is chosen, frame by frame.
 
 ## Type
 
